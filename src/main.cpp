@@ -1,13 +1,13 @@
-// Escape game "Explorer 3" pour M5Stack Cardputer ADV.
-// Le vaisseau s'est écrasé sur Mars : 4 énigmes en 5 minutes pour retrouver
-// le code de démarrage "NASA" et redécoller.
-//   1. Morse lumineux (N)      -> coffre du fer à souder
-//   2. QCM premier rover (A)   -> réservoirs de carburant
-//   3. Picross 5x5 (S)         -> stockage des pièces détachées
-//   4. Morse sonore (A)        -> ordinateur de bord (alarme O2 coupée)
-// Puis saisie de NASA, décollage et écran de fin.
-// Fn appuyé 3 fois d'affilée : pause / reprise (maître du jeu).
-// Record (O2 restant) gardé en mémoire même après extinction.
+// "Explorer 3" escape game for the M5Stack Cardputer ADV.
+// The spaceship crashed on Mars: 4 puzzles in 5 minutes to find the
+// "NASA" start-up code and take off again.
+//   1. Light Morse (N)          -> soldering iron safe
+//   2. First rover quiz (A)     -> fuel tanks
+//   3. 5x5 picross (S)          -> spare parts storage
+//   4. Audio Morse (A)          -> on-board computer (O2 alarm muted)
+// Then type NASA, liftoff and end screen.
+// Fn pressed 3 times in a row: pause / resume (game master).
+// Record (O2 left) kept in memory even after power off.
 #include <Arduino.h>
 #include <M5Cardputer.h>
 #include <Preferences.h>
@@ -22,14 +22,14 @@ constexpr int H = 135;
 
 constexpr uint32_t GAME_MS = 5UL * 60UL * 1000UL;
 constexpr uint32_t PENALTY_MS = 10000;
-constexpr uint32_t FN_GAP_MS = 800;  // délai max entre deux appuis sur Fn
+constexpr uint32_t FN_GAP_MS = 800;  // max delay between two Fn presses
 constexpr uint8_t VOLUME = 255;
 
-constexpr uint32_t LAMP_UNIT_MS = 400;   // Morse lumineux (énigme 1)
-constexpr uint32_t SOUND_UNIT_MS = 200;  // Morse sonore (énigme 4)
+constexpr uint32_t LAMP_UNIT_MS = 400;   // light Morse (puzzle 1)
+constexpr uint32_t SOUND_UNIT_MS = 200;  // audio Morse (puzzle 4)
 constexpr uint16_t MORSE_FREQ = 700;
 
-// Canaux du haut-parleur
+// Speaker channels
 constexpr uint8_t CH_O2 = 0;
 constexpr uint8_t CH_SFX = 1;
 constexpr uint8_t CH_MORSE = 2;
@@ -70,7 +70,7 @@ const char *const MORSE[26] = {
 
 const char CODE[] = "NASA";
 
-// Vaisseau en pixel art (11 x 18). '.' = transparent.
+// Pixel art spaceship (11 x 18). '.' = transparent.
 const char *const ROCKET[] = {
     ".....R.....",
     "....RRR....",
@@ -94,7 +94,7 @@ const char *const ROCKET[] = {
 constexpr int ROCKET_W = 11;
 constexpr int ROCKET_H = 18;
 
-// Picross : la lettre S
+// Picross: the letter S
 const char *const PICROSS[5] = {
     "#####",
     "#....",
@@ -113,19 +113,19 @@ St state = St::Title;
 int puzzle = 0;  // 0..3
 uint32_t stateStart = 0;
 
-// Chrono
+// Countdown
 uint32_t deadline = 0;
 bool timerRunning = false;
 uint32_t frozenRemaining = GAME_MS;
 uint32_t nextO2Beep = 0;
 
-// Effets
+// Effects
 uint32_t errFlashUntil = 0;
 uint32_t penaltyPopupUntil = 0;
 char wrongLetter = 0;
 bool helpOpen = false;
 
-// Morse (énigmes 1 et 4)
+// Morse (puzzles 1 and 4)
 uint32_t morseStart = 0;
 bool morsePlaying = false;
 uint32_t morseEnd = 0;
@@ -137,7 +137,7 @@ int curY = 0;
 std::vector<int> rowClues[5];
 std::vector<int> colClues[5];
 
-// Ordinateur de bord
+// On-board computer
 String typedCode;
 int termShown = 0;
 
@@ -148,23 +148,23 @@ uint32_t pausedRemaining = 0;
 int fnCount = 0;
 uint32_t lastFn = 0;
 
-// Record : plus grande réserve d'O2 restante
+// Record: highest O2 left
 Preferences prefs;
 uint32_t bestO2 = 0;
 bool newRecord = false;
 
-// Décor
+// Scenery
 struct Star {
     uint8_t x, y, b;
 };
 Star stars[45];
 
-// Grondement du décollage : bruit brun bouclable, 1 s à 8 kHz
+// Liftoff rumble: loopable brown noise, 1 s at 8 kHz
 constexpr int NOISE_LEN = 8000;
 constexpr int NOISE_FADE = 400;
 int16_t noiseBuf[NOISE_LEN];
 
-// ---------------------------------------------------------------- son
+// ---------------------------------------------------------------- sound
 
 struct Note {
     uint32_t at;
@@ -248,14 +248,14 @@ void buildNoise() {
         v += (random(-1000, 1001) / 1000.0f) * 0.15f;
         v *= 0.97f;
         if (random(0, 400) == 0) {
-            v += (random(-1000, 1001) / 1000.0f) * 0.8f;  // craquements
+            v += (random(-1000, 1001) / 1000.0f) * 0.8f;  // crackles
         }
         tmp[i] = v;
         if (fabsf(v) > peak) {
             peak = fabsf(v);
         }
     }
-    // Fondu enchaîné pour que la boucle n'ait pas de clic
+    // Crossfade so the loop has no click
     for (int i = 0; i < NOISE_FADE; i++) {
         float a = (float)i / NOISE_FADE;
         tmp[i] = tmp[i] * a + tmp[NOISE_LEN + i] * (1 - a);
@@ -266,7 +266,7 @@ void buildNoise() {
     delete[] tmp;
 }
 
-// ---------------------------------------------------------------- chrono
+// ---------------------------------------------------------------- countdown
 
 uint32_t remaining() {
     if (paused) {
@@ -294,7 +294,7 @@ void penalty() {
     sfxError();
 }
 
-// ---------------------------------------------------------------- dessin
+// ---------------------------------------------------------------- drawing
 
 void text(const String &s, int x, int y, uint16_t col, int size = 1, textdatum_t datum = TL_DATUM) {
     canvas.setTextSize(size);
@@ -323,7 +323,7 @@ int wrapped(const String &s, int x, int y, int w, uint16_t col, int lineH = 14) 
         }
         String word = s.substring(start, sp);
         start = sp + 1;
-        // Garde « ? », « ! », « : » collés au mot précédent
+        // Keep a lone "?", "!", ":" attached to the previous word
         while (start < len) {
             int next = s.indexOf(' ', start);
             if (next < 0) {
@@ -368,7 +368,7 @@ uint16_t rocketColor(char c) {
     }
 }
 
-// lying = couché sur le côté (épave), nez vers la droite
+// lying = on its side (wreck), nose to the right
 void drawRocket(int x, int y, int s, bool lying = false) {
     for (int r = 0; r < ROCKET_H; r++) {
         for (int c = 0; c < ROCKET_W; c++) {
@@ -408,7 +408,7 @@ void drawStars(int maxY, bool twinkle) {
 }
 
 void drawMars(int groundY, bool dark = false) {
-    // Ciel : dégradé vers l'horizon poussiéreux
+    // Sky: gradient towards the dusty horizon
     for (int y = 0; y < groundY; y++) {
         float k = (float)y / groundY;
         uint8_t r = 8 + k * k * (dark ? 70 : 110);
@@ -417,12 +417,12 @@ void drawMars(int groundY, bool dark = false) {
         canvas.drawFastHLine(0, y, W, rgb(r, g, b));
     }
     drawStars(groundY - 25, true);
-    // Montagnes lointaines
+    // Distant mountains
     canvas.fillTriangle(-20, groundY, 40, groundY - 26, 100, groundY, C_MARS4);
     canvas.fillTriangle(60, groundY, 125, groundY - 18, 190, groundY, C_MARS4);
     canvas.fillTriangle(150, groundY, 215, groundY - 30, 280, groundY, C_MARS4);
     canvas.fillTriangle(190, groundY, 215, groundY - 30, 222, groundY - 22, C_MARS3);
-    // Sol
+    // Ground
     canvas.fillRect(0, groundY, W, H - groundY, C_MARS2);
     canvas.drawFastHLine(0, groundY, W, C_MARS1);
     canvas.fillEllipse(40, groundY + 14, 18, 4, C_MARS3);
@@ -466,7 +466,7 @@ void drawHud() {
         text("-10 s", 120, 2, C_RED);
     }
 
-    // Lettres du code trouvées
+    // Code letters found
     int found = puzzle;
     if (state == St::Solved || state == St::Computer || state == St::Launch || state == St::Win) {
         found = puzzle + 1;
@@ -494,8 +494,8 @@ void drawErrorFlash() {
 
 void drawMorseHelp() {
     canvas.fillRect(0, 16, W, H - 16, C_PANEL);
-    text("ALPHABET MORSE", 4, 18, C_ORANGE);
-    text("TAB : fermer", W - 4, 18, C_DIM, 1, TR_DATUM);
+    text("MORSE CODE", 4, 18, C_ORANGE);
+    text("TAB: close", W - 4, 18, C_DIM, 1, TR_DATUM);
     for (int i = 0; i < 26; i++) {
         int col = i / 7;
         int row = i % 7;
@@ -624,18 +624,18 @@ bool picrossSolved() {
     return true;
 }
 
-// ---------------------------------------------------------------- écrans
+// ---------------------------------------------------------------- screens
 
 void drawTitle(uint32_t now) {
     drawMars(100);
     drawRocket(140, 82, 2, true);
-    canvas.fillRect(136, 100, 46, 6, C_MARS2);  // à moitié enfoncé dans le sol
+    canvas.fillRect(136, 100, 46, 6, C_MARS2);  // half buried in the ground
     canvas.fillEllipse(176, 101, 8, 2, C_MARS3);
     drawSmoke(160, 82, now);
     shadowText("EXPLORER 3", W / 2 + 1, 10, C_ORANGE, 3, TC_DATUM);
-    shadowText("Escape game : crash sur Mars", W / 2, 50, C_TEXT, 1, TC_DATUM);
+    shadowText("Escape game: crash on Mars", W / 2, 50, C_TEXT, 1, TC_DATUM);
     if (blink()) {
-        shadowText("ENTRÉE pour commencer", W / 2, 118, C_YELLOW, 1, TC_DATUM);
+        shadowText("Press ENTER to start", W / 2, 118, C_YELLOW, 1, TC_DATUM);
     }
 }
 
@@ -644,13 +644,13 @@ void drawBriefing() {
     drawStars(H, false);
     canvas.fillRoundRect(3, 3, W - 6, H - 22, 5, C_PANEL);
     canvas.drawRoundRect(3, 3, W - 6, H - 22, 5, C_BORDER);
-    text("JOURNAL DE BORD - SOL 1", 10, 8, C_ORANGE);
-    int y = wrapped("Notre vaisseau Explorer 3 s'est écrasé sur Mars. Pour redécoller, réparez-le et trouvez "
-                    "le code de démarrage de la fusée.",
+    text("CAPTAIN'S LOG - SOL 1", 10, 8, C_ORANGE);
+    int y = wrapped("Our spaceship Explorer 3 has crashed on Mars. To take off again, repair it and find "
+                    "the rocket's start-up code.",
                     10, 24, W - 20, C_TEXT);
-    wrapped("4 énigmes, 5 minutes d'oxygène. Chaque erreur coûte 10 secondes !", 10, y + 4, W - 20, C_CYAN);
+    wrapped("4 puzzles, 5 minutes of oxygen. Each mistake costs 10 seconds!", 10, y + 4, W - 20, C_CYAN);
     if (blink()) {
-        text("ENTRÉE : démarrer le chrono", W / 2, H - 14, C_YELLOW, 1, TC_DATUM);
+        text("ENTER: start the countdown", W / 2, H - 14, C_YELLOW, 1, TC_DATUM);
     }
 }
 
@@ -691,13 +691,13 @@ void drawPuzzleMorse(uint32_t now, bool light) {
     canvas.fillScreen(C_SPACE);
     drawHud();
     if (light) {
-        text("ÉNIGME 1/4 : COFFRE DU FER À SOUDER", 4, 19, C_ORANGE);
-        wrapped("Le coffre est verrouillé. Son voyant clignote en code Morse : tapez la lettre !", 4, 36,
+        text("PUZZLE 1/4: SOLDERING IRON SAFE", 4, 19, C_ORANGE);
+        wrapped("The safe is locked. Its light is blinking in Morse code: type the letter!", 4, 36,
                 140, C_TEXT, 13);
         drawLamp(186, 74, lampOn(now));
     } else {
-        text("ÉNIGME 4/4 : ORDINATEUR DE BORD", 4, 19, C_ORANGE);
-        wrapped("L'ordinateur de bord émet un signal Morse sonore. Quelle est la dernière lettre du code ?", 4,
+        text("PUZZLE 4/4: ON-BOARD COMPUTER", 4, 19, C_ORANGE);
+        wrapped("The on-board computer is sending an audio Morse signal. What is the last letter of the code?", 4,
                 36, 140, C_TEXT, 13);
         drawSpeaker(186, 74, morsePlaying);
     }
@@ -705,9 +705,9 @@ void drawPuzzleMorse(uint32_t now, bool light) {
         morsePlaying = false;
     }
     if (wrongLetter && (int32_t)(errFlashUntil + 600 - now) > 0) {
-        text(String(wrongLetter) + " : faux !", 4, 105, C_RED);
+        text(String(wrongLetter) + ": wrong!", 4, 105, C_RED);
     }
-    drawFooter(morsePlaying ? "Signal en cours   TAB : alphabet Morse" : "ESPACE : rejouer   TAB : alphabet Morse");
+    drawFooter(morsePlaying ? "Signal playing   TAB: Morse code" : "SPACE: replay   TAB: Morse code");
     if (helpOpen) {
         drawMorseHelp();
     }
@@ -716,8 +716,8 @@ void drawPuzzleMorse(uint32_t now, bool light) {
 void drawPuzzleQuiz(uint32_t now) {
     canvas.fillScreen(C_SPACE);
     drawHud();
-    text("ÉNIGME 2/4 : RÉSERVOIRS DE CARBURANT", 4, 19, C_ORANGE);
-    wrapped("Question de sécurité : quel est le premier rover à avoir atterri sur Mars ?", 4, 35, W - 8, C_TEXT, 13);
+    text("PUZZLE 2/4: FUEL TANKS", 4, 19, C_ORANGE);
+    wrapped("Security question: what was the first rover to land on Mars?", 4, 35, W - 8, C_TEXT, 13);
     const char *opts[4] = {"Sojourner", "Spirit", "Curiosity", "Perseverance"};
     for (int i = 0; i < 4; i++) {
         int x = 4 + (i % 2) * 118;
@@ -729,7 +729,7 @@ void drawPuzzleQuiz(uint32_t now) {
         text(String((char)('A' + i)), x + 11, y + 4, C_BLACK, 1, TC_DATUM);
         text(opts[i], x + 24, y + 4, C_TEXT);
     }
-    drawFooter("Tapez A, B, C ou D");
+    drawFooter("Type A, B, C or D");
 }
 
 void drawPuzzlePicross() {
@@ -740,13 +740,13 @@ void drawPuzzlePicross() {
     const int gy = 47;
     canvas.setFont(&fonts::Font0);
     for (int i = 0; i < 5; i++) {
-        // Indices des colonnes (empilés au-dessus)
+        // Column clues (stacked above)
         uint16_t cc = colOk(i) ? C_GREEN : C_TEXT;
         int n = colClues[i].size();
         for (int k = 0; k < n; k++) {
             text(String(colClues[i][k]), gx + i * cell + cell / 2, gy - 3 - (n - k) * 9, cc, 1, TC_DATUM);
         }
-        // Indices des lignes (à gauche)
+        // Row clues (on the left)
         uint16_t rc = rowOk(i) ? C_GREEN : C_TEXT;
         String s;
         for (size_t k = 0; k < rowClues[i].size(); k++) {
@@ -769,11 +769,11 @@ void drawPuzzlePicross() {
     canvas.drawRect(x, y, cell + 1, cell + 1, C_YELLOW);
 
     const int px = 130;
-    text("ÉNIGME 3/4", px, 19, C_ORANGE);
-    text("Pièces détachées", px, 33, C_TEXT);
-    wrapped("Remplissez la grille. Chaque chiffre = un bloc de cases pleines.", px, 50, W - px - 4, C_DIM, 13);
-    text("; . , /  bouger", px, 104, C_CYAN);
-    text("OK  noircir", px, 118, C_CYAN);
+    text("PUZZLE 3/4", px, 19, C_ORANGE);
+    text("Spare parts", px, 33, C_TEXT);
+    wrapped("Fill in the grid. Each number = a block of filled cells.", px, 50, W - px - 4, C_DIM, 13);
+    text("; . , /  move", px, 104, C_CYAN);
+    text("OK  fill", px, 118, C_CYAN);
 }
 
 void drawSolderingIron(int cx, int cy) {
@@ -781,7 +781,7 @@ void drawSolderingIron(int cx, int cy) {
     canvas.fillRect(cx - 30, cy - 6, 2, 12, C_CYAN);
     canvas.fillRect(cx - 4, cy - 3, 26, 6, C_GREY);
     canvas.fillTriangle(cx + 22, cy - 3, cx + 22, cy + 3, cx + 34, cy, C_ORANGE);
-    for (int i = 0; i < 8; i++) {  // câble
+    for (int i = 0; i < 8; i++) {  // cable
         canvas.fillCircle(cx - 36 - i * 2, cy + (int)(sinf(i * 0.6f) * 4), 1, C_DGREY);
     }
 }
@@ -803,7 +803,7 @@ void drawGear(int cx, int cy) {
     }
     canvas.fillCircle(cx, cy, 17, C_GREY);
     canvas.fillCircle(cx, cy, 7, C_PANEL);
-    canvas.fillCircle(cx + 32, cy + 16, 6, C_DGREY);  // petit écrou
+    canvas.fillCircle(cx + 32, cy + 16, 6, C_DGREY);  // small nut
     canvas.fillCircle(cx + 32, cy + 16, 2, C_PANEL);
 }
 
@@ -812,8 +812,8 @@ void drawSolved() {
     drawHud();
     canvas.fillRoundRect(3, 19, W - 6, H - 38, 5, C_PANEL);
     canvas.drawRoundRect(3, 19, W - 6, H - 38, 5, C_GREEN);
-    const char *title[3] = {"COFFRE OUVERT !", "RÉSERVOIRS OUVERTS", "STOCKAGE OUVERT !"};
-    const char *item[3] = {"Fer à souder récupéré", "Carburant récupéré", "Pièces détachées récupérées"};
+    const char *title[3] = {"SAFE OPENED!", "FUEL TANKS OPEN", "STORAGE OPENED!"};
+    const char *item[3] = {"Soldering iron recovered", "Fuel recovered", "Spare parts recovered"};
     text(title[puzzle], W / 2, 24, C_GREEN, 2, TC_DATUM);
     int ix = 56;
     int iy = 82;
@@ -825,22 +825,22 @@ void drawSolved() {
         drawGear(ix - 6, iy - 4);
     }
     wrapped(item[puzzle], 100, 50, W - 108, C_TEXT);
-    text("Lettre du code :", 100, 88, C_DIM);
+    text("Code letter:", 100, 88, C_DIM);
     canvas.fillRoundRect(200, 78, 28, 30, 4, C_ORANGE);
     text(String(CODE[puzzle]), 214 + 1, 82, C_BLACK, 2, TC_DATUM);
     if (blink()) {
-        drawFooter("ENTRÉE : continuer");
+        drawFooter("ENTER: continue");
     } else {
         drawFooter("");
     }
 }
 
 const char *const TERM_LINES[] = {
-    "> Diagnostic des systèmes...",
-    "> Fer à souder ........ OK",
-    "> Carburant ........... OK",
-    "> Pièces détachées .... OK",
-    "> CODE DE REDÉMARRAGE TROUVÉ : NASA",
+    "> Running system diagnostics...",
+    "> Soldering iron ...... OK",
+    "> Fuel ................ OK",
+    "> Spare parts ......... OK",
+    "> RESTART CODE FOUND: NASA",
 };
 constexpr int TERM_COUNT = 5;
 constexpr uint32_t TERM_STEP = 600;
@@ -859,7 +859,7 @@ void drawComputer(uint32_t now) {
         text(TERM_LINES[i], 4, 19 + i * 13, col);
     }
     if (n == TERM_COUNT) {
-        text("Code de démarrage :", 4, 92, C_TERM);
+        text("Start-up code:", 4, 92, C_TERM);
         for (int i = 0; i < 4; i++) {
             int x = 124 + i * 26;
             canvas.drawRect(x, 88, 22, 22, C_TERM);
@@ -869,7 +869,7 @@ void drawComputer(uint32_t now) {
                 canvas.fillRect(x + 6, 104, 10, 2, C_TERM);
             }
         }
-        drawFooter("Tapez le code puis ENTRÉE   DEL effacer");
+        drawFooter("Type the code then ENTER   DEL erase");
     }
 }
 
@@ -883,10 +883,10 @@ void drawLaunch(uint32_t now) {
         shake = random(-1, 2);
     } else {
         float k = (t - 1500) / 1000.0f;
-        rise = 12 * k * k * k + 8 * k;  // accélération
+        rise = 12 * k * k * k + 8 * k;  // acceleration
         shake = random(-1, 2) * (t < 2500 ? 1 : 0);
     }
-    // Tremblement de toute la scène
+    // Whole scene shakes
     drawMars(ground);
     int rx = W / 2 - ROCKET_W * s / 2 + shake;
     int ry = ground - ROCKET_H * s - (int)rise;
@@ -895,7 +895,7 @@ void drawLaunch(uint32_t now) {
         drawFlame(rx + ROCKET_W * s / 2, ry + ROCKET_H * s, s, flameLen);
     }
     drawRocket(rx, ry, s);
-    // Nuages de fumée au sol
+    // Smoke clouds on the ground
     int spread = t < 4000 ? t / 25 : 160;
     for (int i = 0; i < 9; i++) {
         int off = (i - 4) * spread / 6;
@@ -904,27 +904,27 @@ void drawLaunch(uint32_t now) {
         canvas.fillCircle(W / 2 + off + random(-1, 2), ground + 4 - (i % 2) * 4, r, rgb(g, g - 8, g - 16));
     }
     if (t < 1500) {
-        shadowText("ALLUMAGE DES MOTEURS", W / 2, 8, C_YELLOW, 1, TC_DATUM);
+        shadowText("ENGINE IGNITION", W / 2, 8, C_YELLOW, 1, TC_DATUM);
     } else if (t < 3500) {
-        shadowText("DÉCOLLAGE !", W / 2, 8, C_ORANGE, 2, TC_DATUM);
+        shadowText("LIFTOFF!", W / 2, 8, C_ORANGE, 2, TC_DATUM);
     }
 }
 
 void drawWin(uint32_t now) {
     canvas.fillScreen(C_SPACE);
     drawStars(H, true);
-    // Mars qui s'éloigne
+    // Mars falling behind
     canvas.fillCircle(40, 178, 82, C_MARS2);
     canvas.fillCircle(30, 170, 70, C_MARS1);
     canvas.fillEllipse(20, 112, 12, 4, C_MARS3);
     canvas.fillEllipse(70, 124, 8, 3, C_MARS3);
     canvas.fillCircle(52, 104, 3, C_MARS3);
-    // La Terre au loin
+    // Earth in the distance
     canvas.fillCircle(212, 26, 12, C_BLUE);
     canvas.fillEllipse(208, 21, 5, 3, C_GREEN);
     canvas.fillEllipse(216, 31, 4, 3, C_GREEN);
     canvas.fillEllipse(214, 18, 4, 1, C_WHITE);
-    // Le vaisseau
+    // The spaceship
     int bob = (int)(sinf(now / 300.0f) * 2);
     int rx = 160;
     int ry = 46 + bob;
@@ -932,18 +932,18 @@ void drawWin(uint32_t now) {
     drawRocket(rx, ry, 2);
 
     shadowText("MISSION", 8, 10, C_ORANGE, 2, TL_DATUM);
-    shadowText("ACCOMPLIE !", 8, 36, C_ORANGE, 2, TL_DATUM);
-    shadowText("Explorer 3 a redécollé !", 8, 62, C_TEXT, 1, TL_DATUM);
-    shadowText("O2 restant : " + fmtTime(frozenRemaining), 8, 76, C_CYAN, 1, TL_DATUM);
+    shadowText("COMPLETE!", 8, 36, C_ORANGE, 2, TL_DATUM);
+    shadowText("Explorer 3 took off!", 8, 62, C_TEXT, 1, TL_DATUM);
+    shadowText("O2 left: " + fmtTime(frozenRemaining), 8, 76, C_CYAN, 1, TL_DATUM);
     if (newRecord) {
         if (blink(300)) {
-            shadowText("NOUVEAU RECORD !", 8, 90, C_YELLOW, 1, TL_DATUM);
+            shadowText("NEW RECORD!", 8, 90, C_YELLOW, 1, TL_DATUM);
         }
     } else {
-        shadowText("Record : " + fmtTime(bestO2), 8, 90, C_DIM, 1, TL_DATUM);
+        shadowText("Record: " + fmtTime(bestO2), 8, 90, C_DIM, 1, TL_DATUM);
     }
     if (blink()) {
-        shadowText("ENTRÉE : rejouer", W - 4, 120, C_YELLOW, 1, TR_DATUM);
+        shadowText("ENTER: play again", W - 4, 120, C_YELLOW, 1, TR_DATUM);
     }
 }
 
@@ -952,15 +952,15 @@ void drawGameOver(uint32_t now) {
     drawRocket(140, 82, 2, true);
     canvas.fillRect(136, 100, 46, 6, C_MARS2);
     canvas.fillEllipse(176, 101, 8, 2, C_MARS3);
-    shadowText("OXYGÈNE ÉPUISÉ", W / 2, 14, C_RED, 2, TC_DATUM);
-    shadowText("Mission échouée...", W / 2, 44, C_TEXT, 1, TC_DATUM);
-    shadowText("Explorer 3 reste sur Mars.", W / 2, 58, C_TEXT, 1, TC_DATUM);
+    shadowText("OUT OF OXYGEN", W / 2, 14, C_RED, 2, TC_DATUM);
+    shadowText("Mission failed...", W / 2, 44, C_TEXT, 1, TC_DATUM);
+    shadowText("Explorer 3 is stuck on Mars.", W / 2, 58, C_TEXT, 1, TC_DATUM);
     if (blink()) {
-        shadowText("ENTRÉE : rejouer", W / 2, 118, C_YELLOW, 1, TC_DATUM);
+        shadowText("ENTER: play again", W / 2, 118, C_YELLOW, 1, TC_DATUM);
     }
 }
 
-// ---------------------------------------------------------------- logique
+// ---------------------------------------------------------------- logic
 
 void enter(St s) {
     state = s;
@@ -981,7 +981,7 @@ void startPuzzle(int p) {
         memset(grid, 0, sizeof(grid));
         curX = curY = 0;
     } else if (p == 3) {
-        cancelChannel(CH_O2);  // alarme oxygène coupée pour entendre le Morse
+        cancelChannel(CH_O2);  // oxygen alarm muted so the Morse can be heard
         startMorseSound();
     }
 }
@@ -1091,7 +1091,7 @@ void handleKey(const KeysState &ks) {
         case St::Puzzle: {
             bool morse = puzzle == 0 || puzzle == 3;
             if (morse && helpOpen) {
-                helpOpen = false;  // n'importe quelle touche ferme l'aide
+                helpOpen = false;  // any key closes the help
                 break;
             }
             if (morse && ks.tab) {
@@ -1179,7 +1179,7 @@ void update(uint32_t now) {
             gameOver();
             return;
         }
-        // Alarme oxygène, de plus en plus rapide (muette pendant les énigmes 1 et 4)
+        // Oxygen alarm, faster and faster (muted during puzzles 1 and 4)
         bool mute = state == St::Puzzle && (puzzle == 0 || puzzle == 3);
         if (!mute && (int32_t)(now - nextO2Beep) >= 0) {
             o2Beeps(now);
@@ -1225,14 +1225,14 @@ void drawPause() {
     drawHud();
     canvas.fillRoundRect(30, 24, W - 60, 96, 6, C_PANEL);
     canvas.drawRoundRect(30, 24, W - 60, 96, 6, C_ORANGE);
-    shadowText("PAUSE", W / 2, 30, C_ORANGE, 3, TC_DATUM);
-    text("Chrono arrêté : " + fmtTime(pausedRemaining), W / 2, 70, C_CYAN, 1, TC_DATUM);
+    shadowText("PAUSED", W / 2, 30, C_ORANGE, 3, TC_DATUM);
+    text("Timer stopped: " + fmtTime(pausedRemaining), W / 2, 70, C_CYAN, 1, TC_DATUM);
     canvas.fillRoundRect(40, 88, W - 80, 22, 4, C_PANEL2);
     canvas.drawRoundRect(40, 88, W - 80, 22, 4, C_YELLOW);
     if (blink()) {
         canvas.fillTriangle(48, 93, 48, 105, 56, 99, C_YELLOW);
     }
-    text("Reprendre : Fn Fn Fn", W / 2 + 8, 93, C_TEXT, 1, TC_DATUM);
+    text("Resume: Fn Fn Fn", W / 2 + 8, 93, C_TEXT, 1, TC_DATUM);
 }
 
 bool canPause() {
@@ -1246,12 +1246,12 @@ void togglePause() {
         pausedAt = now;
         paused = true;
         stopAllSound();
-        morsePlaying = false;  // ESPACE pour rejouer le signal après la pause
+        morsePlaying = false;  // SPACE replays the signal after the pause
         helpOpen = false;
     } else {
         paused = false;
         deadline = now + pausedRemaining;
-        stateStart += now - pausedAt;  // l'ordinateur de bord reprend où il en était
+        stateStart += now - pausedAt;  // the on-board computer resumes where it was
         nextO2Beep = now + 1500;
         errFlashUntil = 0;
         penaltyPopupUntil = 0;
@@ -1259,7 +1259,7 @@ void togglePause() {
     sfxClick();
 }
 
-// Fn seul (sans autre touche) : compte les appuis pour la pause
+// Fn alone (no other key): count presses for the pause
 bool fnOnly(const KeysState &ks) {
     return ks.fn && ks.word.empty() && !ks.enter && !ks.del && !ks.tab && !ks.space;
 }
@@ -1315,7 +1315,7 @@ void setup() {
     canvas.createSprite(W, H);
     canvas.setTextWrap(false);
 
-    randomSeed(3);  // ciel étoilé identique à chaque partie
+    randomSeed(3);  // same starry sky every game
     for (auto &s : stars) {
         s.x = random(0, W);
         s.y = random(0, H);

@@ -1,72 +1,74 @@
-# Escape Game Cardputer : Explorer 3
+# Escape Game Cardputer: Explorer 3
 
-Un mini escape game de 5 minutes pour le **M5Stack Cardputer ADV**.
+A 5-minute mini escape game for the **M5Stack Cardputer ADV**.
 
-> Journal de bord, Sol 1 : notre vaisseau spatial **Explorer 3** s'est écrasé sur Mars.
-> Pour redécoller, il faut réparer le vaisseau et retrouver le code de démarrage de la fusée…
-> avant la fin de la réserve d'oxygène !
+> Captain's log, Sol 1: our spaceship **Explorer 3** has crashed on Mars.
+> To take off again, the crew must repair the ship and find the rocket's start-up code…
+> before the oxygen runs out!
 
-## Le jeu
+*This is the English version (`english` branch). The French version is on the `main` branch.*
 
-- **4 énigmes** à résoudre dans l'ordre. Chacune ouvre une partie du vaisseau et révèle une lettre du **code de démarrage** (4 lettres).
-- **5 minutes d'oxygène.** Une jauge et un compte à rebours restent affichés en haut de l'écran, et une alarme « bip bip bip » accélère à mesure que l'oxygène baisse.
-- **Chaque mauvaise réponse coûte 10 secondes.**
-- Une fois le code retrouvé, on le tape au clavier pour lancer le **décollage** (animation et son), suivi d'un écran de fin en pixel art.
-- Si l'oxygène tombe à zéro, la partie est perdue (écran « Oxygène épuisé »). On peut rejouer immédiatement.
-- Le **record** (oxygène restant à l'arrivée) reste en mémoire même après extinction.
+## The game
 
-### Les énigmes
+- **4 puzzles**, solved in order. Each one opens part of the ship and reveals one letter of the 4-letter **start-up code**.
+- **5 minutes of oxygen.** A gauge and a countdown stay at the top of the screen, and a "beep beep beep" alarm gets faster as the oxygen runs low.
+- **Each wrong answer costs 10 seconds.**
+- Once the code is found, type it on the keyboard to launch the **liftoff** (animation and sound), followed by a pixel art end screen.
+- If the oxygen reaches zero, the game is lost ("Out of oxygen" screen). You can play again right away.
+- The **record** (oxygen left at the end) is kept in memory, even after power off.
 
-| # | Lieu | Type d'énigme |
-|---|------|---------------|
-| 1 | Coffre du fer à souder | Un voyant clignote en **code Morse** |
-| 2 | Réservoirs de carburant | Une question de **culture spatiale** (QCM) |
-| 3 | Stockage des pièces détachées | Un **picross** (nonogramme) 5×5 |
-| 4 | Ordinateur de bord | Un signal **Morse sonore** (l'alarme se tait pour qu'on l'entende) |
+### The puzzles
 
-Les solutions ne sont pas données ici. ⚠️ **Joueurs : ne lisez pas le code source, il contient les réponses !**
+| # | Place | Puzzle type |
+|---|-------|-------------|
+| 1 | Soldering iron safe | A light blinking in **Morse code** |
+| 2 | Fuel tanks | A **space trivia** question (multiple choice) |
+| 3 | Spare parts storage | A 5×5 **picross** (nonogram) |
+| 4 | On-board computer | An **audio Morse** signal (the alarm goes quiet so you can hear it) |
 
-## Commandes
+The solutions are not given here. ⚠️ **Players: don't read the source code, it contains the answers!**
 
-| Touche | Action |
-|--------|--------|
-| `ENTRÉE` | Valider, continuer, démarrer, rejouer |
-| Lettres | Répondre aux énigmes, taper le code |
-| `ESPACE` | Rejouer le signal Morse (énigmes 1 et 4) |
-| `TAB` | Afficher ou masquer l'alphabet Morse (énigmes 1 et 4) |
-| `;` `.` `,` `/` | Déplacer le curseur du picross (haut, bas, gauche, droite) |
-| `ENTRÉE` (picross) | Noircir ou effacer une case |
-| `DEL` | Effacer une lettre du code |
+## Controls
 
-### Pour le maître du jeu
+| Key | Action |
+|-----|--------|
+| `ENTER` | Confirm, continue, start, play again |
+| Letters | Answer the puzzles, type the code |
+| `SPACE` | Replay the Morse signal (puzzles 1 and 4) |
+| `TAB` | Show or hide the Morse code chart (puzzles 1 and 4) |
+| `;` `.` `,` `/` | Move the picross cursor (up, down, left, right) |
+| `ENTER` (picross) | Fill or clear a cell |
+| `DEL` | Erase a letter of the code |
 
-Appuyer **3 fois de suite sur `Fn`** (moins de 0,8 s entre deux appuis) met la partie en **pause** : le chrono s'arrête, le son se coupe et l'énigme est masquée. Encore **3 fois `Fn`** pour reprendre.
+### For the game master
+
+Press **`Fn` 3 times in a row** (less than 0.8 s between presses) to **pause** the game: the countdown stops, the sound is muted and the puzzle is hidden. Press **`Fn` 3 times** again to resume.
 
 ## Installation
 
-### Avec M5Launcher (carte SD)
+### With M5Launcher (SD card)
 
-1. Télécharger `Escape-Game-Explorer-3.bin` dans la page [Releases](../../releases).
-2. Le copier dans le dossier `apps/` de la carte SD.
-3. Sur le Cardputer, dans le menu SD de M5Launcher, choisir le fichier pour l'installer.
+1. Download `Escape-Game-Explorer-3-EN.bin` from the [Releases](../../releases) page.
+2. Copy it to the `apps/` folder of the SD card.
+3. On the Cardputer, pick the file in the M5Launcher SD menu to install it.
 
-### Compiler soi-même
+### Build it yourself
 
-Le projet utilise [PlatformIO](https://platformio.org/) :
+The project uses [PlatformIO](https://platformio.org/):
 
 ```
-pio run                # compile
-pio run -t upload      # compile et flashe par USB
+pio run                # build
+pio run -t upload      # build and flash over USB
 ```
 
-- Plateforme `espressif32 @ 6.7.0` (Arduino core 2.0.x)
-- Bibliothèques : M5Cardputer, M5Unified, M5GFX
-- Tout le jeu tient dans un seul fichier : `src/main.cpp`
+- Platform `espressif32 @ 6.7.0` (Arduino core 2.0.x)
+- Libraries: M5Cardputer, M5Unified, M5GFX
+- The whole game is in a single file: `src/main.cpp`
 
-## Matériel
+## Hardware
 
-Développé pour le **Cardputer ADV** (ESP32-S3, sans PSRAM, haut-parleur intégré). Aucun accessoire n'est nécessaire.
+Made for the **Cardputer ADV** (ESP32-S3, no PSRAM, built-in speaker). No accessory needed.
 
-## Licence
+## License
 
 [MIT](LICENSE)
