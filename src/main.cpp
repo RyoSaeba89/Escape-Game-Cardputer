@@ -11,7 +11,10 @@
 #include <Arduino.h>
 #include <M5Cardputer.h>
 #include <Preferences.h>
+#include <utility/Adafruit_TCA8418/Adafruit_TCA8418.h>
 
+#include <algorithm>
+#include <memory>
 #include <type_traits>
 #include <vector>
 
@@ -106,6 +109,50 @@ const char *const PICROSS[5] = {
 enum class St { Title, Briefing, Puzzle, Solved, Computer, Launch, Win, GameOver };
 
 using KeysState = std::decay<decltype(M5Cardputer.Keyboard.keysState())>::type;
+
+// Clavier du Cardputer ADV lu à chaque tour de boucle. Le lecteur de la
+// bibliothèque M5Cardputer attend l'interruption du TCA8418 : si une touche
+// arrive au mauvais moment, l'interruption est perdue et le clavier ne répond
+// plus du tout (le jeu continue de tourner).
+class PolledKeyboardReader : public KeyboardReader {
+public:
+    void begin() override {
+        _ok = _tca.begin();
+        if (_ok) {
+            _tca.matrix(7, 8);
+            _tca.flush();
+        }
+    }
+
+    void update() override {
+        if (!_ok) {
+            return;
+        }
+        for (uint8_t ev = _tca.getEvent(); ev != 0; ev = _tca.getEvent()) {
+            int code = (ev & 0x7F) - 1;
+            int r = code / 10;
+            int c = code % 10;
+            if (code < 0 || r >= 7 || c >= 8) {
+                continue;
+            }
+            Point2D_t p;  // même disposition que la bibliothèque
+            p.x = r * 2 + (c > 3 ? 1 : 0);
+            p.y = (c + 4) % 4;
+            auto it = std::find(_key_list.begin(), _key_list.end(), p);
+            if (ev & 0x80) {
+                if (it == _key_list.end()) {
+                    _key_list.push_back(p);
+                }
+            } else if (it != _key_list.end()) {
+                _key_list.erase(it);
+            }
+        }
+    }
+
+private:
+    Adafruit_TCA8418 _tca;
+    bool _ok = false;
+};
 
 M5Canvas canvas(&M5Cardputer.Display);
 
@@ -1306,7 +1353,12 @@ void render(uint32_t now) {
 
 void setup() {
     auto cfg = M5.config();
-    M5Cardputer.begin(cfg, true);
+    M5Cardputer.begin(cfg, false);  // clavier démarré à la main (voir PolledKeyboardReader)
+    if (M5.getBoard() == m5::board_t::board_M5CardputerADV) {
+        M5Cardputer.Keyboard.begin(std::unique_ptr<KeyboardReader>(new PolledKeyboardReader()));
+    } else {
+        M5Cardputer.Keyboard.begin();
+    }
     M5Cardputer.Display.setRotation(1);
     M5Cardputer.Speaker.begin();
     M5Cardputer.Speaker.setVolume(VOLUME);
@@ -1331,6 +1383,8 @@ void setup() {
 
 void loop() {
     M5Cardputer.update();
+    M5Cardputer.Keyboard.updateKeyList();
+    M5Cardputer.Keyboard.updateKeysState();
     uint32_t now = millis();
     runNotes(now);
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
