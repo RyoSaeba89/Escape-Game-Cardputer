@@ -6,6 +6,8 @@ Un mini escape game de 5 minutes pour le **M5Stack Cardputer ADV**.
 > Pour redécoller, il faut réparer le vaisseau et retrouver le code de démarrage de la fusée…
 > avant la fin de la réserve d'oxygène !
 
+*English version: branch [`english`](../../tree/english).*
+
 ## Le jeu
 
 - **4 énigmes** à résoudre dans l'ordre. Chacune ouvre une partie du vaisseau et révèle une lettre du **code de démarrage** (4 lettres).
