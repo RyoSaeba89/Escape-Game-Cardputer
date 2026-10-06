@@ -322,6 +322,20 @@ int wrapped(const String &s, int x, int y, int w, uint16_t col, int lineH = 14) 
             sp = len;
         }
         String word = s.substring(start, sp);
+        start = sp + 1;
+        // Garde « ? », « ! », « : » collés au mot précédent
+        while (start < len) {
+            int next = s.indexOf(' ', start);
+            if (next < 0) {
+                next = len;
+            }
+            String punct = s.substring(start, next);
+            if (punct.length() != 1 || strchr("?!:;", punct[0]) == nullptr) {
+                break;
+            }
+            word += " " + punct;
+            start = next + 1;
+        }
         String cand = line.isEmpty() ? word : line + " " + word;
         if (!line.isEmpty() && canvas.textWidth(cand) > w) {
             canvas.drawString(line, x, y);
@@ -330,7 +344,6 @@ int wrapped(const String &s, int x, int y, int w, uint16_t col, int lineH = 14) 
         } else {
             line = cand;
         }
-        start = sp + 1;
     }
     if (!line.isEmpty()) {
         canvas.drawString(line, x, y);
@@ -694,7 +707,7 @@ void drawPuzzleMorse(uint32_t now, bool light) {
     if (wrongLetter && (int32_t)(errFlashUntil + 600 - now) > 0) {
         text(String(wrongLetter) + " : faux !", 4, 105, C_RED);
     }
-    drawFooter(morsePlaying ? "Signal en cours...   TAB : alphabet Morse" : "ESPACE : rejouer   TAB : alphabet Morse");
+    drawFooter(morsePlaying ? "Signal en cours   TAB : alphabet Morse" : "ESPACE : rejouer   TAB : alphabet Morse");
     if (helpOpen) {
         drawMorseHelp();
     }
@@ -704,17 +717,17 @@ void drawPuzzleQuiz(uint32_t now) {
     canvas.fillScreen(C_SPACE);
     drawHud();
     text("ÉNIGME 2/4 : RÉSERVOIRS DE CARBURANT", 4, 19, C_ORANGE);
-    wrapped("Question de sécurité : quel est le premier rover à avoir atterri sur Mars ?", 4, 36, W - 8, C_TEXT);
+    wrapped("Question de sécurité : quel est le premier rover à avoir atterri sur Mars ?", 4, 35, W - 8, C_TEXT, 13);
     const char *opts[4] = {"Sojourner", "Spirit", "Curiosity", "Perseverance"};
     for (int i = 0; i < 4; i++) {
         int x = 4 + (i % 2) * 118;
-        int y = 68 + (i / 2) * 26;
+        int y = 75 + (i / 2) * 23;
         bool bad = wrongLetter == 'A' + i && (int32_t)(errFlashUntil + 600 - now) > 0;
-        canvas.fillRoundRect(x, y, 114, 22, 4, bad ? rgb(90, 20, 20) : C_PANEL2);
-        canvas.drawRoundRect(x, y, 114, 22, 4, bad ? C_RED : C_BORDER);
-        canvas.fillRoundRect(x + 3, y + 3, 16, 16, 3, C_ORANGE);
-        text(String((char)('A' + i)), x + 11, y + 5, C_BLACK, 1, TC_DATUM);
-        text(opts[i], x + 24, y + 5, C_TEXT);
+        canvas.fillRoundRect(x, y, 114, 21, 4, bad ? rgb(90, 20, 20) : C_PANEL2);
+        canvas.drawRoundRect(x, y, 114, 21, 4, bad ? C_RED : C_BORDER);
+        canvas.fillRoundRect(x + 3, y + 3, 15, 15, 3, C_ORANGE);
+        text(String((char)('A' + i)), x + 11, y + 4, C_BLACK, 1, TC_DATUM);
+        text(opts[i], x + 24, y + 4, C_TEXT);
     }
     drawFooter("Tapez A, B, C ou D");
 }
@@ -768,7 +781,7 @@ void drawSolderingIron(int cx, int cy) {
     canvas.fillRect(cx - 30, cy - 6, 2, 12, C_CYAN);
     canvas.fillRect(cx - 4, cy - 3, 26, 6, C_GREY);
     canvas.fillTriangle(cx + 22, cy - 3, cx + 22, cy + 3, cx + 34, cy, C_ORANGE);
-    for (int i = 0; i < 10; i++) {  // câble
+    for (int i = 0; i < 8; i++) {  // câble
         canvas.fillCircle(cx - 36 - i * 2, cy + (int)(sinf(i * 0.6f) * 4), 1, C_DGREY);
     }
 }
@@ -802,7 +815,7 @@ void drawSolved() {
     const char *title[3] = {"COFFRE OUVERT !", "RÉSERVOIRS OUVERTS", "STOCKAGE OUVERT !"};
     const char *item[3] = {"Fer à souder récupéré", "Carburant récupéré", "Pièces détachées récupérées"};
     text(title[puzzle], W / 2, 24, C_GREEN, 2, TC_DATUM);
-    int ix = 50;
+    int ix = 56;
     int iy = 82;
     if (puzzle == 0) {
         drawSolderingIron(ix, iy);
@@ -1214,12 +1227,12 @@ void drawPause() {
     canvas.drawRoundRect(30, 24, W - 60, 96, 6, C_ORANGE);
     shadowText("PAUSE", W / 2, 30, C_ORANGE, 3, TC_DATUM);
     text("Chrono arrêté : " + fmtTime(pausedRemaining), W / 2, 70, C_CYAN, 1, TC_DATUM);
-    canvas.fillRoundRect(60, 88, W - 120, 22, 4, C_PANEL2);
-    canvas.drawRoundRect(60, 88, W - 120, 22, 4, C_YELLOW);
+    canvas.fillRoundRect(40, 88, W - 80, 22, 4, C_PANEL2);
+    canvas.drawRoundRect(40, 88, W - 80, 22, 4, C_YELLOW);
     if (blink()) {
-        canvas.fillTriangle(68, 93, 68, 105, 76, 99, C_YELLOW);
+        canvas.fillTriangle(48, 93, 48, 105, 56, 99, C_YELLOW);
     }
-    text("Reprendre : Fn Fn Fn", W / 2 + 6, 93, C_TEXT, 1, TC_DATUM);
+    text("Reprendre : Fn Fn Fn", W / 2 + 8, 93, C_TEXT, 1, TC_DATUM);
 }
 
 bool canPause() {
