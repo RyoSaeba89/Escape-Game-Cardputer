@@ -1640,8 +1640,12 @@ void update(uint32_t now) {
         if (mirror::connected()) {
             prefs.putString("ssid", wifiSsid);
             prefs.putString("pass", wifiPass);
-            mirror::startServer(static_cast<const uint16_t *>(canvas.getBuffer()), W, H);
-            enter(St::Address);
+            if (mirror::startServer(static_cast<const uint16_t *>(canvas.getBuffer()), W, H)) {
+                enter(St::Address);
+            } else {
+                startWifiScan();
+                wifiError = "Diffusion impossible : mémoire pleine";
+            }
         } else if (now - stateStart > WIFI_TIMEOUT_MS) {
             startWifiScan();
             wifiError = "Connexion impossible à " + wifiSsid;

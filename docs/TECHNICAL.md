@@ -4,7 +4,7 @@
 
 This document explains how the game works inside, for anyone who wants to build it, understand it or change it. It does not give the puzzle solutions, but they are in plain text in the source code.
 
-Version described: **v1.4**.
+Version described: **v1.4**, with Firefox 68 and Ouya console support (section 9.7).
 
 ## Contents
 
@@ -247,7 +247,7 @@ Nothing needs to be installed on the PC: the Cardputer serves the page itself (`
 | `startScan()`, `scanDone(out)` | Asynchronous Wi-Fi scan; `scanDone` returns `true` once it is over, with a de-duplicated list sorted by signal strength |
 | `connect(ssid, pass)`, `connected()` | Station-mode connection, host name `explorer3` |
 | `address()` | `"http://" + local IP` |
-| `startServer(screen, w, h)` | Starts the web page, the WebSocket and the network task, given the address of the screen buffer. A second call only turns Wi-Fi power saving off again. |
+| `startServer(screen, w, h)` | Starts the web page, the WebSocket and the network task, given the address of the screen buffer. Returns `false` without starting anything if memory runs out: the game then goes back to the Wi-Fi list with a message. A second call only turns Wi-Fi power saving off again. |
 | `clientCount()` | Number of connected browsers (shows "PC connected") |
 | `lockScreen()`, `unlockScreen()` | Lock (FreeRTOS mutex) around drawing; does nothing until the server is started |
 | `sendTone()`, `sendStop()`, `sendRumble()` | Sounds to play on the PC (section 9.5) |
@@ -276,7 +276,9 @@ These screens are game states (`WifiList`, `Password`, `Connecting`, `Address`) 
 
 Colours are RGB565, high byte first, in the sprite's memory order. A binary message holds a series of lines and is at most `FRAME_BUF` = 12 KB. If a frame doesn't fit, the rest goes on the next pass: it resumes at line `nextRow`, so the bottom of the screen isn't always served last. A full game screen usually weighs 5 to 10 KB instead of 65 KB.
 
-**Display.** The page decodes the lines into a 240×135 `ImageData` and draws it into a `<canvas>` on each `requestAnimationFrame`. The canvas is scaled up in CSS (16:9 ratio, `image-rendering: pixelated`) to keep sharp pixels.
+**Display.** The page decodes the lines into a 240×135 `ImageData` and draws it into a `<canvas>` on each `requestAnimationFrame`. The canvas is scaled up in CSS (16:9 ratio, `image-rendering: pixelated`, `crisp-edges` for Firefox) to keep sharp pixels. Its size is `width: 100vw; height: 56.25vw`, capped by `max-width: 177.78vh; max-height: 100vh`. The result is the same as with `min()`, but it also works in Firefox 68 (section 9.7).
+
+Everything on screen is inside an `#ecran` block, which the **TV margin** shrinks with `transform: scale(1 − 2 × margin / 100)` (section 9.7). With no margin, no transform is applied.
 
 ### 9.5 Sound on the PC
 
@@ -294,11 +296,11 @@ Sound is sent as commands, not audio: a few bytes per note. Every text message s
 
 **Synthesis.** Notes are sine oscillators, like the M5Unified default waveform, with 3 ms ramps to avoid clicks. A new note cuts the previous one on the same channel. The rumble is brown noise computed by the page, looped with the same envelope as on the Cardputer. The whistle follows that envelope at 70/255. Master volume is 0.3.
 
-Browsers forbid sound before a user action. The audio context is therefore created on the first click on the page ("Click to enable sound"). Before that click, sound messages are ignored, but the clock is still tracked.
+Browsers forbid sound before a user action. The audio context is therefore created on the first click on the page or the first key press on a keyboard or gamepad ("Click or press a key to enable sound"). Before that, sound messages are ignored, but the clock is still tracked. If the browser suspends the audio context (hidden page, console app in the background), it is restarted (`resume()`) on the next click, key press or return to the page.
 
 ### 9.6 Network task
 
-`netTask` is pinned to core 0, with priority 1 and a 6 KB stack. It loops over:
+`netTask` is pinned to core 0, with priority 1 and a 6 KB stack. `startServer()` creates it first: it waits for a signal (`ulTaskNotifyTake`) while the servers start. If the task cannot be created, nothing has been started yet. It then loops over:
 
 1. `http.handleClient()` and `ws.loop()`;
 2. sending pending sounds (64-entry FreeRTOS queue, filled by the game without waiting);
@@ -308,6 +310,40 @@ Browsers forbid sound before a user action. The audio context is therefore creat
 6. `vTaskDelay(1)`.
 
 On the page side, a lost connection is retried every second. A new browser receives the full screen and the current state of its page. Several browsers can be open at the same time.
+
+**Heartbeat.** The WebSocket server sends a ping every 5 s (`ws.enableHeartbeat(5000, 3000, 2)`), which browsers answer on their own. A browser that misses 2 pings in a row (3 s wait each) is disconnected, so after 11 to 16 s. This covers a dropped Wi-Fi or a console switched off without closing the page. Without the heartbeat, it would stay counted in `clientCount()` ("PC connected") until the TCP timeout, and the Cardputer would keep sending it frames.
+
+### 9.7 Supported browsers, Ouya console
+
+The page targets current browsers (Chrome, Edge, Firefox, Safari) **and Firefox 68**, the last Firefox for Android 4.1. That version makes it possible to use an **Ouya console** plugged into a TV. The stock Android 4.1 browser supports neither WebSocket nor Web Audio, so it cannot be used.
+
+What the page must respect to stay compatible with Firefox 68:
+
+| Avoid | Use | Why |
+|---|---|---|
+| CSS `min()`, `max()`, `clamp()` | `width`/`height` + `max-width`/`max-height` | Firefox ≥ 75 |
+| `inset: 0` | `top: 0; right: 0; bottom: 0; left: 0` | Firefox ≥ 66 (and Chrome ≥ 87) |
+| `gap` in a flexbox | Margins (`#tab > * + *`) | Chrome ≥ 84 (Firefox ≥ 63) |
+| JavaScript `?.`, `??`, `catch {}` without a variable | Explicit checks, `catch (_)` | Firefox ≥ 74, 72 and 58 |
+
+ES2017 JavaScript (`let`/`const`, arrow functions, `for…of`, spread, `padStart`) is fine.
+
+**Keyboard, remote or gamepad controls.** They come in addition to click and double-click, which still work:
+
+| Key | Effect |
+|---|---|
+| First key (any) | Enables sound, like the click |
+| `Enter` (Ouya gamepad `O` button), `F` | Full screen on or off |
+| Up arrow, `+` | TV margin +1 % |
+| Down arrow, `-` | TV margin −1 % |
+
+Keys combined with `Ctrl`, `Alt` or `Meta` are ignored, so browser shortcuts keep working.
+
+**TV margin (overscan).** Many TVs crop the edges of the picture. The margin, 0 to 15 % on each side, shrinks the whole page. It is kept in the browser's `localStorage` (inside a `try`, since storage may be forbidden). It can also be forced with `?marge=5` in the address. A "TV margin: n %" message shows for 1.5 s after each change.
+
+**Screen kept on.** As soon as sound is enabled, the page loops a black 16×16, 2 s WebM video, muted and almost invisible (`#veille`, 502 bytes embedded in base64). On Android, a browser playing a video keeps the screen from going to sleep. The Wake Lock API is also requested when it exists, but it is only available over HTTPS, so never on this page. Because of this, the Ouya screen saver is not guaranteed to be blocked: check it on the console.
+
+**Installing Firefox 68 on the Ouya.** The official APK is `fennec-68.11.0.multi.android-arm.apk`, on archive.mozilla.org (`pub/mobile/releases/68.11.0/android-api-16/multi/`). Install it with `adb install`, or by downloading it over plain HTTP from a PC on the network, after allowing unknown sources. See the README.
 
 ## 10. Coded keypad (asymmetric play)
 
@@ -334,7 +370,7 @@ The keypad appears 600 ms after the last terminal line (`keypadShown()`). `typed
 - The page shows the 9 cells, the O2 countdown and 4 boxes that fill up according to `typed` (without telling which symbols were typed). It flashes red when `errors` changes.
 - The countdown is recomputed locally every 100 ms from `remaining_ms` and the clock, so it runs smoothly.
 - The game sends the state again on each change, and every 500 ms while the table is shown. During the pause and as soon as `Computer` is left, it sends `0`.
-- On the PC, the symbols are Unicode characters followed by U+FE0E (text presentation) with the "Segoe UI Symbol" font, to avoid colour emoji.
+- On the PC, the symbols are the **same pixel-art drawings** as on the Cardputer. The page's `SYM` array copies `SYMBOLS[]` from `main.cpp`, in the same order: 36 hexadecimal digits per symbol, 3 per 12-pixel row (most significant bit = leftmost pixel). `symbole(n)` turns them into an SVG `viewBox="0 0 12 12"` with `shape-rendering="crispEdges"`, merging neighbouring pixels of a row into a single rectangle. The rendering depends on no font, and the Unicode characters, which were missing or shown as emoji on some systems such as Android, are no longer used.
 
 ## 11. Memory and performance
 
@@ -342,7 +378,7 @@ Figures measured on v1.4:
 
 | Item | Size |
 |---|---|
-| Program | ~1.34 MB out of 3.3 MB (40 %) |
+| Program | ~1.35 MB out of 3.3 MB (40 %), including the web page ~11 KB |
 | Static RAM | ~69 KB out of 320 KB (21 %), including the liftoff noise (16 KB) |
 | Screen sprite (heap) | 64,800 bytes |
 | Broadcast mode (heap) | 12 KB send buffer, 6 KB network task stack, ~1 KB sound queue, plus the Wi-Fi and lwIP stack |
@@ -357,14 +393,15 @@ Without PSRAM, large allocations must be avoided: no second full-screen sprite a
 - **No encryption and no authentication**: the page is plain HTTP and any device on the local network can open it. Fine for a game at home, to avoid on a public network.
 - **The Wi-Fi password is stored in clear** in the Cardputer NVS.
 - The IP address is only shown when connecting. To see it again, restart and choose Broadcast again.
-- The send buffer is allocated when the server starts, without a failure check. Not a problem with current memory use, but worth watching if the game grows.
-- In broadcast mode the Cardputer is silent: if nobody clicks "enable sound" on the PC, the game is played without sound.
+- If memory runs out when the server starts (send buffer, lock, sound queue, network task), nothing is started and the Cardputer shows an "out of memory" message. With current memory use, this should not happen.
+- In broadcast mode the Cardputer is silent: if nobody clicks or presses a key to enable sound on the PC, the game is played without sound.
+- On the Ouya, keeping the screen awake with the invisible video (section 9.7) has not been checked on the console.
 
 ## 13. Changing the game
 
 - **Change the game length or penalty**: `GAME_MS`, `PENALTY_MS`.
 - **Add a screen**: add a value to `St`, a `drawXxx()` function, its `case` in `render()` and, if needed, in `handleKey()` and `update()`.
-- **Add a symbol to the coded keypad**: add a 12×12 drawing to `SYMBOLS[]` and increase `SYM_COUNT`. Add the character at the **same position** in the page's `SYM` array (in `diffusion.cpp`). Beyond 16 symbols, a single hexadecimal digit is not enough and the table format must change.
-- **Change the PC page**: it is entirely in the `PAGE` string of `diffusion.cpp` (HTML, CSS and JavaScript in one block).
+- **Add or change a coded keypad symbol**: change the 12×12 drawing in `SYMBOLS[]` (and `SYM_COUNT` when adding one). Put the **same drawing at the same position** in the page's `SYM` array (in `diffusion.cpp`), in hexadecimal: for each row, `X` = 1 and `.` = 0, and the 12 bits give 3 digits. For example `"..XX....XX.."` → `001100001100` → `30c`. Beyond 16 symbols, a single hexadecimal digit is not enough and the table format must change.
+- **Change the PC page**: it is entirely in the `PAGE` string of `diffusion.cpp` (HTML, CSS and JavaScript in one block). Follow the compatibility rules of section 9.7 so as not to lose Firefox 68 and the Ouya.
 - **Translate**: change the texts on `main`, then carry the change over to the `english` branch, translating texts, comments and the page.
 - **After a UI change**, check that no text goes off the 240×135 screen, and use `fit()` for variable-length texts such as Wi-Fi network names.

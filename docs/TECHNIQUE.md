@@ -4,7 +4,7 @@
 
 Ce document décrit le fonctionnement interne du jeu pour qui veut le compiler, le comprendre ou le modifier. Il ne donne pas les solutions des énigmes, mais elles sont en clair dans le code source.
 
-Version décrite : **v1.4**.
+Version décrite : **v1.4**, avec la compatibilité Firefox 68 et console Ouya (section 9.7).
 
 ## Sommaire
 
@@ -247,7 +247,7 @@ Le PC n'a rien à installer : le Cardputer sert lui-même la page (`http://<adre
 | `startScan()`, `scanDone(out)` | Recherche Wi-Fi asynchrone ; `scanDone` renvoie `true` une fois finie, avec une liste sans doublons triée par puissance |
 | `connect(ssid, pass)`, `connected()` | Connexion en mode station, nom d'hôte `explorer3` |
 | `address()` | `"http://" + IP locale` |
-| `startServer(screen, w, h)` | Démarre la page web, le WebSocket et la tâche réseau, en recevant l'adresse du tampon de l'écran. Un second appel ne fait que couper la mise en veille du Wi-Fi. |
+| `startServer(screen, w, h)` | Démarre la page web, le WebSocket et la tâche réseau, en recevant l'adresse du tampon de l'écran. Renvoie `false` sans rien démarrer si la mémoire manque : le jeu revient alors à la liste des Wi-Fi avec un message. Un second appel ne fait que couper la mise en veille du Wi-Fi. |
 | `clientCount()` | Nombre de navigateurs connectés (affiche « PC connecté ») |
 | `lockScreen()`, `unlockScreen()` | Verrou (mutex FreeRTOS) autour du dessin ; ne fait rien tant que le serveur n'est pas démarré |
 | `sendTone()`, `sendStop()`, `sendRumble()` | Sons à jouer sur le PC (section 9.5) |
@@ -276,7 +276,9 @@ Ces écrans sont des états du jeu (`WifiList`, `Password`, `Connecting`, `Addre
 
 Les couleurs sont en RGB565, poids fort d'abord, dans l'ordre de la mémoire du sprite. Un message binaire contient une suite de lignes et fait au plus `FRAME_BUF` = 12 Ko. Si une image ne tient pas, la suite part au tour suivant : la reprise se fait à la ligne `nextRow`, pour que le bas de l'écran ne soit pas toujours servi en dernier. Un écran complet du jeu pèse en général 5 à 10 Ko au lieu de 65 Ko.
 
-**Affichage.** La page décode les lignes dans un `ImageData` 240×135 et le dessine dans un `<canvas>` au rythme de `requestAnimationFrame`. Le canvas est agrandi en CSS (rapport 16:9, `image-rendering: pixelated`) pour garder des pixels nets.
+**Affichage.** La page décode les lignes dans un `ImageData` 240×135 et le dessine dans un `<canvas>` au rythme de `requestAnimationFrame`. Le canvas est agrandi en CSS (rapport 16:9, `image-rendering: pixelated`, `crisp-edges` pour Firefox) pour garder des pixels nets. La taille est donnée par `width: 100vw; height: 56.25vw` bornées par `max-width: 177.78vh; max-height: 100vh`. Le résultat est le même qu'avec `min()`, mais fonctionne aussi dans Firefox 68 (section 9.7).
+
+Tout ce qui s'affiche est dans un bloc `#ecran`, que la **marge télé** réduit avec `transform: scale(1 − 2 × marge / 100)` (section 9.7). Sans marge, aucune transformation n'est appliquée.
 
 ### 9.5 Son sur le PC
 
@@ -294,11 +296,11 @@ Le son est envoyé sous forme de commandes, pas d'audio : quelques octets par no
 
 **Synthèse.** Les notes sont des oscillateurs sinusoïdaux, comme la forme d'onde par défaut de M5Unified, avec des rampes de 3 ms pour éviter les clics. Une nouvelle note coupe la précédente du même canal. Le grondement est un bruit brun calculé par la page, joué en boucle avec la même enveloppe que sur le Cardputer. Le sifflement suit cette enveloppe à 70/255. Le volume général est à 0,3.
 
-Les navigateurs interdisent le son avant une action de l'utilisateur. Le contexte audio est donc créé au premier clic sur la page (« Cliquer pour activer le son »). Avant ce clic, les messages de son sont ignorés, mais l'horloge est quand même suivie.
+Les navigateurs interdisent le son avant une action de l'utilisateur. Le contexte audio est donc créé au premier clic sur la page ou à la première touche du clavier ou de la manette (« Cliquer ou appuyer sur une touche pour activer le son »). Avant cela, les messages de son sont ignorés, mais l'horloge est quand même suivie. Si le navigateur suspend le contexte audio (page cachée, console mise en arrière-plan), il est relancé (`resume()`) au clic, à la touche ou au retour sur la page suivants.
 
 ### 9.6 Tâche réseau
 
-`netTask` est épinglée sur le cœur 0, avec une priorité de 1 et une pile de 6 Ko. Elle boucle sur :
+`netTask` est épinglée sur le cœur 0, avec une priorité de 1 et une pile de 6 Ko. `startServer()` la crée en premier : elle attend un signal (`ulTaskNotifyTake`) pendant que les serveurs démarrent. Si la tâche ne peut pas être créée, rien n'a encore été démarré. Ensuite elle boucle sur :
 
 1. `http.handleClient()` et `ws.loop()` ;
 2. envoi des sons en attente (file FreeRTOS de 64 éléments, remplie sans attente par le jeu) ;
@@ -308,6 +310,40 @@ Les navigateurs interdisent le son avant une action de l'utilisateur. Le context
 6. `vTaskDelay(1)`.
 
 Côté page, une connexion perdue est retentée toutes les secondes. Un nouveau navigateur reçoit l'écran complet et l'état courant de sa page. Plusieurs navigateurs peuvent être ouverts en même temps.
+
+**Heartbeat.** Le serveur WebSocket envoie un ping toutes les 5 s (`ws.enableHeartbeat(5000, 3000, 2)`), et les navigateurs y répondent d'eux-mêmes. Un navigateur qui ne répond pas à 2 pings de suite (3 s d'attente chacun) est déconnecté, donc au bout de 11 à 16 s. C'est le cas d'un Wi-Fi coupé ou d'une console éteinte sans fermer la page. Sans heartbeat, il resterait compté dans `clientCount()` (« PC connecté ») jusqu'au délai TCP, et le Cardputer continuerait à lui envoyer des images.
+
+### 9.7 Navigateurs compatibles, console Ouya
+
+La page vise les navigateurs actuels (Chrome, Edge, Firefox, Safari) **et Firefox 68**, la dernière version de Firefox pour Android 4.1. C'est celle qui permet d'utiliser une **console Ouya** branchée sur une télé. Le navigateur d'origine d'Android 4.1 ne connaît ni les WebSocket ni Web Audio : il ne peut pas servir.
+
+Ce qu'il faut respecter dans la page pour rester compatible avec Firefox 68 :
+
+| À éviter | À utiliser | Raison |
+|---|---|---|
+| `min()`, `max()`, `clamp()` en CSS | `width`/`height` + `max-width`/`max-height` | Firefox ≥ 75 |
+| `inset: 0` | `top: 0; right: 0; bottom: 0; left: 0` | Firefox ≥ 66 (et Chrome ≥ 87) |
+| `gap` dans un flexbox | Marges (`#tab > * + *`) | Chrome ≥ 84 (Firefox ≥ 63) |
+| `?.`, `??`, `catch {}` sans variable en JavaScript | Tests explicites, `catch (_)` | Firefox ≥ 74, 72 et 58 |
+
+Le JavaScript ES2017 (`let`/`const`, fonctions fléchées, `for…of`, spread, `padStart`) est accepté.
+
+**Commandes au clavier, à la télécommande ou à la manette.** Elles s'ajoutent au clic et au double-clic, qui restent valables :
+
+| Touche | Effet |
+|---|---|
+| Première touche (n'importe laquelle) | Active le son, comme le clic |
+| `Entrée` (bouton `O` de la manette Ouya), `F` | Plein écran ou retour |
+| Flèche haut, `+` | Marge télé +1 % |
+| Flèche bas, `-` | Marge télé −1 % |
+
+Les touches combinées avec `Ctrl`, `Alt` ou `Méta` sont ignorées, pour ne pas gêner les raccourcis du navigateur.
+
+**Marge télé (overscan).** Beaucoup de télés coupent les bords de l'image. La marge, de 0 à 15 % de chaque côté, réduit l'ensemble de la page. Elle est gardée dans le `localStorage` du navigateur (dans un `try`, car le stockage peut être interdit). On peut aussi l'imposer avec `?marge=5` dans l'adresse. Un message « Marge télé : n % » s'affiche 1,5 s à chaque réglage.
+
+**Écran toujours allumé.** Dès que le son est activé, la page lit en boucle une vidéo WebM noire de 16×16 pixels et 2 s, muette et presque invisible (`#veille`, 502 octets intégrés en base64). Sur Android, un navigateur qui lit une vidéo empêche l'écran de se mettre en veille. L'API Wake Lock est aussi demandée quand elle existe, mais elle n'est disponible qu'en HTTPS, donc jamais sur cette page. À cause de cela, l'économiseur d'écran de la Ouya n'est pas garanti d'être bloqué : à vérifier sur la console.
+
+**Installer Firefox 68 sur la Ouya.** L'APK officiel est `fennec-68.11.0.multi.android-arm.apk`, sur archive.mozilla.org (`pub/mobile/releases/68.11.0/android-api-16/multi/`). Il s'installe avec `adb install` ou en le téléchargeant en HTTP depuis un PC du réseau, après avoir autorisé les sources inconnues. Voir le README.
 
 ## 10. Clavier codé (jeu asymétrique)
 
@@ -334,7 +370,7 @@ Le clavier s'affiche 600 ms après la dernière ligne du terminal (`keypadShown(
 - La page affiche les 9 cases, le chrono O2 et 4 cases qui se remplissent selon `saisis` (sans dire quels symboles ont été tapés). Elle clignote en rouge quand `erreurs` change.
 - Le chrono est recalculé localement toutes les 100 ms à partir de `restant_ms` et de l'horloge, pour défiler sans à-coups.
 - Le jeu renvoie l'état à chaque changement, et toutes les 500 ms tant que la table est affichée. Pendant la pause et dès la sortie de `Computer`, il envoie `0`.
-- Sur le PC, les symboles sont des caractères Unicode suivis de U+FE0E (présentation texte) avec la police « Segoe UI Symbol », pour éviter les émojis en couleur.
+- Sur le PC, les symboles sont les **mêmes dessins en pixel art** que sur le Cardputer. Le tableau `SYM` de la page reprend `SYMBOLS[]` de `main.cpp`, dans le même ordre : 36 chiffres hexadécimaux par symbole, soit 3 par ligne de 12 pixels (bit de poids fort = pixel de gauche). `symbole(n)` en fait un SVG `viewBox="0 0 12 12"` avec `shape-rendering="crispEdges"`, en regroupant les pixels voisins d'une ligne en un seul rectangle. Le rendu ne dépend donc d'aucune police, et les caractères Unicode, qui manquaient ou s'affichaient en émojis sur certains systèmes comme Android, ne sont plus utilisés.
 
 ## 11. Mémoire et performances
 
@@ -342,7 +378,7 @@ Valeurs mesurées sur la v1.4 :
 
 | Élément | Taille |
 |---|---|
-| Programme | ~1,34 Mo sur 3,3 Mo (40 %) |
+| Programme | ~1,35 Mo sur 3,3 Mo (40 %), dont la page web ~11 Ko |
 | RAM statique | ~69 Ko sur 320 Ko (21 %), dont le bruit du décollage (16 Ko) |
 | Sprite de l'écran (tas) | 64 800 octets |
 | Mode diffusion (tas) | Tampon d'envoi 12 Ko, pile de la tâche réseau 6 Ko, file des sons ~1 Ko, plus la pile Wi-Fi et lwIP |
@@ -357,14 +393,15 @@ Sans PSRAM, il faut éviter les grosses allocations : pas de second sprite plein
 - **Pas de chiffrement ni d'authentification** : la page est en HTTP simple et n'importe quel appareil du réseau local peut l'ouvrir. C'est acceptable pour un jeu à la maison, à éviter sur un réseau public.
 - **Le mot de passe Wi-Fi est enregistré en clair** dans la NVS du Cardputer.
 - L'adresse IP n'est affichée qu'à la connexion. Pour la revoir, il faut redémarrer et choisir de nouveau Diffusion.
-- Le tampon d'envoi est alloué au démarrage du serveur sans vérification d'échec. Avec la mémoire actuelle ce n'est pas un problème, mais à surveiller si le jeu grossit.
-- En diffusion, le Cardputer est muet : si le PC n'a pas cliqué sur « activer le son », la partie se joue sans son.
+- Si la mémoire manque au démarrage du serveur (tampon d'envoi, verrou, file des sons, tâche réseau), rien n'est démarré et le Cardputer affiche « Diffusion impossible : mémoire pleine ». Avec la mémoire actuelle, cela ne devrait pas arriver.
+- En diffusion, le Cardputer est muet : si personne n'a cliqué ou appuyé sur une touche pour activer le son sur le PC, la partie se joue sans son.
+- Sur la Ouya, le blocage de la mise en veille par la vidéo invisible (section 9.7) n'a pas été vérifié sur la console.
 
 ## 13. Modifier le jeu
 
 - **Changer la durée ou la pénalité** : `GAME_MS`, `PENALTY_MS`.
 - **Ajouter un écran** : ajouter une valeur à `St`, une fonction `drawXxx()`, son `case` dans `render()` et, si besoin, dans `handleKey()` et `update()`.
-- **Ajouter un symbole au clavier codé** : ajouter un dessin 12×12 à `SYMBOLS[]` et augmenter `SYM_COUNT`. Ajouter le caractère au **même rang** dans le tableau `SYM` de la page (dans `diffusion.cpp`). Au-delà de 16 symboles, le numéro sur un seul chiffre hexadécimal ne suffit plus et il faut changer le format de la table.
-- **Modifier la page du PC** : elle est entièrement dans la chaîne `PAGE` de `diffusion.cpp` (HTML, CSS et JavaScript d'un seul bloc).
+- **Ajouter ou modifier un symbole du clavier codé** : changer le dessin 12×12 dans `SYMBOLS[]` (et `SYM_COUNT` pour un ajout). Mettre le **même dessin au même rang** dans le tableau `SYM` de la page (dans `diffusion.cpp`), codé en hexadécimal : pour chaque ligne, `X` = 1 et `.` = 0, les 12 bits donnent 3 chiffres. Par exemple `"..XX....XX.."` → `001100001100` → `30c`. Au-delà de 16 symboles, le numéro sur un seul chiffre hexadécimal ne suffit plus et il faut changer le format de la table.
+- **Modifier la page du PC** : elle est entièrement dans la chaîne `PAGE` de `diffusion.cpp` (HTML, CSS et JavaScript d'un seul bloc). Respecter les règles de compatibilité de la section 9.7 pour ne pas perdre Firefox 68 et la Ouya.
 - **Traduire** : modifier les textes sur `main`, puis reporter le changement sur la branche `english` en traduisant les textes, les commentaires et la page.
 - **Après un changement d'interface**, vérifier qu'aucun texte ne sort de l'écran de 240×135, et utiliser `fit()` pour les textes de longueur variable comme les noms de Wi-Fi.

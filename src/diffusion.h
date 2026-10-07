@@ -20,8 +20,9 @@ void connect(const String &ssid, const String &pass);
 bool connected();
 String address();  // "http://192.168.1.42"
 
-// Serveur : page web (port 80) + flux écran/son (WebSocket, port 81)
-void startServer(const uint16_t *screen, int w, int h);
+// Serveur : page web (port 80) + flux écran/son (WebSocket, port 81).
+// false si la mémoire manque (rien n'est démarré).
+bool startServer(const uint16_t *screen, int w, int h);
 int clientCount();
 
 // À appeler autour du dessin de l'écran (le flux le lit depuis l'autre cœur)

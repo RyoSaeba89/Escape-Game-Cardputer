@@ -19,28 +19,36 @@ const char PAGE[] PROGMEM = R"rawliteral(<!doctype html>
 <title>Explorer 3</title>
 <style>
 html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:sans-serif;color:#eee}
-canvas{position:absolute;inset:0;margin:auto;width:min(100vw,177.78vh);height:min(56.25vw,100vh);image-rendering:pixelated;image-rendering:crisp-edges}
-#son{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(0,0,0,.6);cursor:pointer;font-size:28px;text-align:center}
-#son small{font-size:16px;color:#aaa}
+#ecran,#son,#tab{position:absolute;top:0;right:0;bottom:0;left:0}
+canvas{position:absolute;top:0;right:0;bottom:0;left:0;margin:auto;width:100vw;height:56.25vw;max-width:177.78vh;max-height:100vh;image-rendering:-moz-crisp-edges;image-rendering:pixelated;image-rendering:crisp-edges}
+#son{display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.6);cursor:pointer;font-size:28px;text-align:center}
+#son small{margin-top:12px;font-size:16px;color:#aaa}
 #etat{position:absolute;left:12px;bottom:10px;font-size:16px;color:#f80}
-#tab{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:2.5vh;background:#06061a;font-size:2.6vh;text-align:center}
+#marge{position:absolute;top:10px;left:0;right:0;display:none;font-size:20px;color:#ffe146;text-align:center}
+#veille{position:absolute;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none}
+#tab{display:none;flex-direction:column;align-items:center;justify-content:center;background:#06061a;font-size:2.6vh;text-align:center}
+#tab>*+*{margin-top:2.5vh}
 #tab h1{margin:0;color:#ffa028;font-size:4vh;letter-spacing:.08em}
 #o2{font:bold 7vh monospace;color:#50c8ff}
-#grille{display:grid;grid-template-columns:repeat(3,auto);gap:1.6vh}
-.case{display:flex;align-items:center;justify-content:center;gap:3vh;padding:.8vh 4vh;background:#202642;border:2px solid #465a8c;border-radius:1vh}
+#grille{display:grid;grid-template-columns:repeat(3,auto);grid-gap:1.6vh;gap:1.6vh}
+.case{display:flex;align-items:center;justify-content:center;padding:.8vh 4vh;background:#202642;border:2px solid #465a8c;border-radius:1vh}
 .case b{font:bold 7vh monospace;color:#ffe146}
-.case span{font-size:8vh;line-height:1.1;font-family:"Segoe UI Symbol","DejaVu Sans",sans-serif;color:#ebeef5}
+.case svg{display:block;width:7vh;height:7vh;margin-left:3vh;fill:#ebeef5}
 #saisie span{display:inline-block;width:3.5vh;height:3.5vh;margin:0 .6vh;border:2px solid #50ff78;border-radius:.5vh;vertical-align:middle}
 #saisie span.on{background:#50ff78}
-#tab p{margin:0;color:#8c96af}
+#tab p{margin-bottom:0;color:#8c96af}
 #tab.err{animation:err .5s}
 @keyframes err{0%,100%{box-shadow:none}40%{box-shadow:inset 0 0 0 2vh #f03c32}}
 </style></head><body>
+<div id="ecran">
 <canvas id="c" width="240" height="135"></canvas>
 <div id="tab"><h1>ORDINATEUR DE BORD : TABLE DES SYMBOLES</h1><div id="o2"></div><div id="grille"></div>
 <div id="saisie"></div><p>Le joueur du Cardputer vous donne une lettre du code : dites-lui quel symbole lui correspond.</p></div>
-<div id="son">Cliquer pour activer le son<small>Double-clic : plein écran</small></div>
+<div id="son">Cliquer ou appuyer sur une touche pour activer le son<small>Double-clic, F ou Entrée : plein écran</small><small>Flèches haut et bas : marge pour la télé</small></div>
 <div id="etat">Connexion au Cardputer…</div>
+</div>
+<div id="marge"></div>
+<video id="veille" muted loop playsinline src="data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAHGEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHGTbuMU6uEElTDZ1OsggETTbuMU6uEHFO7a1OsggGw7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmoCrXsYMPQkBNgIRMYXZmV0GETGF2ZkSJiECfQAAAAAAAFlSua8iuAQAAAAAAAD/XgQFzxYgAAAAAAAAAAZyBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhDuaygDgkLCBELqBEJqBAlWwhFW5gQESVMNn0HNzzWPAi2PFiAAAAAAAAAABZ8iYRaOHRU5DT0RFUkSHi0xhdmMgbGlidnB4Z8ihRaOIRFVSQVRJT05Eh5MwMDowMDowMi4wMDAwMDAwMDAAH0O2dcPngQCjo4EAAIAQAgCdASoQABAAAEcIhYWImYSIAgIADA1gAP7/q1CAo5mBA+gAsQEAARAQABgAMD/0DAAAAP7/q1CAHFO7a5G7j7OBALeK94EB8YIBaPCBAw=="></video>
 <script>
 const cv=document.getElementById('c'),g=cv.getContext('2d'),img=g.createImageData(240,135),px=img.data;
 const etat=document.getElementById('etat'),son=document.getElementById('son');
@@ -80,19 +88,62 @@ function makeNoise(){const n=8000,f=400,tmp=new Float32Array(n+f);let v=0,peak=1
  for(let i=0;i<n+f;i++){v+=(Math.random()*2-1)*.15;v*=.97;if(Math.random()<1/400)v+=(Math.random()*2-1)*.8;tmp[i]=v;peak=Math.max(peak,Math.abs(v));}
  for(let i=0;i<f;i++){const a=i/f;tmp[i]=tmp[i]*a+tmp[n+i]*(1-a);}
  const b=ac.createBuffer(1,n,8000),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=tmp[i]/peak*.92;return b;}
-son.onclick=()=>{ac=new AudioContext();master=ac.createGain();master.gain.value=.3;master.connect(ac.destination);noise=makeNoise();son.style.display='none';};
-document.ondblclick=()=>{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();};
+function resume(){if(ac&&ac.state=='suspended')ac.resume();}
+// Écran toujours allumé : vidéo muette en boucle (Firefox 68 sur la Ouya), Wake Lock si la page est en HTTPS
+const veille=document.getElementById('veille');
+function eveil(){const p=veille.play();if(p&&p.catch)p.catch(()=>{});
+ if(navigator.wakeLock)navigator.wakeLock.request('screen').catch(()=>{});}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ac){resume();eveil();}});
+function activer(){if(ac)return;ac=new(window.AudioContext||window.webkitAudioContext)();resume();
+ master=ac.createGain();master.gain.value=.3;master.connect(ac.destination);noise=makeNoise();son.style.display='none';eveil();}
+son.onclick=activer;
+document.addEventListener('click',resume);
+function pleinEcran(){const d=document,el=d.documentElement;
+ if(d.fullscreenElement||d.mozFullScreenElement||d.webkitFullscreenElement){const f=d.exitFullscreen||d.mozCancelFullScreen||d.webkitExitFullscreen;if(f)f.call(d);return;}
+ const f=el.requestFullscreen||el.mozRequestFullScreen||el.webkitRequestFullscreen;if(!f)return;const p=f.call(el);if(p&&p.catch)p.catch(()=>{});}
+document.ondblclick=pleinEcran;
+
+// Marge pour la télé (overscan) : 0 à 15 % de chaque côté, ?marge=5 dans l'adresse
+// ou flèches haut et bas, gardée par le navigateur.
+const ecran=document.getElementById('ecran'),margeTxt=document.getElementById('marge');
+let marge=0,margeVue=0;
+try{marge=Number(localStorage.getItem('marge'))||0;}catch(_){}
+const q=/[?&]marge=(\d+)/.exec(location.search);if(q)marge=Number(q[1]);
+function appliquer(){marge=Math.max(0,Math.min(15,marge));ecran.style.transform=marge?'scale('+(1-marge/50)+')':'';}
+function changerMarge(d){marge+=d;appliquer();try{localStorage.setItem('marge',marge);}catch(_){}
+ margeTxt.textContent='Marge télé : '+marge+' %';margeTxt.style.display='block';clearTimeout(margeVue);
+ margeVue=setTimeout(()=>{margeTxt.style.display='none';},1500);}
+appliquer();
+// Clavier, télécommande ou manette : une première touche active le son
+document.addEventListener('keydown',e=>{if(e.ctrlKey||e.altKey||e.metaKey)return;
+ const k=e.key,c=e.keyCode;
+ if(!ac){activer();return;}
+ resume();
+ if(k=='ArrowUp'||k=='Up'||k=='+'||c==38)changerMarge(1);
+ else if(k=='ArrowDown'||k=='Down'||k=='-'||c==40)changerMarge(-1);
+ else if(k=='f'||k=='F'||k=='Enter'||c==13)pleinEcran();
+ else return;
+ e.preventDefault();});
 
 // Table des symboles (ordinateur de bord) : remplace la copie de l'écran.
 // Message "K,heure,1,restant_ms,saisis,erreurs,table" ou "K,heure,0".
-const SYM=['☺','♥','♦','♣','♠','♂','♀','♪','☼','⌂','▲','‼'];
+// Symboles en pixel art 12×12 : mêmes dessins et même ordre que SYMBOLS[] dans
+// main.cpp, 3 chiffres hexadécimaux par ligne (☺ ♥ ♦ ♣ ♠ ♂ ♀ ♪ ☼ ⌂ ▲ ‼).
+const SYM=['1f8204402999999801801a059094f22041f8','00070ef9ffffffffff7fe3fc1f80f0060000','0600f01f83fc7feffffff7fe3fc1f80f0060',
+ '0f01f81f80f0666ffffff6660600f01f8000','0600f01f83fc7feffffff76e0600f01f8000','01f0030050093d14208108108108104203c0',
+ '1f82044024024022041f80601f8060060060','03003802c0260220200200203e07e07e03c0','0604622040f0108d0bd0b1080f0204462060',
+ '060090108204402801801801801801801fff','0000600600f00f01f81f83fc3fc7fe7fe000','30c30c30c30c30c30c30c00000030c30c000'];
+function symbole(n){const h=SYM[n];if(!h)return '';let d='';
+ for(let r=0;r<12;r++){const v=parseInt(h.substr(r*3,3),16);
+  for(let c=0;c<12;){if(v>>(11-c)&1){let e=c;while(e<12&&(v>>(11-e)&1))e++;d+='M'+c+' '+r+'h'+(e-c)+'v1h'+(c-e)+'z';c=e;}else c++;}}
+ return '<svg viewBox="0 0 12 12" shape-rendering="crispEdges"><path d="'+d+'"/></svg>';}
 const tab=document.getElementById('tab'),o2=document.getElementById('o2'),grille=document.getElementById('grille'),saisie=document.getElementById('saisie');
 let tabOn=false,tabEnd=0,tabKey='',lastErr=-1;
 function panel(a){tabOn=a[2]=='1';tab.style.display=tabOn?'flex':'none';if(!tabOn){lastErr=-1;return;}
  tabEnd=Number(a[1])+off+Number(a[3]);
  if(a[6]!==tabKey){tabKey=a[6];grille.innerHTML='';
   for(let i=0;i<tabKey.length;i+=2){const d=document.createElement('div');d.className='case';
-   d.innerHTML='<b>'+tabKey[i]+'</b><span>'+SYM[parseInt(tabKey[i+1],16)]+'︎</span>';grille.appendChild(d);}}
+   d.innerHTML='<b>'+tabKey[i]+'</b>'+symbole(parseInt(tabKey[i+1],16));grille.appendChild(d);}}
  let h='';for(let i=0;i<4;i++)h+='<span'+(i<Number(a[4])?' class="on"':'')+'></span>';saisie.innerHTML='Saisie '+h;
  const e=Number(a[5]);if(lastErr>=0&&e!==lastErr){tab.classList.remove('err');void tab.offsetWidth;tab.classList.add('err');}lastErr=e;}
 setInterval(()=>{if(!tabOn)return;const r=Math.max(0,tabEnd-performance.now()),s=Math.ceil(r/1000);
@@ -225,6 +276,7 @@ void netTask(void *) {
     uint32_t nextFrame = 0;
     uint32_t nextPing = 0;
     char txt[64];
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // serveurs démarrés par startServer()
     for (;;) {
         http.handleClient();
         ws.loop();
@@ -325,23 +377,46 @@ String address() {
 
 // ---------------------------------------------------------------- serveur
 
-void startServer(const uint16_t *screen, int w, int h) {
+bool startServer(const uint16_t *screen, int w, int h) {
     WiFi.setSleep(false);  // sinon le Wi-Fi s'endort entre deux paquets (saccades)
     if (screenMutex) {
-        return;  // déjà démarré (changement de Wi-Fi)
+        return true;  // déjà démarré (changement de Wi-Fi)
+    }
+    // Tout est alloué avant de démarrer quoi que ce soit : en cas de manque de
+    // mémoire, rien n'est lancé et un nouvel appel pourra réessayer.
+    frameBuf = static_cast<uint8_t *>(malloc(FRAME_BUF));
+    SemaphoreHandle_t mutex = xSemaphoreCreateMutex();
+    soundQueue = xQueueCreate(64, sizeof(SoundMsg));
+    TaskHandle_t task = nullptr;
+    if (frameBuf && mutex && soundQueue) {
+        xTaskCreatePinnedToCore(netTask, "diffusion", 6144, nullptr, 1, &task, 0);  // attend le signal
+    }
+    if (!task) {
+        free(frameBuf);
+        frameBuf = nullptr;
+        if (mutex) {
+            vSemaphoreDelete(mutex);
+        }
+        if (soundQueue) {
+            vQueueDelete(soundQueue);
+            soundQueue = nullptr;
+        }
+        return false;
     }
     screenBuf = screen;
     screenW = w;
     screenH = std::min(h, MAX_H);
-    frameBuf = static_cast<uint8_t *>(malloc(FRAME_BUF));
-    screenMutex = xSemaphoreCreateMutex();
-    soundQueue = xQueueCreate(64, sizeof(SoundMsg));
+    screenMutex = mutex;
     http.on("/", [] { http.send_P(200, "text/html", PAGE); });
     http.onNotFound([] { http.send(404, "text/plain", "404"); });
     http.begin();
     ws.begin();
     ws.onEvent(onWsEvent);
-    xTaskCreatePinnedToCore(netTask, "diffusion", 6144, nullptr, 1, nullptr, 0);
+    // Ping toutes les 5 s : un navigateur disparu sans fermer la connexion
+    // (Wi-Fi coupé, console éteinte) est déconnecté après 2 pings sans réponse.
+    ws.enableHeartbeat(5000, 3000, 2);
+    xTaskNotifyGive(task);
+    return true;
 }
 
 int clientCount() {

@@ -50,7 +50,7 @@ Au démarrage, choisir **Solo** (le jeu sur le Cardputer seul) ou **Diffusion** 
 
 1. Choisir **Diffusion**, puis le Wi-Fi et taper son mot de passe (mémorisé pour les fois suivantes).
 2. Le Cardputer affiche une adresse, par exemple `http://192.168.1.42` : l'ouvrir dans le navigateur du PC (Chrome, Edge, Firefox). Rien à installer.
-3. Cliquer une fois sur la page pour **activer le son** (les navigateurs l'exigent). Double-clic : plein écran.
+3. Cliquer une fois sur la page ou appuyer sur une touche pour **activer le son** (les navigateurs l'exigent). Double-clic, `F` ou `Entrée` : plein écran.
 4. `ENTRÉE` sur le Cardputer pour lancer le jeu.
 
 ### Le clavier codé (à jouer en équipe)
@@ -65,6 +65,20 @@ En mode diffusion, le code de démarrage ne se tape pas en lettres : l'ordinateu
 - `` ` `` sur l'écran de connexion ou d'adresse : choisir un autre Wi-Fi.
 - Le Cardputer ne capte que le Wi-Fi 2,4 GHz. Les réseaux « invités » bloquent souvent les échanges entre appareils.
 - Si la page perd la connexion, elle se reconnecte toute seule ; la partie continue sur le Cardputer.
+
+### Sur une télé avec une console Ouya
+
+La page fonctionne aussi dans **Firefox 68** sur la Ouya (Android 4.1). Le navigateur d'origine de la Ouya ne convient pas : il ne connaît ni les WebSocket ni le son Web Audio.
+
+1. Sur le PC, télécharger la dernière version de Firefox pour Android 4.1 sur le site de Mozilla : [`fennec-68.11.0.multi.android-arm.apk`](https://archive.mozilla.org/pub/mobile/releases/68.11.0/android-api-16/multi/fennec-68.11.0.multi.android-arm.apk) (en français, entre autres langues).
+2. Sur la Ouya, autoriser les sources inconnues (Paramètres Android > Sécurité), puis installer l'APK :
+   - par USB avec `adb install fennec-68.11.0.multi.android-arm.apk`,
+   - ou en le servant depuis le PC sur le réseau local, en HTTP simple (le navigateur d'origine de la Ouya ne gère pas le HTTPS actuel). Par exemple `python -m http.server`, puis ouvrir `http://<adresse du PC>:8000` sur la Ouya.
+3. Lancer Firefox (menu **MAKE > SOFTWARE**) et ouvrir l'adresse affichée par le Cardputer. L'ajouter aux favoris pour la retrouver facilement.
+4. Une première touche de la manette active le son. Ensuite, `O` (vue par Firefox comme `Entrée`) ou un double-clic avec le pavé tactile de la manette passe en plein écran.
+5. Si les bords de l'image sont coupés par la télé, régler la **marge** avec les flèches haut et bas (0 à 15 %, gardée pour les fois suivantes). On peut aussi ajouter `?marge=5` à la fin de l'adresse.
+
+Pour éviter que la console se mette en veille, la page joue en boucle une petite vidéo invisible dès que le son est activé. Pour que l'adresse ne change pas d'une fois sur l'autre, réserver l'adresse IP du Cardputer dans la box.
 
 ## Installation
 
