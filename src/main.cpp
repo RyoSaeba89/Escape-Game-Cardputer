@@ -215,6 +215,40 @@ String wifiPass;
 String wifiError;
 constexpr uint32_t WIFI_TIMEOUT_MS = 20000;
 
+// Coded keypad of the on-board computer (broadcast mode): keys 1 to 9 carry
+// symbols, only the PC team has the letter -> symbol table.
+// Same order as the web page symbols (Alt codes ☺ ♥ ♦ ♣ ♠ ♂ ♀ ♪ ☼ ⌂ ▲ ‼).
+constexpr int SYM_COUNT = 12;
+const char *const SYMBOLS[SYM_COUNT][12] = {
+    {"...XXXXXX...", "..X......X..", ".X........X.", "X..XX..XX..X", "X..XX..XX..X", "X..........X",
+     "X..........X", "X.X......X.X", "X..X....X..X", ".X..XXXX..X.", "..X......X..", "...XXXXXX..."},
+    {"............", ".XXX....XXX.", "XXXXX..XXXXX", "XXXXXXXXXXXX", "XXXXXXXXXXXX", "XXXXXXXXXXXX",
+     ".XXXXXXXXXX.", "..XXXXXXXX..", "...XXXXXX...", "....XXXX....", ".....XX.....", "............"},
+    {".....XX.....", "....XXXX....", "...XXXXXX...", "..XXXXXXXX..", ".XXXXXXXXXX.", "XXXXXXXXXXXX",
+     "XXXXXXXXXXXX", ".XXXXXXXXXX.", "..XXXXXXXX..", "...XXXXXX...", "....XXXX....", ".....XX....."},
+    {"....XXXX....", "...XXXXXX...", "...XXXXXX...", "....XXXX....", ".XX..XX..XX.", "XXXXXXXXXXXX",
+     "XXXXXXXXXXXX", ".XX..XX..XX.", ".....XX.....", "....XXXX....", "...XXXXXX...", "............"},
+    {".....XX.....", "....XXXX....", "...XXXXXX...", "..XXXXXXXX..", ".XXXXXXXXXX.", "XXXXXXXXXXXX",
+     "XXXXXXXXXXXX", ".XXX.XX.XXX.", ".....XX.....", "....XXXX....", "...XXXXXX...", "............"},
+    {".......XXXXX", "..........XX", ".........X.X", "........X..X", "..XXXX.X...X", ".X....X.....",
+     "X......X....", "X......X....", "X......X....", "X......X....", ".X....X.....", "..XXXX......"},
+    {"...XXXXXX...", "..X......X..", ".X........X.", ".X........X.", ".X........X.", "..X......X..",
+     "...XXXXXX...", ".....XX.....", "...XXXXXX...", ".....XX.....", ".....XX.....", ".....XX....."},
+    {"......XX....", "......XXX...", "......X.XX..", "......X..XX.", "......X...X.", "......X.....",
+     "......X.....", "......X.....", "..XXXXX.....", ".XXXXXX.....", ".XXXXXX.....", "..XXXX......"},
+    {".....XX.....", ".X...XX...X.", "..X......X..", "....XXXX....", "...X....X...", "XX.X....X.XX",
+     "XX.X....X.XX", "...X....X...", "....XXXX....", "..X......X..", ".X...XX...X.", ".....XX....."},
+    {".....XX.....", "....X..X....", "...X....X...", "..X......X..", ".X........X.", "X..........X",
+     "X..........X", "X..........X", "X..........X", "X..........X", "X..........X", "XXXXXXXXXXXX"},
+    {"............", ".....XX.....", ".....XX.....", "....XXXX....", "....XXXX....", "...XXXXXX...",
+     "...XXXXXX...", "..XXXXXXXX..", "..XXXXXXXX..", ".XXXXXXXXXX.", ".XXXXXXXXXX.", "............"},
+    {"..XX....XX..", "..XX....XX..", "..XX....XX..", "..XX....XX..", "..XX....XX..", "..XX....XX..",
+     "..XX....XX..", "............", "............", "..XX....XX..", "..XX....XX..", "............"},
+};
+int keySym[9];      // symbol of each key 1 to 9
+char keyLetter[9];  // letter the PC table gives for this symbol
+uint32_t errCount = 0;  // the PC page flashes on each error
+
 // Scenery
 struct Star {
     uint8_t x, y, b;
@@ -375,6 +409,7 @@ void penalty() {
     uint32_t now = millis();
     errFlashUntil = now + 400;
     penaltyPopupUntil = now + 1500;
+    errCount++;
     sfxError();
 }
 
@@ -1043,9 +1078,113 @@ int termVisible(uint32_t now) {
     return n > TERM_COUNT ? TERM_COUNT : n;
 }
 
+// ---------------------------------------------------------------- coded keypad (broadcast)
+
+void buildKeypad() {
+    int syms[SYM_COUNT];
+    for (int i = 0; i < SYM_COUNT; i++) {
+        syms[i] = i;
+    }
+    for (int i = SYM_COUNT - 1; i > 0; i--) {
+        std::swap(syms[i], syms[random(0, i + 1)]);
+    }
+    // N, A, S + 6 other letters, spread randomly over the keys
+    char letters[9] = {'N', 'A', 'S'};
+    for (int n = 3; n < 9;) {
+        char c = 'A' + random(0, 26);
+        if (std::find(letters, letters + n, c) == letters + n) {
+            letters[n++] = c;
+        }
+    }
+    for (int i = 8; i > 0; i--) {
+        std::swap(letters[i], letters[random(0, i + 1)]);
+    }
+    for (int k = 0; k < 9; k++) {
+        keySym[k] = syms[k];
+        keyLetter[k] = letters[k];
+    }
+}
+
+// Letters matching the typed keys
+String keypadCode() {
+    String s;
+    for (unsigned i = 0; i < typedCode.length(); i++) {
+        s += keyLetter[typedCode[i] - '1'];
+    }
+    return s;
+}
+
+// The keypad shows up after the on-board computer text
+bool keypadShown(uint32_t now) {
+    return now - stateStart >= TERM_COUNT * TERM_STEP + 600;
+}
+
+void drawSymbol(int id, int x, int y, int s, uint16_t col) {
+    for (int r = 0; r < 12; r++) {
+        for (int c = 0; c < 12; c++) {
+            if (SYMBOLS[id][r][c] == 'X') {
+                canvas.fillRect(x + c * s, y + r * s, s, s, col);
+            }
+        }
+    }
+}
+
+void drawKeypad() {
+    text("CODED KEYPAD", 4, 20, C_ORANGE);
+    wrapped("Ask the PC team for the symbol of each letter.", 4, 36, 88, C_TERM, 13);
+    for (int i = 0; i < 4; i++) {
+        int x = 4 + i * 22;
+        canvas.drawRect(x, 92, 20, 20, C_TERM);
+        if (i < (int)typedCode.length()) {
+            drawSymbol(keySym[typedCode[i] - '1'], x + 4, 96, 1, C_TERM);
+        } else if (i == (int)typedCode.length() && blink(300)) {
+            canvas.fillRect(x + 5, 108, 10, 2, C_TERM);
+        }
+    }
+    for (int k = 0; k < 9; k++) {
+        int x = 96 + (k % 3) * 48;
+        int y = 18 + (k / 3) * 34;
+        canvas.fillRoundRect(x, y, 46, 32, 3, C_PANEL2);
+        canvas.drawRoundRect(x, y, 46, 32, 3, C_BORDER);
+        text(String(k + 1), x + 5, y + 10, C_DIM);
+        drawSymbol(keySym[k], x + 17, y + 4, 2, C_TEXT);
+    }
+    drawFooter("1-9 symbol   DEL erase   ENTER ok");
+}
+
+// PC page: symbol table during the on-board computer, otherwise screen copy.
+// Sent again on each change and every 500 ms (countdown).
+void updatePanel(uint32_t now) {
+    static String last;
+    static uint32_t lastSent = 0;
+    String key = "0";
+    if (state == St::Computer && !paused) {
+        String table;
+        for (char c = 'A'; c <= 'Z'; c++) {
+            for (int k = 0; k < 9; k++) {
+                if (keyLetter[k] == c) {
+                    table += c;
+                    table += "0123456789ab"[keySym[k]];
+                }
+            }
+        }
+        key = String(typedCode.length()) + "," + String(errCount) + "," + table;
+    }
+    if (key == last && (key == "0" || now - lastSent < 500)) {
+        return;
+    }
+    last = key;
+    lastSent = now;
+    mirror::setPanel(key == "0" ? key : "1," + String(remaining()) + "," + key);
+}
+
 void drawComputer(uint32_t now) {
     canvas.fillScreen(C_BLACK);
     drawHud();
+    if (mirrorMode && keypadShown(now)) {
+        drawKeypad();
+        return;
+    }
     int n = termVisible(now);
     for (int i = 0; i < n; i++) {
         uint16_t col = (i == TERM_COUNT - 1) ? C_YELLOW : C_TERM;
@@ -1201,6 +1340,9 @@ void solvePuzzle() {
     if (puzzle == 3) {
         typedCode = "";
         termShown = 0;
+        if (mirrorMode) {
+            buildKeypad();
+        }
         nextO2Beep = millis() + 1500;
         enter(St::Computer);
     } else {
@@ -1429,6 +1571,32 @@ void handleKey(const KeysState &ks) {
             break;
 
         case St::Computer: {
+            if (mirrorMode) {
+                // Coded keypad: typedCode holds the keys 1 to 9
+                if (!keypadShown(millis())) {
+                    break;
+                }
+                char d = 0;
+                for (char c : ks.word) {
+                    if (c >= '1' && c <= '9') {
+                        d = c;
+                    }
+                }
+                if (d && typedCode.length() < 4) {
+                    typedCode += d;
+                    sfxClick();
+                } else if (ks.del && typedCode.length() > 0) {
+                    typedCode.remove(typedCode.length() - 1);
+                } else if (ks.enter && typedCode.length() == 4) {
+                    if (keypadCode() == CODE) {
+                        startLaunch();
+                    } else {
+                        typedCode = "";
+                        penalty();
+                    }
+                }
+                break;
+            }
             if (termVisible(millis()) < TERM_COUNT) {
                 break;
             }
@@ -1667,6 +1835,9 @@ void loop() {
         update(now);
     }
     runNotes(now);
+    if (mirrorMode) {
+        updatePanel(now);
+    }
     mirror::lockScreen();
     render(now);
     mirror::unlockScreen();

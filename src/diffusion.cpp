@@ -23,8 +23,22 @@ canvas{position:absolute;inset:0;margin:auto;width:min(100vw,177.78vh);height:mi
 #son{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(0,0,0,.6);cursor:pointer;font-size:28px;text-align:center}
 #son small{font-size:16px;color:#aaa}
 #etat{position:absolute;left:12px;bottom:10px;font-size:16px;color:#f80}
+#tab{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:2.5vh;background:#06061a;font-size:2.6vh;text-align:center}
+#tab h1{margin:0;color:#ffa028;font-size:4vh;letter-spacing:.08em}
+#o2{font:bold 7vh monospace;color:#50c8ff}
+#grille{display:grid;grid-template-columns:repeat(3,auto);gap:1.6vh}
+.case{display:flex;align-items:center;justify-content:center;gap:3vh;padding:.8vh 4vh;background:#202642;border:2px solid #465a8c;border-radius:1vh}
+.case b{font:bold 7vh monospace;color:#ffe146}
+.case span{font-size:8vh;line-height:1.1;font-family:"Segoe UI Symbol","DejaVu Sans",sans-serif;color:#ebeef5}
+#saisie span{display:inline-block;width:3.5vh;height:3.5vh;margin:0 .6vh;border:2px solid #50ff78;border-radius:.5vh;vertical-align:middle}
+#saisie span.on{background:#50ff78}
+#tab p{margin:0;color:#8c96af}
+#tab.err{animation:err .5s}
+@keyframes err{0%,100%{box-shadow:none}40%{box-shadow:inset 0 0 0 2vh #f03c32}}
 </style></head><body>
 <canvas id="c" width="240" height="135"></canvas>
+<div id="tab"><h1>ON-BOARD COMPUTER: SYMBOL TABLE</h1><div id="o2"></div><div id="grille"></div>
+<div id="saisie"></div><p>The Cardputer player gives you a letter of the code: tell them which symbol matches it.</p></div>
 <div id="son">Click to enable sound<small>Double-click: full screen</small></div>
 <div id="etat">Connecting to the Cardputer…</div>
 <script>
@@ -69,7 +83,22 @@ function makeNoise(){const n=8000,f=400,tmp=new Float32Array(n+f);let v=0,peak=1
 son.onclick=()=>{ac=new AudioContext();master=ac.createGain();master.gain.value=.3;master.connect(ac.destination);noise=makeNoise();son.style.display='none';};
 document.ondblclick=()=>{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();};
 
-function msg(s){const a=s.split(',').map(Number);sync(a[1]);if(!ac)return;
+// Symbol table (on-board computer): replaces the screen copy.
+// Message "K,time,1,remaining_ms,typed,errors,table" or "K,time,0".
+const SYM=['☺','♥','♦','♣','♠','♂','♀','♪','☼','⌂','▲','‼'];
+const tab=document.getElementById('tab'),o2=document.getElementById('o2'),grille=document.getElementById('grille'),saisie=document.getElementById('saisie');
+let tabOn=false,tabEnd=0,tabKey='',lastErr=-1;
+function panel(a){tabOn=a[2]=='1';tab.style.display=tabOn?'flex':'none';if(!tabOn){lastErr=-1;return;}
+ tabEnd=Number(a[1])+off+Number(a[3]);
+ if(a[6]!==tabKey){tabKey=a[6];grille.innerHTML='';
+  for(let i=0;i<tabKey.length;i+=2){const d=document.createElement('div');d.className='case';
+   d.innerHTML='<b>'+tabKey[i]+'</b><span>'+SYM[parseInt(tabKey[i+1],16)]+'︎</span>';grille.appendChild(d);}}
+ let h='';for(let i=0;i<4;i++)h+='<span'+(i<Number(a[4])?' class="on"':'')+'></span>';saisie.innerHTML='Typed '+h;
+ const e=Number(a[5]);if(lastErr>=0&&e!==lastErr){tab.classList.remove('err');void tab.offsetWidth;tab.classList.add('err');}lastErr=e;}
+setInterval(()=>{if(!tabOn)return;const r=Math.max(0,tabEnd-performance.now()),s=Math.ceil(r/1000);
+ o2.textContent='O2 '+String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');o2.style.color=r<60000?'#f03c32':'#50c8ff';},100);
+
+function msg(s){const a=s.split(',').map(Number);sync(a[1]);if(s[0]=='K'){panel(s.split(','));return;}if(!ac)return;
  if(s[0]=='T')tone(a[2],a[3],a[4],a[5]);else if(s[0]=='S')stop(a[2],a[3]);else if(s[0]=='R')rumble(a[2]);}
 function connect(){const ws=new WebSocket('ws://'+location.hostname+':81/');ws.binaryType='arraybuffer';
  ws.onopen=()=>{etat.textContent='';offs=[];};
@@ -102,6 +131,11 @@ uint32_t rowHash[MAX_H];  // 0 = line to send again
 int nextRow = 0;          // resume point if a frame doesn't fit in one send
 uint8_t *frameBuf = nullptr;
 volatile int clients = 0;
+
+// PC-only page: last text requested by the game (sent by the network task)
+portMUX_TYPE panelLock = portMUX_INITIALIZER_UNLOCKED;
+char panelText[128] = "0";
+volatile bool panelDirty = false;
 
 uint32_t hashRow(const uint16_t *p) {
     const uint32_t *w = reinterpret_cast<const uint32_t *>(p);
@@ -180,6 +214,7 @@ void sendFrame() {
 void onWsEvent(uint8_t, WStype_t type, uint8_t *, size_t) {
     if (type == WStype_CONNECTED) {
         memset(rowHash, 0, sizeof(rowHash));  // new browser: full screen
+        panelDirty = true;
     }
     if (type == WStype_CONNECTED || type == WStype_DISCONNECTED) {
         clients = ws.connectedClients();
@@ -209,6 +244,18 @@ void netTask(void *) {
             ws.broadcastTXT(txt);
         }
         uint32_t now = millis();
+        if (panelDirty) {
+            char copy[sizeof(panelText)];
+            portENTER_CRITICAL(&panelLock);
+            memcpy(copy, panelText, sizeof(copy));
+            panelDirty = false;
+            portEXIT_CRITICAL(&panelLock);
+            if (clients) {
+                char out[sizeof(panelText) + 16];
+                snprintf(out, sizeof(out), "K,%lu,%s", (unsigned long)now, copy);
+                ws.broadcastTXT(out);
+            }
+        }
         if (clients && (int32_t)(now - nextPing) >= 0) {
             nextPing = now + PING_MS;
             snprintf(txt, sizeof(txt), "P,%lu", (unsigned long)now);
@@ -325,6 +372,16 @@ void sendStop(uint32_t at, uint8_t ch) {
 
 void sendRumble(uint32_t at) {
     queueSound({'R', 0, 0, 0, at});
+}
+
+// ---------------------------------------------------------------- PC page
+
+void setPanel(const String &text) {
+    portENTER_CRITICAL(&panelLock);
+    strncpy(panelText, text.c_str(), sizeof(panelText) - 1);  // no printf under the lock
+    panelText[sizeof(panelText) - 1] = 0;
+    panelDirty = true;
+    portEXIT_CRITICAL(&panelLock);
 }
 
 }  // namespace mirror

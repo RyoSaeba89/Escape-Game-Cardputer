@@ -33,4 +33,8 @@ void sendTone(uint32_t at, uint16_t freq, uint16_t dur, uint8_t ch);
 void sendStop(uint32_t at, uint8_t ch);  // ch = 255: all channels
 void sendRumble(uint32_t at);           // liftoff rumble
 
+// PC-only page (symbol table): "0" = screen copy,
+// "1,remaining_ms,typed,errors,table" = table (table = letter + symbol number in hex)
+void setPanel(const String &text);
+
 }  // namespace mirror

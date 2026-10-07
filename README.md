@@ -53,6 +53,15 @@ At start-up, choose **Solo** (the game on the Cardputer only) or **Broadcast**: 
 3. Click the page once to **enable sound** (browsers require it). Double-click: full screen.
 4. `ENTER` on the Cardputer to start the game.
 
+### The coded keypad (team play)
+
+In broadcast mode the start-up code is not typed in letters: the on-board computer shows a **coded keypad**, 9 symbols on keys `1` to `9` (♥ ☺ ♪ ☼…). Only the **PC team** sees the **table** giving the symbol of each letter (at that moment the PC no longer shows the Cardputer screen). The Cardputer player says a letter, the PC team describes the symbol, and so on.
+
+- The table is shuffled every game.
+- `1` to `9`: pick a symbol, `DEL`: erase, `ENTER`: confirm the 4 symbols (−10 s if the code is wrong).
+- The PC page also shows the oxygen countdown and how many symbols have been typed, and flashes red on each error.
+- Place the PC so that the Cardputer player can't see its screen!
+
 - `` ` `` on the connecting or address screen: choose another Wi-Fi network.
 - The Cardputer only supports 2.4 GHz Wi-Fi. "Guest" networks often block traffic between devices.
 - If the page loses the connection, it reconnects by itself; the game goes on on the Cardputer.
