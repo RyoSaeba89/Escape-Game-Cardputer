@@ -8,10 +8,14 @@
 // Then type NASA, liftoff and end screen.
 // Fn pressed 3 times in a row: pause / resume (game master).
 // Record (O2 left) kept in memory even after power off.
+// At start-up: Solo mode, or Broadcast (screen and sound mirrored in the
+// browser of a PC on the same Wi-Fi, see diffusion.cpp).
 #include <Arduino.h>
 #include <M5Cardputer.h>
 #include <Preferences.h>
 #include <utility/Adafruit_TCA8418/Adafruit_TCA8418.h>
+
+#include "diffusion.h"
 
 #include <algorithm>
 #include <memory>
@@ -106,7 +110,7 @@ const char *const PICROSS[5] = {
     "#####",
 };
 
-enum class St { Title, Briefing, Puzzle, Solved, Computer, Launch, Win, GameOver };
+enum class St { Mode, WifiList, Password, Connecting, Address, Title, Briefing, Puzzle, Solved, Computer, Launch, Win, GameOver };
 
 using KeysState = std::decay<decltype(M5Cardputer.Keyboard.keysState())>::type;
 
@@ -155,7 +159,7 @@ private:
 
 M5Canvas canvas(&M5Cardputer.Display);
 
-St state = St::Title;
+St state = St::Mode;
 int puzzle = 0;  // 0..3
 uint32_t stateStart = 0;
 
@@ -199,6 +203,18 @@ Preferences prefs;
 uint32_t bestO2 = 0;
 bool newRecord = false;
 
+// Broadcast mode: sound goes to the PC instead of the speaker
+bool mirrorMode = false;
+int modeSel = 0;
+uint32_t chanUntil[5];  // end of the sound playing on each channel
+std::vector<mirror::WifiNet> nets;
+bool scanning = false;
+int netSel = 0;
+String wifiSsid;
+String wifiPass;
+String wifiError;
+constexpr uint32_t WIFI_TIMEOUT_MS = 20000;
+
 // Scenery
 struct Star {
     uint8_t x, y, b;
@@ -236,23 +252,45 @@ void cancelChannel(uint8_t ch) {
             n.used = false;
         }
     }
-    M5Cardputer.Speaker.stop(ch);
+    if (mirrorMode) {
+        mirror::sendStop(millis(), ch);
+        chanUntil[ch] = 0;
+    } else {
+        M5Cardputer.Speaker.stop(ch);
+    }
 }
 
 void stopAllSound() {
     for (auto &n : notes) {
         n.used = false;
     }
-    M5Cardputer.Speaker.stop();
+    if (mirrorMode) {
+        mirror::sendStop(millis(), 255);
+        memset(chanUntil, 0, sizeof(chanUntil));
+    } else {
+        M5Cardputer.Speaker.stop();
+    }
 }
 
 void runNotes(uint32_t now) {
     for (auto &n : notes) {
         if (n.used && (int32_t)(now - n.at) >= 0) {
             n.used = false;
-            M5Cardputer.Speaker.tone(n.freq, n.dur, n.ch, true);
+            if (mirrorMode) {
+                mirror::sendTone(n.at, n.freq, n.dur, n.ch);
+                chanUntil[n.ch] = n.at + n.dur;
+            } else {
+                M5Cardputer.Speaker.tone(n.freq, n.dur, n.ch, true);
+            }
         }
     }
+}
+
+bool channelPlaying(uint8_t ch) {
+    if (mirrorMode) {
+        return (int32_t)(chanUntil[ch] - millis()) > 0;
+    }
+    return M5Cardputer.Speaker.isPlaying(ch);
 }
 
 void sfxClick() {
@@ -672,6 +710,115 @@ bool picrossSolved() {
 
 // ---------------------------------------------------------------- screens
 
+// Cuts the text with "..." if it is wider than w
+String fit(String s, int w) {
+    if (canvas.textWidth(s) <= w) {
+        return s;
+    }
+    while (s.length() > 1 && canvas.textWidth(s + "...") > w) {
+        s.remove(s.length() - 1);
+    }
+    return s + "...";
+}
+
+void drawScreenTitle(const String &title) {
+    canvas.fillScreen(C_SPACE);
+    drawStars(H, false);
+    canvas.fillRect(0, 0, W, 17, C_PANEL);
+    canvas.drawFastHLine(0, 17, W, C_BORDER);
+    text(title, 4, 3, C_ORANGE);
+}
+
+void drawMode() {
+    canvas.fillScreen(C_SPACE);
+    drawStars(H, true);
+    shadowText("EXPLORER 3", W / 2 + 1, 6, C_ORANGE, 2, TC_DATUM);
+    const char *const names[2] = {"Solo", "Broadcast"};
+    const char *const infos[2] = {"The game on the Cardputer", "Screen and sound on a PC too"};
+    for (int i = 0; i < 2; i++) {
+        int y = 36 + i * 38;
+        bool sel = i == modeSel;
+        canvas.fillRoundRect(16, y, W - 32, 32, 5, sel ? C_PANEL2 : C_PANEL);
+        canvas.drawRoundRect(16, y, W - 32, 32, 5, sel ? C_YELLOW : C_BORDER);
+        if (sel) {
+            canvas.fillTriangle(24, y + 10, 24, y + 22, 31, y + 16, C_YELLOW);
+        }
+        text(names[i], 38, y + 3, sel ? C_YELLOW : C_TEXT);
+        text(infos[i], 38, y + 17, C_DIM);
+    }
+    drawFooter("; . select   ENTER confirm");
+}
+
+void drawWifiList() {
+    drawScreenTitle("BROADCAST: CHOOSE WI-FI");
+    if (scanning) {
+        if (blink()) {
+            text("Searching for networks...", W / 2, 60, C_CYAN, 1, TC_DATUM);
+        }
+    } else if (nets.empty()) {
+        text("No network found", W / 2, 60, C_DIM, 1, TC_DATUM);
+    } else {
+        const int rows = 6;
+        int top = std::max(0, std::min(netSel - rows / 2, (int)nets.size() - rows));
+        for (int r = 0; r < rows && top + r < (int)nets.size(); r++) {
+            int i = top + r;
+            int y = 20 + r * 16;
+            bool sel = i == netSel;
+            if (sel) {
+                canvas.fillRect(0, y, W, 16, C_PANEL2);
+            }
+            text(fit(nets[i].ssid, 180), 6, y + 2, sel ? C_YELLOW : C_TEXT);
+            text(String(nets[i].rssi) + (nets[i].open ? "" : " *"), W - 4, y + 2, C_DIM, 1, TR_DATUM);
+        }
+    }
+    if (!wifiError.isEmpty()) {
+        canvas.fillRect(0, H - 30, W, 15, C_SPACE);
+        text(fit(wifiError, W - 8), W / 2, H - 29, C_RED, 1, TC_DATUM);
+    }
+    drawFooter("; . ENTER select   R rescan   ` back");
+}
+
+void drawPassword() {
+    drawScreenTitle("WI-FI PASSWORD");
+    text(fit(wifiSsid, W - 16), W / 2, 30, C_CYAN, 1, TC_DATUM);
+    canvas.fillRoundRect(8, 52, W - 16, 24, 4, C_PANEL);
+    canvas.drawRoundRect(8, 52, W - 16, 24, 4, C_YELLOW);
+    String shown = wifiPass + (blink() ? "_" : " ");
+    while (canvas.textWidth(shown) > W - 32 && shown.length() > 1) {
+        shown.remove(0, 1);
+    }
+    text(shown, 16, 58, C_TEXT);
+    drawFooter("ENTER confirm   DEL erase   ` back");
+}
+
+void drawConnecting(uint32_t now) {
+    drawScreenTitle("BROADCAST: CONNECTING");
+    text("Connecting to Wi-Fi", W / 2, 40, C_TEXT, 1, TC_DATUM);
+    text(fit(wifiSsid, W - 16), W / 2, 58, C_CYAN, 1, TC_DATUM);
+    int dots = (now - stateStart) / 300 % 4;
+    for (int i = 0; i < 3; i++) {
+        canvas.fillCircle(W / 2 - 16 + i * 16, 88, 3, i < dots ? C_YELLOW : C_DGREY);
+    }
+    drawFooter("` : choose another Wi-Fi");
+}
+
+void drawAddress() {
+    drawScreenTitle("BROADCAST: READY");
+    text("On the PC, open in the web browser:", W / 2, 24, C_TEXT, 1, TC_DATUM);
+    canvas.fillRoundRect(8, 42, W - 16, 24, 4, C_PANEL);
+    canvas.drawRoundRect(8, 42, W - 16, 24, 4, C_CYAN);
+    text(mirror::address(), W / 2, 48, C_YELLOW, 1, TC_DATUM);
+    if (mirror::clientCount() > 0) {
+        text("PC connected", W / 2, 74, C_GREEN, 1, TC_DATUM);
+    } else {
+        text("Waiting for the PC...", W / 2, 74, C_DIM, 1, TC_DATUM);
+    }
+    if (blink()) {
+        text("ENTER to continue", W / 2, 96, C_YELLOW, 1, TC_DATUM);
+    }
+    drawFooter("` : change Wi-Fi");
+}
+
 void drawTitle(uint32_t now) {
     drawMars(100);
     drawRocket(140, 82, 2, true);
@@ -726,7 +873,7 @@ void drawSpeaker(int cx, int cy, bool playing) {
     canvas.fillTriangle(cx - 8, cy - 7, cx + 4, cy - 17, cx + 4, cy + 17, C_GREY);
     canvas.fillTriangle(cx - 8, cy + 7, cx - 8, cy - 7, cx + 4, cy + 17, C_GREY);
     if (playing) {
-        uint16_t col = M5Cardputer.Speaker.isPlaying(CH_MORSE) ? C_YELLOW : C_DGREY;
+        uint16_t col = channelPlaying(CH_MORSE) ? C_YELLOW : C_DGREY;
         canvas.fillArc(cx + 4, cy, 9, 11, -40, 40, col);
         canvas.fillArc(cx + 4, cy, 16, 18, -40, 40, col);
         canvas.fillArc(cx + 4, cy, 23, 25, -40, 40, col);
@@ -1069,9 +1216,13 @@ void startLaunch() {
         prefs.putUInt("best_o2", bestO2);
     }
     stopAllSound();
-    M5Cardputer.Speaker.setChannelVolume(CH_RUMBLE, 0);
-    M5Cardputer.Speaker.playRaw(noiseBuf, NOISE_LEN, 8000, false, 8, CH_RUMBLE, true);
-    M5Cardputer.Speaker.setChannelVolume(CH_WHISTLE, 70);
+    if (mirrorMode) {
+        mirror::sendRumble(millis());  // the PC follows the same volume ramp
+    } else {
+        M5Cardputer.Speaker.setChannelVolume(CH_RUMBLE, 0);
+        M5Cardputer.Speaker.playRaw(noiseBuf, NOISE_LEN, 8000, false, 8, CH_RUMBLE, true);
+        M5Cardputer.Speaker.setChannelVolume(CH_WHISTLE, 70);
+    }
     uint32_t t = millis() + 1200;
     for (int i = 0; i < 40; i++) {
         schedule(t + i * 110, 120 + i * 22, 120, CH_WHISTLE);
@@ -1118,8 +1269,101 @@ void answerLetter(char got, char expected) {
     }
 }
 
+void startWifiScan() {
+    mirror::startScan();
+    scanning = true;
+    nets.clear();
+    netSel = 0;
+    enter(St::WifiList);
+}
+
+void startWifiConnect() {
+    wifiError = "";
+    mirror::connect(wifiSsid, wifiPass);
+    enter(St::Connecting);
+}
+
 void handleKey(const KeysState &ks) {
     switch (state) {
+        case St::Mode:
+            if (hasChar(ks, ';') || hasChar(ks, '.')) {
+                modeSel = 1 - modeSel;
+                sfxClick();
+            } else if (ks.enter) {
+                sfxClick();
+                mirrorMode = modeSel == 1;
+                if (!mirrorMode) {
+                    enter(St::Title);
+                    break;
+                }
+                wifiSsid = prefs.getString("ssid", "");
+                wifiPass = prefs.getString("pass", "");
+                if (wifiSsid.isEmpty()) {
+                    startWifiScan();
+                } else {
+                    startWifiConnect();  // saved Wi-Fi
+                }
+            }
+            break;
+
+        case St::WifiList:
+            if (hasChar(ks, '`')) {
+                mirrorMode = false;
+                wifiError = "";
+                enter(St::Mode);
+            } else if (scanning) {
+                break;
+            } else if (hasChar(ks, 'r') || hasChar(ks, 'R')) {
+                wifiError = "";
+                startWifiScan();
+            } else if (hasChar(ks, ';') && netSel > 0) {
+                netSel--;
+            } else if (hasChar(ks, '.') && netSel + 1 < (int)nets.size()) {
+                netSel++;
+            } else if (ks.enter && !nets.empty()) {
+                bool sameNet = nets[netSel].ssid == prefs.getString("ssid", "");
+                wifiSsid = nets[netSel].ssid;
+                wifiPass = sameNet ? prefs.getString("pass", "") : String();
+                if (nets[netSel].open) {
+                    startWifiConnect();
+                } else {
+                    wifiError = "";
+                    enter(St::Password);
+                }
+            }
+            break;
+
+        case St::Password:
+            if (ks.enter) {
+                startWifiConnect();
+            } else if (ks.del) {
+                if (!wifiPass.isEmpty()) {
+                    wifiPass.remove(wifiPass.length() - 1);
+                }
+            } else if (hasChar(ks, '`') && !ks.shift) {
+                startWifiScan();
+            } else {
+                for (char c : ks.word) {
+                    wifiPass += c;
+                }
+            }
+            break;
+
+        case St::Connecting:
+            if (hasChar(ks, '`')) {
+                startWifiScan();
+            }
+            break;
+
+        case St::Address:
+            if (ks.enter) {
+                sfxClick();
+                enter(St::Title);
+            } else if (hasChar(ks, '`')) {
+                startWifiScan();
+            }
+            break;
+
         case St::Title:
             if (ks.enter) {
                 sfxClick();
@@ -1219,6 +1463,22 @@ void handleKey(const KeysState &ks) {
 }
 
 void update(uint32_t now) {
+    if (state == St::WifiList && scanning && mirror::scanDone(nets)) {
+        scanning = false;
+        netSel = 0;
+    }
+    if (state == St::Connecting) {
+        if (mirror::connected()) {
+            prefs.putString("ssid", wifiSsid);
+            prefs.putString("pass", wifiPass);
+            mirror::startServer(static_cast<const uint16_t *>(canvas.getBuffer()), W, H);
+            enter(St::Address);
+        } else if (now - stateStart > WIFI_TIMEOUT_MS) {
+            startWifiScan();
+            wifiError = "Could not connect to " + wifiSsid;
+        }
+    }
+
     bool playing = state == St::Puzzle || state == St::Solved || state == St::Computer;
     if (playing && timerRunning) {
         if (remaining() == 0) {
@@ -1330,6 +1590,11 @@ void render(uint32_t now) {
         return;
     }
     switch (state) {
+        case St::Mode: drawMode(); break;
+        case St::WifiList: drawWifiList(); break;
+        case St::Password: drawPassword(); break;
+        case St::Connecting: drawConnecting(now); break;
+        case St::Address: drawAddress(); break;
         case St::Title: drawTitle(now); break;
         case St::Briefing: drawBriefing(); break;
         case St::Puzzle:
@@ -1377,7 +1642,7 @@ void setup() {
     randomSeed(esp_random());
     prefs.begin("explorer3", false);
     bestO2 = prefs.getUInt("best_o2", 0);
-    enter(St::Title);
+    enter(St::Mode);
 }
 
 void loop() {
@@ -1402,6 +1667,8 @@ void loop() {
         update(now);
     }
     runNotes(now);
+    mirror::lockScreen();
     render(now);
+    mirror::unlockScreen();
     delay(10);
 }

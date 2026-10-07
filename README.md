@@ -44,6 +44,19 @@ The solutions are not given here. ⚠️ **Players: don't read the source code, 
 
 Press **`Fn` 3 times in a row** (less than 0.8 s between presses) to **pause** the game: the countdown stops, the sound is muted and the puzzle is hidden. Press **`Fn` 3 times** again to resume.
 
+## Broadcast mode: the game on a PC screen too
+
+At start-up, choose **Solo** (the game on the Cardputer only) or **Broadcast**: the Cardputer screen is mirrored live in the web browser of a PC on the same home network, and **the sound comes out of the PC** (the Cardputer stays silent). You still play with the Cardputer keyboard.
+
+1. Choose **Broadcast**, then the Wi-Fi network and type its password (saved for next time).
+2. The Cardputer shows an address, for example `http://192.168.1.42`: open it in the PC's browser (Chrome, Edge, Firefox). Nothing to install.
+3. Click the page once to **enable sound** (browsers require it). Double-click: full screen.
+4. `ENTER` on the Cardputer to start the game.
+
+- `` ` `` on the connecting or address screen: choose another Wi-Fi network.
+- The Cardputer only supports 2.4 GHz Wi-Fi. "Guest" networks often block traffic between devices.
+- If the page loses the connection, it reconnects by itself; the game goes on on the Cardputer.
+
 ## Installation
 
 ### With M5Launcher (SD card)
@@ -62,8 +75,8 @@ pio run -t upload      # build and flash over USB
 ```
 
 - Platform `espressif32 @ 6.7.0` (Arduino core 2.0.x)
-- Libraries: M5Cardputer, M5Unified, M5GFX
-- The whole game is in a single file: `src/main.cpp`
+- Libraries: M5Cardputer, M5Unified, M5GFX, WebSockets (links2004)
+- The game: `src/main.cpp`; broadcast mode (Wi-Fi, web page, screen and sound stream): `src/diffusion.cpp`
 
 ## Hardware
 
