@@ -4,7 +4,7 @@
 
 Ce document décrit le fonctionnement interne du jeu pour qui veut le compiler, le comprendre ou le modifier. Il ne donne pas les solutions des énigmes, mais elles sont en clair dans le code source.
 
-Version décrite : **v1.4**, avec la compatibilité Firefox 68 et console Ouya (section 9.7).
+Version décrite : **v1.5** (en préparation) : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC.
 
 ## Sommaire
 
@@ -16,11 +16,12 @@ Version décrite : **v1.4**, avec la compatibilité Firefox 68 et console Ouya (
 6. [Son](#6-son)
 7. [Énigmes](#7-énigmes)
 8. [Clavier du Cardputer ADV](#8-clavier-du-cardputer-adv)
-9. [Mode diffusion](#9-mode-diffusion)
+9. [Mode avec écran](#9-mode-avec-écran)
 10. [Clavier codé (jeu asymétrique)](#10-clavier-codé-jeu-asymétrique)
 11. [Mémoire et performances](#11-mémoire-et-performances)
 12. [Limites connues et sécurité](#12-limites-connues-et-sécurité)
 13. [Modifier le jeu](#13-modifier-le-jeu)
+14. [Simulateur PC](#14-simulateur-pc)
 
 ## 1. Vue d'ensemble
 
@@ -28,45 +29,54 @@ Version décrite : **v1.4**, avec la compatibilité Firefox 68 et console Ouya (
 |---|---|
 | Matériel | M5Stack **Cardputer ADV** : ESP32-S3 (2 cœurs, 240 MHz), 8 Mo de flash, **pas de PSRAM**, écran 240×135, codec audio ES8311 (mono), clavier TCA8418 |
 | Framework | Arduino (core ESP32 2.0.x) via PlatformIO |
-| Langage | C++17 côté Cardputer, HTML/CSS/JavaScript pour la page web du mode diffusion |
-| Fichiers | `src/main.cpp` (le jeu), `src/diffusion.cpp` et `src/diffusion.h` (le mode diffusion) |
+| Langage | C++17 côté Cardputer, HTML/CSS/JavaScript pour la page web du mode avec écran |
+| Fichiers | `src/main.cpp` (le jeu), `src/textes.h` (textes français et anglais), `src/diffusion.cpp` et `src/diffusion.h` (le mode avec écran), `sim/` (simulateur PC) |
 | Licence | MIT |
 
 Le jeu dure 5 minutes : 4 énigmes à résoudre dans l'ordre, chacune donne une lettre d'un code de 4 lettres à taper sur l'ordinateur de bord pour faire décoller la fusée.
 
-Deux modes sont proposés au démarrage :
+Le jeu est en **français ou en anglais**, au choix au premier démarrage (section 3). Deux modes sont proposés ensuite :
 
-- **Solo** : tout se passe sur le Cardputer.
-- **Diffusion** : le Cardputer se connecte au Wi-Fi, sert lui-même une page web, et le navigateur d'un PC affiche une copie en direct de l'écran. Le son sort du PC. À la fin, le PC affiche une table secrète pour le **clavier codé** (section 10).
+- **Cardputer seul** : tout se passe sur le Cardputer.
+- **Avec écran** : le Cardputer se connecte au Wi-Fi de la box (ou crée le sien, Explorer3), sert lui-même une page web, et le navigateur d'un PC ou d'une télé affiche une copie en direct de l'écran. Le son sort de cet écran. À la fin, l'écran affiche une table secrète pour le **clavier codé** (section 10).
 
 ## 2. Compiler et installer
 
 ### Environnement
 
-Configuration de `platformio.ini` :
+Configuration de `platformio.ini` (environnement `cardputer-adv`, celui par défaut) :
 
 | Réglage | Valeur |
 |---|---|
 | Plateforme | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Carte | `esp32-s3-devkitc-1`, flash 8 Mo, partitions `default_8MB.csv` (application jusqu'à 3,3 Mo) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (port série par l'USB natif) |
-| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (2.7.3 au moment de la v1.4) |
+| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v1.5 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
 
 ```
 pio run                # compile
 pio run -t upload      # compile et flashe par USB
+pio run -e simulateur  # simulateur PC (section 14)
 ```
 
-Le fichier produit est `.pio/build/cardputer-adv/firmware.bin` (image d'application seule, environ 1,34 Mo).
+Le fichier produit est `.pio/build/cardputer-adv/firmware.bin` (image d'application seule, environ 1,39 Mo), avec les deux langues.
 
 ### Installation avec M5Launcher
 
-M5Launcher garde les applications sur la carte SD et en installe une à la fois. Copier le `.bin` dans le dossier `apps/` de la carte, puis le choisir dans le menu SD de M5Launcher. Les releases GitHub fournissent `Escape-Game-Explorer-3.bin` (français, branche `main`) et `Escape-Game-Explorer-3-EN.bin` (anglais, branche `english`).
+M5Launcher garde les applications sur la carte SD et en installe une à la fois. Copier le `.bin` dans le dossier `apps/` de la carte, puis le choisir dans le menu SD de M5Launcher. Les releases GitHub fournissent `Escape-Game-Explorer-3.bin`.
+
+### Release automatique
+
+`.github/workflows/release.yml` : à chaque tag `v…` poussé sur GitHub (par exemple `v1.5`), GitHub Actions compile l'environnement `cardputer-adv`, renomme le firmware en `Escape-Game-Explorer-3.bin` et le joint à la release du tag. Si la release n'existe pas encore, elle est créée avec des notes générées à partir des commits. Les bibliothèques sont gardées en cache d'une compilation à l'autre.
+
+```
+git tag v1.5
+git push origin v1.5
+```
 
 ### Branches
 
-- `main` : version française.
-- `english` : même code, textes et commentaires traduits. Chaque changement est fait sur `main` puis reporté sur `english`.
+Une seule branche, `main`, avec les deux langues. L'ancienne branche `english` n'a plus de raison d'être.
 
 ## 3. Organisation du code
 
@@ -76,21 +86,35 @@ Tout le jeu est dans `src/main.cpp`, dans un espace de noms anonyme. Les section
 |---|---|
 | Constantes | Taille d'écran, durée de partie, pénalité, unités Morse, canaux audio, palette de couleurs (RGB565), alphabet Morse, dessins en pixel art (fusée, picross, symboles) |
 | Lecteur clavier | `PolledKeyboardReader` (section 8) |
-| État global | État courant, chrono, énigme, saisie, pause, record, variables du mode diffusion |
+| État global | État courant, langue, chrono, énigme, saisie, pause, record, variables du mode avec écran |
 | son | Ordonnanceur de notes, effets sonores, bruit du décollage |
 | chrono | `remaining()`, `fmtTime()`, `penalty()` |
 | dessin | Primitives (texte, texte ombré, retour à la ligne, décor, HUD, pied de page) |
 | Morse, picross | Logique des énigmes |
 | écrans | Un `drawXxx()` par écran |
-| clavier codé | Génération du clavier, saisie, message vers le PC (section 10) |
+| clavier codé | Génération du clavier, saisie, dessins des symboles pour la page web, message vers l'écran (section 10) |
 | logique | Transitions (`enter`, `startPuzzle`, `solvePuzzle`…), clavier (`handleKey`), mise à jour (`update`), pause |
 | `setup()` / `loop()` | Démarrage et boucle principale |
 
 `src/diffusion.cpp` contient tout ce qui touche au réseau, derrière l'interface `mirror::` déclarée dans `src/diffusion.h`. `main.cpp` n'inclut ni le Wi-Fi ni les serveurs.
 
+### Textes et langues (`src/textes.h`)
+
+Chaque texte affiché est une paire `{ français, anglais }` de type `Tx`, rangée par écran :
+
+```cpp
+constexpr Tx P2_FOOTER = {"Répondez A, B, C ou D", "Answer A, B, C or D"};
+...
+drawFooter(tr(P2_FOOTER));
+```
+
+`tr()` renvoie le texte dans la langue courante (`lang` : 0 français, 1 anglais). Les deux traductions sont côte à côte, ce qui évite d'en oublier une. Les textes de la page web sont dans la page elle-même (section 9.7).
+
+**Place à l'écran.** La police `efontJA_12` donne 6 px par caractère latin, accents compris, soit 40 caractères sur 240 px. En pratique, un pied de page doit rester sous 39 caractères pour ne pas être rogné, et les colonnes étroites (picross, clavier codé, écran d'adresse) passent à la ligne avec `wrapped()`. Le simulateur (section 14) permet de vérifier chaque écran.
+
 ### Dessin
 
-Tout l'écran est dessiné dans un sprite `M5Canvas` de 240×135 en 16 bits (64 800 octets), puis envoyé d'un coup à l'écran avec `pushSprite()`. Il n'y a donc pas de scintillement, et le mode diffusion peut lire cette même image. La police est `efontJA_12`, choisie parce qu'elle contient les lettres accentuées françaises (É, È, À…), contrairement à `efontCN_12`.
+Tout l'écran est dessiné dans un sprite `M5Canvas` de 240×135 en 16 bits (64 800 octets), puis envoyé d'un coup à l'écran avec `pushSprite()`. Il n'y a donc pas de scintillement, et le mode avec écran peut lire cette même image. La police est `efontJA_12`, choisie parce qu'elle contient les lettres accentuées françaises (É, È, À…), contrairement à `efontCN_12`.
 
 ### Données gardées en mémoire (NVS)
 
@@ -98,8 +122,10 @@ Espace `Preferences` nommé `explorer3` :
 
 | Clé | Type | Contenu |
 |---|---|---|
+| `lang` | uchar | Langue (0 français, 1 anglais). Absente au premier démarrage : l'écran de langue s'affiche |
 | `best_o2` | uint | Record : plus grande réserve d'O2 restante à la victoire (ms) |
-| `ssid`, `pass` | chaîne | Dernier Wi-Fi utilisé en mode diffusion, enregistré seulement après une connexion réussie |
+| `ssid`, `pass` | chaîne | Dernier Wi-Fi de box utilisé, enregistré seulement après une connexion réussie |
+| `auto` | bool | `true` : « Avec écran » se reconnecte directement à `ssid`. Mis à `false` quand on crée le réseau Explorer3, pour repasser la fois suivante par la liste des Wi-Fi. Absente = `true` |
 
 ## 4. Boucle principale et machine à états
 
@@ -110,8 +136,8 @@ Espace `Preferences` nommé `explorer3` :
 1. lecture du clavier (`updateKeyList` puis `updateKeysState`) ;
 2. lancement des notes arrivées à échéance (`runNotes`) ;
 3. touche nouvellement appuyée : `Fn` seul part au compteur de pause, sinon `handleKey()` (sauf en pause) ;
-4. `update(now)` (sauf en pause) : chrono, alarme O2, enchaînements temporisés, suivi du Wi-Fi ;
-5. en mode diffusion : `updatePanel(now)`, qui envoie l'état de la page du PC ;
+4. `update(now)` (sauf en pause) : chrono, alarme O2, enchaînements temporisés, recherche et connexion Wi-Fi ;
+5. en mode avec écran : `updatePanel(now)`, qui envoie l'état de la page de l'écran ;
 6. `render(now)` entre `mirror::lockScreen()` et `mirror::unlockScreen()` ;
 7. `delay(10)`.
 
@@ -119,17 +145,24 @@ Espace `Preferences` nommé `explorer3` :
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Mode
-    Mode --> Title : Solo
-    Mode --> Connecting : Diffusion, Wi-Fi mémorisé
-    Mode --> WifiList : Diffusion, pas de Wi-Fi mémorisé
+    [*] --> Lang : premier démarrage
+    [*] --> Mode : langue mémorisée
+    Lang --> Mode : ENTRÉE
+    Mode --> Lang : Langue / Language
+    Mode --> Title : Cardputer seul
+    Mode --> Connecting : Avec écran, box mémorisée
+    Mode --> WifiList : Avec écran, sinon
     WifiList --> Password : réseau protégé
     WifiList --> Connecting : réseau ouvert
+    WifiList --> SsidEntry : Autre réseau
+    WifiList --> Address : Créer le réseau Explorer3
     WifiList --> Mode : retour
+    SsidEntry --> Password : ENTRÉE
+    SsidEntry --> WifiList : retour
     Password --> Connecting : ENTRÉE
     Password --> WifiList : retour
     Connecting --> Address : connecté (serveur démarré)
-    Connecting --> WifiList : échec après 20 s, ou retour
+    Connecting --> WifiList : mot de passe refusé, échec après 20 s, ou retour
     Address --> Title : ENTRÉE
     Address --> WifiList : retour
     Title --> Briefing : ENTRÉE
@@ -148,12 +181,13 @@ stateDiagram-v2
 
 | État | Écran | Remarques |
 |---|---|---|
-| `Mode` | Choix Solo / Diffusion | Premier écran après le démarrage |
-| `WifiList`, `Password`, `Connecting`, `Address` | Configuration du mode diffusion | Section 9 |
+| `Lang` | Langue / Language | Au premier démarrage, puis depuis le choix du mode |
+| `Mode` | Cardputer seul / Avec écran / Langue | |
+| `WifiList`, `SsidEntry`, `Password`, `Connecting`, `Address` | Configuration du mode avec écran | Section 9.3 |
 | `Title` | Titre (Mars, fusée couchée) | |
 | `Briefing` | Journal de bord | ENTRÉE démarre le chrono |
 | `Puzzle` | Énigme `puzzle` (0 à 3) | |
-| `Solved` | Partie du vaisseau réparée, lettre obtenue | |
+| `Solved` | Partie du vaisseau réparée, lettre gravée dessus | |
 | `Computer` | Ordinateur de bord, saisie du code | 5 lignes de texte apparaissent toutes les 600 ms, puis la saisie |
 | `Launch` | Animation du décollage (6,5 s) | Chrono arrêté, record enregistré |
 | `Win` / `GameOver` | Écrans de fin | ENTRÉE revient au titre, le mode choisi est gardé |
@@ -165,7 +199,7 @@ stateDiagram-v2
 ## 5. Chrono, pénalités et pause
 
 - La partie dure `GAME_MS` = 5 min. Le chrono repose sur une échéance absolue `deadline` (en `millis()`), et `remaining()` calcule le temps restant.
-- **Pénalité** (`penalty()`) : `deadline` recule de `PENALTY_MS` = 10 s. Le bord de l'écran clignote en rouge pendant 0,4 s, « −10 s » s'affiche 1,5 s et le compteur `errCount` augmente (il sert à la page du PC).
+- **Pénalité** (`penalty()`) : `deadline` recule de `PENALTY_MS` = 10 s. Le bord de l'écran clignote en rouge pendant 0,4 s, « −10 s » s'affiche 1,5 s et le compteur `errCount` augmente (il sert à la page de l'écran). La lettre fausse s'affiche avec « ACCÈS REFUSÉ » (énigmes 1, 2 et 4), un mauvais code avec « CODE REFUSÉ » pendant 1,5 s (`codeRefusedUntil`).
 - **HUD** : jauge d'O2 verte au-dessus de 50 %, orange au-dessus de 20 %, rouge en dessous. Le temps clignote sous 1 minute. Les cases des lettres du code se remplissent au fil des énigmes.
 - **Alarme O2** : 3 bips à 2 kHz, répétés toutes les `1500 + 8500 × restant / GAME_MS` ms, donc de toutes les 10 s au début à toutes les 1,5 s à la fin. Elle se tait pendant les deux énigmes de Morse.
 - **Pause du maître du jeu** : `Fn` appuyé seul 3 fois, avec moins de `FN_GAP_MS` = 800 ms entre deux appuis, pendant `Puzzle`, `Solved` ou `Computer`. Le temps restant est gelé dans `pausedRemaining`, le son est coupé et l'énigme masquée. À la reprise, `deadline` et `stateStart` sont décalés de la durée de la pause.
@@ -189,11 +223,11 @@ Le haut-parleur de M5Unified mélange plusieurs canaux virtuels :
 
 `schedule(at, freq, dur, ch)` range une note dans un tableau fixe de 64 places (`notes[]`). `runNotes(now)`, appelé deux fois par tour de boucle, joue les notes dont l'heure est passée. Un effet sonore ou un signal Morse est donc une suite de notes horodatées, sans `delay()`. `cancelChannel(ch)` annule les notes en attente d'un canal et coupe ce canal, `stopAllSound()` fait de même pour tous.
 
-C'est le **seul endroit** où le son sort, ce qui permet au mode diffusion de l'envoyer au PC au lieu du haut-parleur (section 9.5) :
+C'est le **seul endroit** où le son sort, ce qui permet au mode avec écran de l'envoyer au navigateur au lieu du haut-parleur (section 9.5) :
 
-- `runNotes` appelle `Speaker.tone()` en solo, et `mirror::sendTone()` en diffusion ;
-- `cancelChannel` et `stopAllSound` appellent `Speaker.stop()` en solo, et `mirror::sendStop()` en diffusion ;
-- `channelPlaying(ch)` remplace `Speaker.isPlaying(ch)`. En diffusion, il se base sur `chanUntil[ch]`, l'heure de fin de la note en cours, puisque le haut-parleur ne joue rien.
+- `runNotes` appelle `Speaker.tone()` sur le Cardputer seul, et `mirror::sendTone()` avec écran ;
+- `cancelChannel` et `stopAllSound` appellent `Speaker.stop()` sur le Cardputer seul, et `mirror::sendStop()` avec écran ;
+- `channelPlaying(ch)` remplace `Speaker.isPlaying(ch)`. Avec écran, il se base sur `chanUntil[ch]`, l'heure de fin de la note en cours, puisque le haut-parleur ne joue rien.
 
 ### Décollage
 
@@ -207,12 +241,12 @@ Les mécanismes sont décrits ici, pas les réponses.
 |---|---|---|
 | 1 | Un voyant clignote une lettre en Morse (unité `LAMP_UNIT_MS` = 400 ms) ; on tape la lettre | `startMorseLamp()`, `lampOn()` |
 | 2 | QCM à 4 réponses (A à D) | `drawPuzzleQuiz()` |
-| 3 | Picross 5×5 ; les indices des lignes et colonnes sont calculés à partir du motif `PICROSS[]` | `buildClues()`, `lineClues()`, `picrossSolved()` |
+| 3 | Picross 5×5 dans la soute à pièces ; les indices des lignes et colonnes sont calculés à partir du motif `PICROSS[]` | `buildClues()`, `lineClues()`, `picrossSolved()` |
 | 4 | Signal Morse sonore, 700 Hz, unité `SOUND_UNIT_MS` = 200 ms ; on tape la lettre | `startMorseSound()` |
 
-- `TAB` affiche l'alphabet Morse (`drawMorseHelp()`), `ESPACE` rejoue le signal.
+- `TAB` affiche l'alphabet Morse (`drawMorseHelp()`), n'importe quelle touche le ferme, `ESPACE` relance le signal (« revoir » pour le voyant, « réécouter » pour le son).
 - Une mauvaise lettre déclenche `penalty()`. Une bonne lettre appelle `solvePuzzle()`.
-- Le picross est validé quand la grille est **identique** au motif (`picrossSolved()`). Les indices d'une ligne ou d'une colonne passent en vert dès qu'elle les respecte (`rowOk()`, `colOk()`).
+- Le picross est validé quand la grille est **identique** au motif (`picrossSolved()`). Les cases allumées sont orange sur fond sombre ; les indices d'une ligne ou d'une colonne passent en vert dès qu'elle les respecte (`rowOk()`, `colOk()`).
 
 ## 8. Clavier du Cardputer ADV
 
@@ -220,7 +254,7 @@ Le clavier de l'ADV est un contrôleur TCA8418 relié en I²C, qui signale ses �
 
 `PolledKeyboardReader` remplace ce lecteur : à chaque tour de boucle, il vide la file d'événements du TCA8418 (`getEvent()` jusqu'à 0), sans dépendre de l'interruption. Il produit la même liste de touches que la bibliothèque. Il est installé dans `setup()` avec `M5Cardputer.begin(cfg, false)` puis `Keyboard.begin(std::unique_ptr<KeyboardReader>(...))`, uniquement si la carte détectée est un Cardputer ADV.
 
-## 9. Mode diffusion
+## 9. Mode avec écran
 
 ### 9.1 Principe
 
@@ -230,38 +264,75 @@ flowchart LR
         direction TB
         G["Cœur 1 : jeu<br/>loop() → render()"] -->|"image 240×135<br/>(sous verrou)"| N
         G -->|"notes horodatées<br/>(file FreeRTOS)"| N
-        G -->|"état de la page PC<br/>(setPanel)"| N
-        N["Cœur 0 : tâche réseau<br/>HTTP :80 + WebSocket :81"]
+        G -->|"état de la page, langue<br/>(setPanel, setLanguage)"| N
+        N["Cœur 0 : tâche réseau<br/>HTTP :80 + WebSocket :81<br/>mDNS explorer3.local"]
     end
-    N -->|"page web (une fois)"| B["Navigateur du PC"]
+    N -->|"page web, /sym.js (une fois)"| B["Navigateur (PC, télé)"]
     N -->|"lignes d'écran compressées (binaire)"| B
-    N -->|"sons, horloge, table (texte)"| B
+    N -->|"sons, horloge, table, langue (texte)"| B
 ```
 
-Le PC n'a rien à installer : le Cardputer sert lui-même la page (`http://<adresse>/`) et pousse ensuite tout par WebSocket. Le jeu tourne seul sur le cœur 1, la tâche réseau sur le cœur 0. Le jeu ne bloque donc jamais sur le Wi-Fi.
+L'écran n'a rien à installer : le Cardputer sert lui-même la page (`http://<adresse>/`) et pousse ensuite tout par WebSocket. Le jeu tourne seul sur le cœur 1, la tâche réseau sur le cœur 0. Le jeu ne bloque donc jamais sur le Wi-Fi.
 
 ### 9.2 Interface `mirror::` (`diffusion.h`)
 
 | Fonction | Rôle |
 |---|---|
-| `startScan()`, `scanDone(out)` | Recherche Wi-Fi asynchrone ; `scanDone` renvoie `true` une fois finie, avec une liste sans doublons triée par puissance |
-| `connect(ssid, pass)`, `connected()` | Connexion en mode station, nom d'hôte `explorer3` |
-| `address()` | `"http://" + IP locale` |
-| `startServer(screen, w, h)` | Démarre la page web, le WebSocket et la tâche réseau, en recevant l'adresse du tampon de l'écran. Renvoie `false` sans rien démarrer si la mémoire manque : le jeu revient alors à la liste des Wi-Fi avec un message. Un second appel ne fait que couper la mise en veille du Wi-Fi. |
-| `clientCount()` | Nombre de navigateurs connectés (affiche « PC connecté ») |
+| `startScan()`, `pollScan(out)` | Recherche Wi-Fi en deux passes, non bloquante (section 9.3). `pollScan` renvoie `Running`, `Partial` (première liste), `Done` (liste complète) ou `Failed` |
+| `connect(ssid, pass)`, `link()`, `failure()`, `attempt()` | Connexion à une box, nom d'hôte `explorer3`. `link()` : `Connecting`, `Connected` ou `BadPassword` ; `failure()` : cause probable après le délai (`NotFound` ou `NoAnswer`) ; `attempt()` : numéro de l'essai en cours |
+| `startAccessPoint()`, `accessPoint()`, `apClients()`, `wifiQrText()` | Réseau Explorer3 créé par le Cardputer (section 9.3) |
+| `ipAddress()` | Adresse IP sur la box ou sur Explorer3 (`192.168.4.1`) |
+| `startServer(screen, w, h)` | Démarre la page web, le WebSocket, la tâche réseau et annonce `explorer3.local`, en recevant l'adresse du tampon de l'écran. Renvoie `false` sans rien démarrer si la mémoire manque. Un second appel (changement de réseau) annonce de nouveau le nom mDNS et coupe la mise en veille du Wi-Fi |
+| `clientCount()` | Nombre de navigateurs connectés (affiche « Navigateur connecté ») |
 | `lockScreen()`, `unlockScreen()` | Verrou (mutex FreeRTOS) autour du dessin ; ne fait rien tant que le serveur n'est pas démarré |
-| `sendTone()`, `sendStop()`, `sendRumble()` | Sons à jouer sur le PC (section 9.5) |
-| `setPanel(text)` | État de la page réservée au PC (section 10) |
+| `sendTone()`, `sendStop()`, `sendRumble()` | Sons à jouer par le navigateur (section 9.5) |
+| `setPanel(text)` | État de la page de l'équipe de l'écran (section 10) |
+| `setLanguage(lang)` | Langue de la page (section 9.7) |
+| `setSymbols(js)` | Dessins des symboles servis en `/sym.js` (section 10) |
+| `AP_SSID`, `AP_PASS`, `HOST_NAME` | `Explorer3`, `Explorer3`, `explorer3.local` |
 
 ### 9.3 Configuration du Wi-Fi
 
-Ces écrans sont des états du jeu (`WifiList`, `Password`, `Connecting`, `Address`) et sont dessinés dans le même sprite que le reste :
+Ces écrans sont des états du jeu (`WifiList`, `SsidEntry`, `Password`, `Connecting`, `Address`) et sont dessinés dans le même sprite que le reste. Tout est **non bloquant** : `update()` interroge `pollScan()` et `link()` à chaque tour.
 
-- la recherche et la connexion sont **non bloquantes**, et `update()` surveille `scanDone()` et `connected()` ;
-- pas de connexion au bout de `WIFI_TIMEOUT_MS` = 20 s : retour à la liste avec un message d'erreur ;
-- le mot de passe s'affiche en clair pendant la saisie ;
-- le Wi-Fi est enregistré en NVS **après** une connexion réussie ;
+**Liste des Wi-Fi.** En tête, « Créer le réseau Explorer3 » ; puis les réseaux trouvés, triés par signal, avec un cadenas pour les réseaux protégés et 4 barres de signal (−60, −70, −78 dBm) ; en dernier, « Autre réseau (nom à taper) » pour un réseau masqué. `R` relance la recherche. Un message d'erreur s'efface dès qu'on se déplace dans la liste.
+
+**Recherche en deux passes.** Les anciennes versions affichaient souvent « Aucun réseau trouvé » à tort : un refus du pilote ou un dépassement de délai était pris pour une liste vide. La recherche est maintenant une petite machine à états dans `diffusion.cpp` :
+
+1. `startScan()` repasse en mode station (en arrêtant le réseau Explorer3 s'il tournait), interrompt une tentative de connexion (`WiFi.disconnect()`) et vide la liste.
+2. **Passe active** (`scanNetworks(async, …, 400 ms par canal)`) : les box répondent à une demande. À la fin, `pollScan` renvoie `Partial` et la liste s'affiche.
+3. **Passe passive** (300 ms par canal) : écoute des balises, pour les box qui répondent mal aux demandes. Ses réseaux sont ajoutés à la liste (sans doublons, avec le meilleur signal), qui se met à jour sans perdre la sélection. Trois points animés après le titre indiquent qu'elle est en cours.
+4. Si le pilote refuse de démarrer une passe (il le fait pendant une tentative de connexion) ou si elle échoue, elle est retentée 700 ms plus tard, après avoir arrêté la recherche matérielle (`esp_wifi_scan_stop()`) et la connexion en cours, jusqu'à 5 fois. Si la première passe n'aboutit jamais : « Recherche impossible : R pour réessayer » (les entrées Explorer3 et Autre réseau restent utilisables). Si c'est la seconde, la première liste est gardée.
+
+Les durées par canal restent sous la limite cachée de la bibliothèque, qui déclare une recherche échouée au bout de 20 fois la durée par canal.
+
+**Connexion.** `connect()` laisse le pilote réessayer de lui-même (`setAutoReconnect(true)`). Un gestionnaire d'événement `ARDUINO_EVENT_WIFI_STA_DISCONNECTED` note chaque cause de déconnexion :
+
+| Cause du pilote | Effet |
+|---|---|
+| `AUTH_FAIL`, `4WAY_HANDSHAKE_TIMEOUT`, `HANDSHAKE_TIMEOUT` deux fois | « Mot de passe refusé », retour à la liste |
+| Dernière cause `NO_AP_FOUND` au bout de `WIFI_TIMEOUT_MS` = 20 s | « Réseau introuvable » |
+| Autre cause au bout de 20 s | « Le réseau ne répond pas » |
+
+Il faut deux refus pour conclure au mauvais mot de passe, car un signal faible peut aussi faire échouer l'échange de clés. L'écran de connexion affiche « Essai n° 2 », « Essai n° 3 »… à chaque nouvel essai du pilote.
+
+- Le mot de passe s'affiche en clair pendant la saisie ; il est prérempli si on rechoisit le Wi-Fi mémorisé.
+- Le Wi-Fi est enregistré en NVS **après** une connexion réussie.
 - `WiFi.setSleep(false)` coupe la mise en veille du Wi-Fi, qui provoquerait sinon des saccades de 100 ms et plus.
+
+**Réseau Explorer3.** Pour jouer sans box (ou sur un réseau « invités » qui isole les appareils), le Cardputer devient point d'accès : `WiFi.softAP("Explorer3", "Explorer3")`, WPA2, adresse `192.168.4.1`. Le mot de passe fait 8 caractères, le minimum du WPA2. Ce choix n'est pas mémorisé (`auto` = `false`) : la fois suivante, « Avec écran » repasse par la liste.
+
+**Écran d'adresse et QR codes.** Un QR code de 99×99 px à gauche (`canvas.qrcode()` de M5GFX, correction d'erreur minimale), les textes à droite :
+
+| Situation | QR code | Textes |
+|---|---|---|
+| Box | `http://<IP>` (version 2 : 25 modules de 3 px, 4 modules de marge blanche) | Adresse IP, `explorer3.local`, état du navigateur |
+| Explorer3, d'abord | `WIFI:T:WPA;S:Explorer3;P:Explorer3;;` (version 3 : 29 modules, 2 de marge) : un téléphone rejoint le Wi-Fi en le scannant | Nom et mot de passe du réseau, nombre d'appareils connectés |
+| Explorer3, ensuite | `http://192.168.4.1` | Comme pour la box |
+
+Avec Explorer3, l'écran passe tout seul au QR code de la page dès qu'un appareil rejoint le réseau (une seule fois, `apJoined`) ; `TAB` bascule de l'un à l'autre à tout moment.
+
+**Nom `explorer3.local`.** `startServer()` (re)lance le répondeur mDNS (`MDNS.begin("explorer3")`, service `_http._tcp`) sur le réseau en place, box ou Explorer3. Les PC, Mac, iPhone et Android récents le résolvent ; pas la Ouya (Android 4.1), d'où l'adresse IP toujours affichée.
 
 ### 9.4 Flux d'image
 
@@ -276,11 +347,11 @@ Ces écrans sont des états du jeu (`WifiList`, `Password`, `Connecting`, `Addre
 
 Les couleurs sont en RGB565, poids fort d'abord, dans l'ordre de la mémoire du sprite. Un message binaire contient une suite de lignes et fait au plus `FRAME_BUF` = 12 Ko. Si une image ne tient pas, la suite part au tour suivant : la reprise se fait à la ligne `nextRow`, pour que le bas de l'écran ne soit pas toujours servi en dernier. Un écran complet du jeu pèse en général 5 à 10 Ko au lieu de 65 Ko.
 
-**Affichage.** La page décode les lignes dans un `ImageData` 240×135 et le dessine dans un `<canvas>` au rythme de `requestAnimationFrame`. Le canvas est agrandi en CSS (rapport 16:9, `image-rendering: pixelated`, `crisp-edges` pour Firefox) pour garder des pixels nets. La taille est donnée par `width: 100vw; height: 56.25vw` bornées par `max-width: 177.78vh; max-height: 100vh`. Le résultat est le même qu'avec `min()`, mais fonctionne aussi dans Firefox 68 (section 9.7).
+**Affichage.** La page décode les lignes dans un `ImageData` 240×135 et le dessine dans un `<canvas>` au rythme de `requestAnimationFrame`. Le canvas est agrandi en CSS (rapport 16:9, `image-rendering: pixelated`, `crisp-edges` pour Firefox) pour garder des pixels nets. La taille est donnée par `width: 100vw; height: 56.25vw` bornées par `max-width: 177.78vh; max-height: 100vh`. Le résultat est le même qu'avec `min()`, mais fonctionne aussi dans Firefox 68 (section 9.8).
 
-Tout ce qui s'affiche est dans un bloc `#ecran`, que la **marge télé** réduit avec `transform: scale(1 − 2 × marge / 100)` (section 9.7). Sans marge, aucune transformation n'est appliquée.
+Tout ce qui s'affiche est dans un bloc `#ecran`, que la **marge télé** réduit avec `transform: scale(1 − 2 × marge / 100)` (section 9.8). Sans marge, aucune transformation n'est appliquée.
 
-### 9.5 Son sur le PC
+### 9.5 Son sur l'écran
 
 Le son est envoyé sous forme de commandes, pas d'audio : quelques octets par note. Chaque message texte commence par l'heure du Cardputer au moment de l'envoi :
 
@@ -290,7 +361,8 @@ Le son est envoyé sous forme de commandes, pas d'audio : quelques octets par no
 | `T,maintenant,à,fréquence,durée,canal` | Jouer une note à l'heure `à` (ms du Cardputer) |
 | `S,maintenant,à,canal` | Couper un canal à l'heure `à` (`255` = tous) |
 | `R,maintenant,à` | Lancer le grondement du décollage à l'heure `à` |
-| `K,maintenant,...` | État de la page du PC (section 10) |
+| `K,maintenant,...` | État de la page de l'équipe de l'écran (section 10) |
+| `L,maintenant,fr` ou `en` | Langue de la page (section 9.7) |
 
 **Synchronisation.** Pour chaque message, la page calcule `performance.now() − maintenant`. Elle garde la plus petite valeur des 40 derniers messages : c'est la mesure la moins retardée par le réseau. Une note prévue à l'heure `à` est jouée par Web Audio à `à + décalage + LAT`, avec `LAT` = 150 ms de marge. Les écarts de délai du Wi-Fi sont absorbés et le rythme du Morse reste exact. En contrepartie, le son est en retard d'environ 0,15 s.
 
@@ -304,16 +376,21 @@ Les navigateurs interdisent le son avant une action de l'utilisateur. Le context
 
 1. `http.handleClient()` et `ws.loop()` ;
 2. envoi des sons en attente (file FreeRTOS de 64 éléments, remplie sans attente par le jeu) ;
-3. envoi de l'état de la page du PC s'il a changé ;
-4. horloge toutes les 250 ms ;
-5. image toutes les 40 ms ;
-6. `vTaskDelay(1)`.
+3. envoi de la langue si elle a changé ;
+4. envoi de l'état de la page de l'écran s'il a changé ;
+5. horloge toutes les 250 ms ;
+6. image toutes les 40 ms ;
+7. `vTaskDelay(1)`.
 
-Côté page, une connexion perdue est retentée toutes les secondes. Un nouveau navigateur reçoit l'écran complet et l'état courant de sa page. Plusieurs navigateurs peuvent être ouverts en même temps.
+Le serveur HTTP répond à `/` (la page) et `/sym.js` (les dessins des symboles, section 10). Côté page, une connexion perdue est retentée toutes les secondes. Un nouveau navigateur reçoit l'écran complet, la langue et l'état courant de sa page. Plusieurs navigateurs peuvent être ouverts en même temps.
 
-**Heartbeat.** Le serveur WebSocket envoie un ping toutes les 5 s (`ws.enableHeartbeat(5000, 3000, 2)`), et les navigateurs y répondent d'eux-mêmes. Un navigateur qui ne répond pas à 2 pings de suite (3 s d'attente chacun) est déconnecté, donc au bout de 11 à 16 s. C'est le cas d'un Wi-Fi coupé ou d'une console éteinte sans fermer la page. Sans heartbeat, il resterait compté dans `clientCount()` (« PC connecté ») jusqu'au délai TCP, et le Cardputer continuerait à lui envoyer des images.
+**Heartbeat.** Le serveur WebSocket envoie un ping toutes les 5 s (`ws.enableHeartbeat(5000, 3000, 2)`), et les navigateurs y répondent d'eux-mêmes. Un navigateur qui ne répond pas à 2 pings de suite (3 s d'attente chacun) est déconnecté, donc au bout de 11 à 16 s. C'est le cas d'un Wi-Fi coupé ou d'une console éteinte sans fermer la page. Sans heartbeat, il resterait compté dans `clientCount()` jusqu'au délai TCP, et le Cardputer continuerait à lui envoyer des images.
 
-### 9.7 Navigateurs compatibles, console Ouya
+### 9.7 Langue de la page
+
+La page contient ses textes dans les deux langues (objet `TX` du JavaScript). Elle démarre dans la dernière langue reçue (gardée dans le `localStorage`), sinon dans celle du navigateur, puis applique celle du Cardputer dès le message `L` (envoyé à chaque connexion et à chaque changement de langue sur le Cardputer). Les éléments à traduire ont un identifiant `t-…`, remplis par `langue()`.
+
+### 9.8 Navigateurs compatibles, console Ouya
 
 La page vise les navigateurs actuels (Chrome, Edge, Firefox, Safari) **et Firefox 68**, la dernière version de Firefox pour Android 4.1. C'est celle qui permet d'utiliser une **console Ouya** branchée sur une télé. Le navigateur d'origine d'Android 4.1 ne connaît ni les WebSocket ni Web Audio : il ne peut pas servir.
 
@@ -347,7 +424,7 @@ Les touches combinées avec `Ctrl`, `Alt` ou `Méta` sont ignorées, pour ne pas
 
 ## 10. Clavier codé (jeu asymétrique)
 
-Il n'existe qu'en mode diffusion. Il remplace la saisie du code en lettres sur l'ordinateur de bord par un jeu à deux équipes : le joueur du Cardputer voit des symboles, l'équipe du PC voit la table de correspondance.
+Il n'existe qu'en mode avec écran. Il remplace la saisie du code en lettres sur l'ordinateur de bord par un jeu à deux équipes : le joueur du Cardputer voit des symboles, l'équipe de l'écran voit la table de décodage.
 
 ### Génération (`buildKeypad()`, à l'entrée dans `Computer`)
 
@@ -357,9 +434,9 @@ Il n'existe qu'en mode diffusion. Il remplace la saisie du code en lettres sur l
 
 ### Saisie
 
-Le clavier s'affiche 600 ms après la dernière ligne du terminal (`keypadShown()`). `typedCode` garde les touches tapées (`'1'` à `'9'`). DEL efface la dernière. ENTRÉE, quand les 4 touches sont saisies, compare `keypadCode()` (les lettres de ces touches) au code : s'il est bon, la fusée décolle ; sinon, la saisie est vidée et `penalty()` est appelée.
+Le clavier s'affiche 600 ms après la dernière ligne du terminal (`keypadShown()`). `typedCode` garde les touches tapées (`'1'` à `'9'`). DEL efface la dernière. ENTRÉE, quand les 4 touches sont saisies, compare `keypadCode()` (les lettres de ces touches) au code : s'il est bon, la fusée décolle ; sinon, la saisie est vidée, « CODE REFUSÉ » remplace la consigne pendant 1,5 s et `penalty()` est appelée.
 
-### Page du PC (`updatePanel()` puis `mirror::setPanel()`)
+### Page de l'écran (`updatePanel()` puis `mirror::setPanel()`)
 
 | Texte | Effet sur la page |
 |---|---|
@@ -367,21 +444,22 @@ Le clavier s'affiche 600 ms après la dernière ligne du terminal (`keypadShown(
 | `1,restant_ms,saisis,erreurs,table` | Table à la place de la copie |
 
 - La table est une suite de paires `lettre` + `numéro de symbole en hexadécimal` (`0` à `b`), triée par lettre.
-- La page affiche les 9 cases, le chrono O2 et 4 cases qui se remplissent selon `saisis` (sans dire quels symboles ont été tapés). Elle clignote en rouge quand `erreurs` change.
+- La page affiche les 9 cases, le chrono O2, 4 cases qui se remplissent selon `saisis` (sans dire quels symboles ont été tapés) et un avertissement en rouge (« Ne montrez pas cet écran au joueur du Cardputer ! »). Elle clignote en rouge quand `erreurs` change.
 - Le chrono est recalculé localement toutes les 100 ms à partir de `restant_ms` et de l'horloge, pour défiler sans à-coups.
 - Le jeu renvoie l'état à chaque changement, et toutes les 500 ms tant que la table est affichée. Pendant la pause et dès la sortie de `Computer`, il envoie `0`.
-- Sur le PC, les symboles sont les **mêmes dessins en pixel art** que sur le Cardputer. Le tableau `SYM` de la page reprend `SYMBOLS[]` de `main.cpp`, dans le même ordre : 36 chiffres hexadécimaux par symbole, soit 3 par ligne de 12 pixels (bit de poids fort = pixel de gauche). `symbole(n)` en fait un SVG `viewBox="0 0 12 12"` avec `shape-rendering="crispEdges"`, en regroupant les pixels voisins d'une ligne en un seul rectangle. Le rendu ne dépend donc d'aucune police, et les caractères Unicode, qui manquaient ou s'affichaient en émojis sur certains systèmes comme Android, ne sont plus utilisés.
+
+**Symboles sur la page.** Ce sont les **mêmes dessins** que sur le Cardputer, sans copie à tenir à jour : au démarrage, `buildSymbolsJs()` les code en JavaScript (`const SYM=[…]`, 36 chiffres hexadécimaux par symbole, soit 3 par ligne de 12 pixels, bit de poids fort = pixel de gauche) et `mirror::setSymbols()` les sert en `/sym.js`. La page charge ce script, puis `symbole(n)` fait de chaque dessin un SVG `viewBox="0 0 12 12"` avec `shape-rendering="crispEdges"`, en regroupant les pixels voisins d'une ligne en un seul rectangle. Le rendu ne dépend d'aucune police.
 
 ## 11. Mémoire et performances
 
-Valeurs mesurées sur la v1.4 :
+Valeurs mesurées sur la v1.5 :
 
 | Élément | Taille |
 |---|---|
-| Programme | ~1,35 Mo sur 3,3 Mo (40 %), dont la page web ~11 Ko |
-| RAM statique | ~69 Ko sur 320 Ko (21 %), dont le bruit du décollage (16 Ko) |
+| Programme | ~1,39 Mo sur 3,3 Mo (42 %), dont la page web ~12 Ko et le répondeur mDNS ~40 Ko |
+| RAM statique | ~71 Ko sur 320 Ko (22 %), dont le bruit du décollage (16 Ko) |
 | Sprite de l'écran (tas) | 64 800 octets |
-| Mode diffusion (tas) | Tampon d'envoi 12 Ko, pile de la tâche réseau 6 Ko, file des sons ~1 Ko, plus la pile Wi-Fi et lwIP |
+| Mode avec écran (tas) | Tampon d'envoi 12 Ko, pile de la tâche réseau 6 Ko, file des sons ~1 Ko, plus la pile Wi-Fi, lwIP et mDNS |
 | Débit d'image | 5 à 10 Ko par écran complet, beaucoup moins quand peu de choses bougent ; 25 images/s au plus |
 | Délai | Image : un tour de tâche réseau plus le Wi-Fi, en général moins de 100 ms. Son : environ 150 ms, volontaire. |
 
@@ -389,19 +467,38 @@ Sans PSRAM, il faut éviter les grosses allocations : pas de second sprite plein
 
 ## 12. Limites connues et sécurité
 
-- **Wi-Fi 2,4 GHz seulement** (limite de l'ESP32-S3). Les réseaux « invités » et l'isolation des clients bloquent la page.
+- **Wi-Fi 2,4 GHz seulement** (limite de l'ESP32-S3). Les réseaux « invités » et l'isolation des clients bloquent la page : utiliser le réseau Explorer3.
 - **Pas de chiffrement ni d'authentification** : la page est en HTTP simple et n'importe quel appareil du réseau local peut l'ouvrir. C'est acceptable pour un jeu à la maison, à éviter sur un réseau public.
+- **Le réseau Explorer3 a un mot de passe connu de tous** (il est dans le README et sur l'écran). Il protège seulement des connexions par hasard.
 - **Le mot de passe Wi-Fi est enregistré en clair** dans la NVS du Cardputer.
-- L'adresse IP n'est affichée qu'à la connexion. Pour la revoir, il faut redémarrer et choisir de nouveau Diffusion.
-- Si la mémoire manque au démarrage du serveur (tampon d'envoi, verrou, file des sons, tâche réseau), rien n'est démarré et le Cardputer affiche « Diffusion impossible : mémoire pleine ». Avec la mémoire actuelle, cela ne devrait pas arriver.
-- En diffusion, le Cardputer est muet : si personne n'a cliqué ou appuyé sur une touche pour activer le son sur le PC, la partie se joue sans son.
-- Sur la Ouya, le blocage de la mise en veille par la vidéo invisible (section 9.7) n'a pas été vérifié sur la console.
+- Si la mémoire manque au démarrage du serveur (tampon d'envoi, verrou, file des sons, tâche réseau), rien n'est démarré et le Cardputer affiche « Mémoire insuffisante ». Avec la mémoire actuelle, cela ne devrait pas arriver.
+- Avec écran, le Cardputer est muet : si personne n'a cliqué ou appuyé sur une touche pour activer le son sur l'écran, la partie se joue sans son.
+- `explorer3.local` ne fonctionne pas sur la Ouya ni sur les vieux Android : l'adresse IP reste affichée.
+- Sur la Ouya, le blocage de la mise en veille par la vidéo invisible (section 9.8) n'a pas été vérifié sur la console.
+- Les causes d'échec Wi-Fi viennent du pilote : « Mot de passe refusé » peut, rarement, venir d'un signal très faible.
 
 ## 13. Modifier le jeu
 
 - **Changer la durée ou la pénalité** : `GAME_MS`, `PENALTY_MS`.
+- **Changer un texte** : dans `src/textes.h`, les deux langues côte à côte. Vérifier qu'il tient à l'écran (section 3) avec le simulateur.
+- **Ajouter une langue** : passer `Tx` à 3 cases, compléter chaque texte, ajouter la langue à l'écran `Lang` et à l'objet `TX` de la page.
 - **Ajouter un écran** : ajouter une valeur à `St`, une fonction `drawXxx()`, son `case` dans `render()` et, si besoin, dans `handleKey()` et `update()`.
-- **Ajouter ou modifier un symbole du clavier codé** : changer le dessin 12×12 dans `SYMBOLS[]` (et `SYM_COUNT` pour un ajout). Mettre le **même dessin au même rang** dans le tableau `SYM` de la page (dans `diffusion.cpp`), codé en hexadécimal : pour chaque ligne, `X` = 1 et `.` = 0, les 12 bits donnent 3 chiffres. Par exemple `"..XX....XX.."` → `001100001100` → `30c`. Au-delà de 16 symboles, le numéro sur un seul chiffre hexadécimal ne suffit plus et il faut changer le format de la table.
-- **Modifier la page du PC** : elle est entièrement dans la chaîne `PAGE` de `diffusion.cpp` (HTML, CSS et JavaScript d'un seul bloc). Respecter les règles de compatibilité de la section 9.7 pour ne pas perdre Firefox 68 et la Ouya.
-- **Traduire** : modifier les textes sur `main`, puis reporter le changement sur la branche `english` en traduisant les textes, les commentaires et la page.
-- **Après un changement d'interface**, vérifier qu'aucun texte ne sort de l'écran de 240×135, et utiliser `fit()` pour les textes de longueur variable comme les noms de Wi-Fi.
+- **Ajouter ou modifier un symbole du clavier codé** : changer le dessin 12×12 dans `SYMBOLS[]` (et `SYM_COUNT` pour un ajout). La page reçoit le même dessin tout seul (`/sym.js`). Au-delà de 16 symboles, le numéro sur un seul chiffre hexadécimal ne suffit plus et il faut changer le format de la table.
+- **Modifier la page de l'écran** : elle est entièrement dans la chaîne `PAGE` de `diffusion.cpp` (HTML, CSS et JavaScript d'un seul bloc), textes compris (objet `TX`). Respecter les règles de compatibilité de la section 9.8 pour ne pas perdre Firefox 68 et la Ouya.
+- **Après un changement d'interface**, vérifier chaque écran dans les deux langues avec le simulateur, et utiliser `fit()` pour les textes de longueur variable comme les noms de Wi-Fi.
+
+## 14. Simulateur PC
+
+`sim/` fait tourner `src/main.cpp`, **sans aucun changement**, dans une fenêtre sur PC avec le vrai M5GFX (plateforme SDL officielle de M5GFX) : mêmes polices et mêmes dessins, au pixel près. Mode d'emploi, touches et options : [sim/LISEZMOI.md](../sim/LISEZMOI.md).
+
+| Fichier | Rôle |
+|---|---|
+| `sim/include/Arduino.h` | `String` réduite, `millis()`, `delay()`, `random()`… |
+| `sim/include/M5Cardputer.h` | Écran = `M5GFX` (fenêtre SDL), clavier du PC, haut-parleur muet ; le simulateur se présente comme un Cardputer simple (`board_M5Cardputer`) |
+| `sim/include/Preferences.h` | NVS en mémoire, le temps de la session |
+| `sim/sim_main.cpp` | Lancement, clavier (un appui puis un relâchement par tour de boucle, comme le vrai), captures BMP, scripts horodatés |
+| `sim/sim_diffusion.cpp` | Remplace `diffusion.cpp` : réseaux fictifs, connexion et navigateurs simulés |
+
+`random()` reproduit celui de l'ESP32 (le `rand()` de newlib après `randomSeed()`) : le ciel étoilé du titre est le même que sur le Cardputer. Les images des pages GitHub (`docs/images/titre-fr.png`, `titre-en.png`) viennent du simulateur, agrandies ×4.
+
+L'environnement `simulateur` de `platformio.ini` utilise `platform = native`, le gcc et SDL2 de MSYS2 (UCRT64) sous Windows. Il ne fait pas partie de `pio run` (`default_envs = cardputer-adv`) ni de la release.

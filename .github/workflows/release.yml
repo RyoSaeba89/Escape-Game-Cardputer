@@ -1,0 +1,45 @@
+# Release : à chaque tag v… (par exemple v1.5), compile le firmware (français et
+# anglais dans le même fichier) et joint Escape-Game-Explorer-3.bin à la release
+# GitHub du tag, créée si elle n'existe pas encore.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio/libdeps
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Compiler
+        run: |
+          pip install platformio
+          pio run -e cardputer-adv
+          cp .pio/build/cardputer-adv/firmware.bin Escape-Game-Explorer-3.bin
+
+      - name: Joindre le .bin à la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" Escape-Game-Explorer-3.bin --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" Escape-Game-Explorer-3.bin --title "$GITHUB_REF_NAME" --generate-notes
+          fi
