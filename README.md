@@ -44,6 +44,19 @@ Les solutions ne sont pas données ici. ⚠️ **Joueurs : ne lisez pas le code 
 
 Appuyer **3 fois de suite sur `Fn`** (moins de 0,8 s entre deux appuis) met la partie en **pause** : le chrono s'arrête, le son se coupe et l'énigme est masquée. Encore **3 fois `Fn`** pour reprendre.
 
+## Mode diffusion : le jeu aussi sur l'écran d'un PC
+
+Au démarrage, choisir **Solo** (le jeu sur le Cardputer seul) ou **Diffusion** : l'écran du Cardputer est recopié en direct dans le navigateur d'un PC branché sur la même box, et **le son sort du PC** (le Cardputer reste muet). On joue toujours avec le clavier du Cardputer.
+
+1. Choisir **Diffusion**, puis le Wi-Fi et taper son mot de passe (mémorisé pour les fois suivantes).
+2. Le Cardputer affiche une adresse, par exemple `http://192.168.1.42` : l'ouvrir dans le navigateur du PC (Chrome, Edge, Firefox). Rien à installer.
+3. Cliquer une fois sur la page pour **activer le son** (les navigateurs l'exigent). Double-clic : plein écran.
+4. `ENTRÉE` sur le Cardputer pour lancer le jeu.
+
+- `` ` `` sur l'écran de connexion ou d'adresse : choisir un autre Wi-Fi.
+- Le Cardputer ne capte que le Wi-Fi 2,4 GHz. Les réseaux « invités » bloquent souvent les échanges entre appareils.
+- Si la page perd la connexion, elle se reconnecte toute seule ; la partie continue sur le Cardputer.
+
 ## Installation
 
 ### Avec M5Launcher (carte SD)
@@ -62,8 +75,8 @@ pio run -t upload      # compile et flashe par USB
 ```
 
 - Plateforme `espressif32 @ 6.7.0` (Arduino core 2.0.x)
-- Bibliothèques : M5Cardputer, M5Unified, M5GFX
-- Tout le jeu tient dans un seul fichier : `src/main.cpp`
+- Bibliothèques : M5Cardputer, M5Unified, M5GFX, WebSockets (links2004)
+- Le jeu : `src/main.cpp` ; le mode diffusion (Wi-Fi, page web, flux écran et son) : `src/diffusion.cpp`
 
 ## Matériel
 
