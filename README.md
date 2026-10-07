@@ -91,6 +91,10 @@ pio run -t upload      # compile et flashe par USB
 
 Développé pour le **Cardputer ADV** (ESP32-S3, sans PSRAM, haut-parleur intégré). Aucun accessoire n'est nécessaire.
 
+## Documentation technique
+
+Fonctionnement interne (architecture, mode diffusion, protocole, clavier codé…) : [docs/TECHNIQUE.md](docs/TECHNIQUE.md) (en anglais : [docs/TECHNICAL.md](docs/TECHNICAL.md)).
+
 ## Licence
 
 [MIT](LICENSE)
