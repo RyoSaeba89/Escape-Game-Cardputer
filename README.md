@@ -53,6 +53,15 @@ Au démarrage, choisir **Solo** (le jeu sur le Cardputer seul) ou **Diffusion** 
 3. Cliquer une fois sur la page pour **activer le son** (les navigateurs l'exigent). Double-clic : plein écran.
 4. `ENTRÉE` sur le Cardputer pour lancer le jeu.
 
+### Le clavier codé (à jouer en équipe)
+
+En mode diffusion, le code de démarrage ne se tape pas en lettres : l'ordinateur de bord affiche un **clavier codé**, 9 symboles sur les touches `1` à `9` (♥ ☺ ♪ ☼…). Seule l'**équipe du PC** voit la **table** qui donne le symbole de chaque lettre (l'écran du PC n'affiche plus la copie du Cardputer à ce moment-là). Le joueur du Cardputer dit une lettre, l'équipe du PC lui décrit le symbole, et ainsi de suite.
+
+- La table est mélangée à chaque partie.
+- `1` à `9` : choisir un symbole, `DEL` : effacer, `ENTRÉE` : valider les 4 symboles (−10 s si le code est faux).
+- La page du PC affiche aussi le chrono d'oxygène, le nombre de symboles déjà tapés et clignote en rouge à chaque erreur.
+- Placer le PC pour que le joueur du Cardputer ne voie pas son écran !
+
 - `` ` `` sur l'écran de connexion ou d'adresse : choisir un autre Wi-Fi.
 - Le Cardputer ne capte que le Wi-Fi 2,4 GHz. Les réseaux « invités » bloquent souvent les échanges entre appareils.
 - Si la page perd la connexion, elle se reconnecte toute seule ; la partie continue sur le Cardputer.

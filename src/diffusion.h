@@ -33,4 +33,8 @@ void sendTone(uint32_t at, uint16_t freq, uint16_t dur, uint8_t ch);
 void sendStop(uint32_t at, uint8_t ch);  // ch = 255 : tous les canaux
 void sendRumble(uint32_t at);           // grondement du décollage
 
+// Page réservée au PC (table des symboles) : "0" = copie de l'écran,
+// "1,restant_ms,saisis,erreurs,table" = table (table = lettre + n° de symbole en hexa)
+void setPanel(const String &text);
+
 }  // namespace mirror
