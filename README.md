@@ -32,13 +32,16 @@ Les solutions ne sont pas données ici. ⚠️ **Joueurs : ne lisez pas le code 
 
 ## Commandes
 
+À l'écran, les touches sont en orange et les flèches sont dessinées en triangles.
+
 | Touche | Action |
 |--------|--------|
 | `ENTRÉE` | Valider, continuer, démarrer, rejouer |
 | Lettres | Répondre aux énigmes, taper le code |
 | `ESPACE` | Revoir ou réécouter le signal Morse (énigmes 1 et 4) |
 | `TAB` | Afficher l'alphabet Morse (énigmes 1 et 4), n'importe quelle touche le ferme |
-| `;` `.` `,` `/` | Déplacer le curseur du picross (haut, bas, gauche, droite) |
+| Flèches ▲ ▼ ◀ ▶ (touches `;` `.` `,` `/`) | Choisir dans les menus, déplacer le curseur du picross |
+| `ESC` (touche `` ` ``) | Revenir en arrière dans les écrans du Wi-Fi |
 | `ENTRÉE` (picross) | Allumer ou éteindre une case |
 | `DEL` | Effacer une lettre du code |
 
@@ -74,7 +77,7 @@ En mode avec écran, le code de démarrage ne se tape pas en lettres : l'ordinat
 
 Bon à savoir :
 
-- `` ` `` sur l'écran de connexion ou d'adresse : choisir un autre Wi-Fi.
+- `ESC` sur l'écran de connexion ou d'adresse : choisir un autre Wi-Fi.
 - La liste des Wi-Fi s'affiche en deux temps : les réseaux trouvés d'abord, puis ceux qu'une seconde recherche, plus lente, a ajoutés. `R` relance la recherche.
 - En cas d'échec, le Cardputer en donne la cause : mot de passe refusé, réseau introuvable ou réseau qui ne répond pas.
 - Le Cardputer ne capte que le Wi-Fi 2,4 GHz. Les réseaux « invités » bloquent souvent les échanges entre appareils : dans ce cas, utiliser le réseau Explorer3.
@@ -168,13 +171,16 @@ The solutions are not given here. ⚠️ **Players: don't read the source code, 
 
 ### Controls
 
+On screen, keys are shown in orange and arrows are drawn as triangles.
+
 | Key | Action |
 |-----|--------|
 | `ENTER` | Confirm, continue, start, play again |
 | Letters | Answer the puzzles, type the code |
 | `SPACE` | Watch or listen to the Morse signal again (puzzles 1 and 4) |
 | `TAB` | Show the Morse code chart (puzzles 1 and 4), any key closes it |
-| `;` `.` `,` `/` | Move the picross cursor (up, down, left, right) |
+| Arrows ▲ ▼ ◀ ▶ (keys `;` `.` `,` `/`) | Choose in menus, move the picross cursor |
+| `ESC` (key `` ` ``) | Go back in the Wi-Fi screens |
 | `ENTER` (picross) | Light up or switch off a cell |
 | `DEL` | Erase a letter of the code |
 
@@ -210,7 +216,7 @@ In "with a screen" mode the start-up code is not typed in letters: the on-board 
 
 Good to know:
 
-- `` ` `` on the connecting or address screen: choose another Wi-Fi network.
+- `ESC` on the connecting or address screen: choose another Wi-Fi network.
 - The Wi-Fi list comes in two steps: the networks found first, then those added by a second, slower search. `R` searches again.
 - When a connection fails, the Cardputer tells why: wrong password, network not found or network not responding.
 - The Cardputer only supports 2.4 GHz Wi-Fi. "Guest" networks often block traffic between devices: use the Explorer3 network instead.

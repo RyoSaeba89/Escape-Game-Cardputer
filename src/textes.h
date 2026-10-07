@@ -1,6 +1,7 @@
 // Textes du jeu en français et en anglais, côte à côte : { français, anglais }.
-// tr(X) donne le texte dans la langue choisie. Avant de changer un texte, vérifier
-// qu'il tient à l'écran (240×135, police efontJA_12 : 6 px par caractère latin,
+// tr(X) donne le texte dans la langue choisie. Les touches s'écrivent
+// « touche : action » : le jeu met la touche en orange. Avant de changer un
+// texte, vérifier qu'il tient à l'écran (240×135, police efontJA_12 : 6 px par caractère latin,
 // accents compris ; voir docs/TECHNIQUE.md, section 3).
 #pragma once
 
@@ -8,11 +9,18 @@ namespace textes {
 
 using Tx = const char *const[2];
 
+// Flèches du Cardputer (touches ; . , /), dessinées en orange par le jeu.
+// Dans un pied de page, '|' sépare les groupes « touche : action ».
+#define K_UP "\001"
+#define K_DOWN "\002"
+#define K_LEFT "\003"
+#define K_RIGHT "\004"
+
 // ---------------------------------------------------------------- langue
 constexpr Tx LANG_TITLE = {"LANGUE / LANGUAGE", "LANGUE / LANGUAGE"};
 constexpr Tx LANG_NAMES = {"Français", "English"};
 constexpr Tx LANG_INFOS = {"Jouer en français", "Play in English"};
-constexpr Tx LANG_FOOTER = {"; . : choisir / select  ENTRÉE / ENTER", "; . : choisir / select  ENTRÉE / ENTER"};
+constexpr Tx LANG_FOOTER = {K_UP K_DOWN "|ENTRÉE / ENTER : ok", K_UP K_DOWN "|ENTRÉE / ENTER : ok"};
 
 // ---------------------------------------------------------------- choix du mode
 constexpr Tx MODE_SOLO = {"Cardputer seul", "Cardputer only"};
@@ -21,7 +29,7 @@ constexpr Tx MODE_SCREEN = {"Avec écran", "With a screen"};
 constexpr Tx MODE_SCREEN_INFO = {"Écran et son sur PC ou télé", "Screen and sound on a PC or TV"};
 constexpr Tx MODE_LANG = {"Langue / Language", "Langue / Language"};
 constexpr Tx MODE_LANG_INFO = {"Français", "English"};
-constexpr Tx MODE_FOOTER = {"; et . : choisir   ENTRÉE : valider", "; and . : select   ENTER: confirm"};
+constexpr Tx MODE_FOOTER = {K_UP K_DOWN " : choisir|ENTRÉE : ok", K_UP K_DOWN ": select|ENTER: confirm"};
 
 // ---------------------------------------------------------------- Wi-Fi
 constexpr Tx WIFI_TITLE = {"CHOIX DU WI-FI", "CHOOSE WI-FI"};
@@ -31,16 +39,16 @@ constexpr Tx WIFI_NONE = {"Aucun réseau trouvé", "No network found"};
 constexpr Tx WIFI_SCAN_FAILED = {"Recherche impossible : R pour réessayer", "Search failed: R to try again"};
 constexpr Tx WIFI_CREATE = {"Créer le réseau Explorer3", "Create the Explorer3 network"};
 constexpr Tx WIFI_OTHER = {"Autre réseau (nom à taper)", "Other network (type its name)"};
-constexpr Tx WIFI_FOOTER = {"; . : choisir  ENTRÉE : ok  ` : retour", "; . : select  ENTER: confirm  `: back"};
+constexpr Tx WIFI_FOOTER = {K_UP K_DOWN " : choisir|ENTRÉE : ok|ESC : retour", K_UP K_DOWN ": select|ENTER: confirm|ESC: back"};
 
 constexpr Tx SSID_TITLE = {"NOM DU RÉSEAU", "NETWORK NAME"};
 constexpr Tx SSID_HINT = {"Réseau masqué : tapez son nom exact", "Hidden network: type its exact name"};
 constexpr Tx PASS_TITLE = {"MOT DE PASSE WI-FI", "WI-FI PASSWORD"};
-constexpr Tx TYPING_FOOTER = {"ENTRÉE : ok  DEL : effacer  ` : retour", "ENTER: confirm  DEL: erase  `: back"};
+constexpr Tx TYPING_FOOTER = {"ENTRÉE : ok|DEL : effacer|ESC : retour", "ENTER: confirm|DEL: erase|ESC: back"};
 
 constexpr Tx CONNECT_TITLE = {"CONNEXION AU WI-FI", "CONNECTING TO WI-FI"};
 constexpr Tx CONNECT_ATTEMPT = {"Essai n° ", "Attempt "};
-constexpr Tx CONNECT_FOOTER = {"` : choisir un autre Wi-Fi", "`: choose another Wi-Fi"};
+constexpr Tx CONNECT_FOOTER = {"ESC : choisir un autre Wi-Fi", "ESC: choose another Wi-Fi"};
 
 constexpr Tx ERR_PASSWORD = {"Mot de passe refusé", "Wrong password"};
 constexpr Tx ERR_NOT_FOUND = {"Réseau introuvable", "Network not found"};
@@ -58,8 +66,8 @@ constexpr Tx ADDR_DEVICES = {"Connectés : ", "Connected: "};
 constexpr Tx ADDR_BROWSER_OK = {"Navigateur connecté", "Browser connected"};
 constexpr Tx ADDR_WAITING = {"En attente d'un navigateur...", "Waiting for a browser..."};
 constexpr Tx ADDR_CONTINUE = {"ENTRÉE : continuer", "ENTER: continue"};
-constexpr Tx ADDR_FOOTER = {"` : changer de Wi-Fi", "`: change Wi-Fi"};
-constexpr Tx ADDR_FOOTER_AP = {"TAB : autre QR code   ` : retour", "TAB: other QR code   `: back"};
+constexpr Tx ADDR_FOOTER = {"ESC : changer de Wi-Fi", "ESC: change Wi-Fi"};
+constexpr Tx ADDR_FOOTER_AP = {"TAB : autre QR code|ESC : retour", "TAB: other QR code|ESC: back"};
 
 // ---------------------------------------------------------------- titre et briefing
 constexpr Tx TITLE_SUB = {"Escape game : crash sur Mars", "Escape game: crash on Mars"};
@@ -80,26 +88,26 @@ constexpr Tx DENIED = {" : ACCÈS REFUSÉ", ": ACCESS DENIED"};  // après la le
 constexpr Tx P1_TITLE = {"ÉNIGME 1/4 : COFFRE DU FER À SOUDER", "PUZZLE 1/4: SOLDERING IRON SAFE"};
 constexpr Tx P1_TEXT = {"Le coffre est verrouillé. Son voyant clignote une lettre en Morse : tapez-la !",
                         "The safe is locked. Its light blinks a letter in Morse code: type it!"};
-constexpr Tx P1_FOOTER = {"ESPACE : revoir   TAB : alphabet Morse", "SPACE: watch again   TAB: Morse code"};
+constexpr Tx P1_FOOTER = {"ESPACE : revoir|TAB : alphabet Morse", "SPACE: watch again|TAB: Morse code"};
 
 constexpr Tx P2_TITLE = {"ÉNIGME 2/4 : RÉSERVOIRS DE CARBURANT", "PUZZLE 2/4: FUEL TANKS"};
 constexpr Tx P2_TEXT = {"Verrou des réservoirs : quel est le premier rover à avoir roulé sur Mars ?",
                         "Fuel tank lock: which rover was the first to drive on Mars?"};
-constexpr Tx P2_FOOTER = {"Répondez A, B, C ou D", "Answer A, B, C or D"};
+constexpr Tx P2_FOOTER = {"A B C D : répondre", "A B C D: answer"};
 
 constexpr Tx P3_TITLE = {"ÉNIGME 3/4", "PUZZLE 3/4"};
 constexpr Tx P3_PLACE = {"Soute à pièces", "Cargo hold"};
 constexpr Tx P3_TEXT = {"Chaque chiffre = cases allumées à la suite, dans l'ordre.",
                         "Each number = lit cells in a row, in order."};
-constexpr Tx P3_MOVE = {"; . , / : bouger", "; . , / : move"};
+constexpr Tx P3_MOVE = {K_UP K_DOWN K_LEFT K_RIGHT " : bouger", K_UP K_DOWN K_LEFT K_RIGHT ": move"};
 constexpr Tx P3_LIGHT = {"ENTRÉE : allumer", "ENTER: light up"};
 
 constexpr Tx P4_TITLE = {"ÉNIGME 4/4 : ORDINATEUR DE BORD", "PUZZLE 4/4: ON-BOARD COMPUTER"};
 constexpr Tx P4_TEXT = {"L'ordinateur de bord émet en Morse la dernière lettre du code. Écoutez et tapez-la !",
                         "The on-board computer beeps the last letter of the code in Morse. Listen and type it!"};
-constexpr Tx P4_FOOTER = {"ESPACE : réécouter  TAB : alphabet Morse", "SPACE: listen again   TAB: Morse code"};
+constexpr Tx P4_FOOTER = {"ESPACE : réécouter|TAB : alphabet Morse", "SPACE: listen again|TAB: Morse code"};
 
-constexpr Tx MORSE_PLAYING = {"Signal en cours   TAB : alphabet Morse", "Signal playing   TAB: Morse code"};
+constexpr Tx MORSE_PLAYING = {"Signal en cours|TAB : alphabet Morse", "Signal playing|TAB: Morse code"};
 constexpr Tx MORSE_HELP = {"ALPHABET MORSE", "MORSE CODE"};
 constexpr Tx MORSE_CLOSE = {"Une touche : fermer", "Any key: close"};
 
@@ -128,13 +136,13 @@ constexpr Tx TERM_LINES[TERM_COUNT] = {
 };
 constexpr Tx CODE_LABEL = {"Code de démarrage :", "Start-up code:"};
 constexpr Tx CODE_REFUSED = {"> CODE REFUSÉ", "> CODE REJECTED"};
-constexpr Tx CODE_FOOTER = {"Code puis ENTRÉE   DEL : effacer", "Type the code, then ENTER   DEL: erase"};
+constexpr Tx CODE_FOOTER = {"A-Z : code|ENTRÉE : ok|DEL : effacer", "A-Z: code|ENTER: confirm|DEL: erase"};
 
 constexpr Tx KEYPAD_TITLE = {"CLAVIER CODÉ", "CODED KEYPAD"};
 constexpr Tx KEYPAD_HINT = {"L'autre équipe a la table : demandez-lui les symboles.",
                             "The other team has the table: ask them for the symbols."};
 constexpr Tx KEYPAD_REFUSED = {"CODE REFUSÉ", "CODE REJECTED"};
-constexpr Tx KEYPAD_FOOTER = {"DEL : effacer   ENTRÉE : valider", "DEL: erase   ENTER: confirm"};
+constexpr Tx KEYPAD_FOOTER = {"1-9 : symbole|DEL : effacer|ENTRÉE : ok", "1-9: symbol|DEL: erase|ENTER: confirm"};
 
 // ---------------------------------------------------------------- décollage et fins
 constexpr Tx LAUNCH_IGNITION = {"ALLUMAGE DES MOTEURS", "ENGINE IGNITION"};
@@ -156,6 +164,6 @@ constexpr Tx LOST_AGAIN = {"ENTRÉE : nouvelle tentative", "ENTER: try again"};
 // ---------------------------------------------------------------- pause (maître du jeu)
 constexpr Tx PAUSE_TITLE = {"PAUSE", "PAUSED"};
 constexpr Tx PAUSE_TIMER = {"Chrono arrêté : ", "Timer stopped: "};
-constexpr Tx PAUSE_RESUME = {"Reprendre : Fn Fn Fn", "Resume: Fn Fn Fn"};
+constexpr Tx PAUSE_RESUME = {"Fn Fn Fn : reprendre", "Fn Fn Fn: resume"};
 
 }  // namespace textes

@@ -110,7 +110,9 @@ drawFooter(tr(P2_FOOTER));
 
 `tr()` returns the text in the current language (`lang`: 0 French, 1 English). Both translations sit side by side, so none gets forgotten. The web page texts are in the page itself (section 9.7).
 
-**Room on screen.** The `efontJA_12` font is 6 px per Latin character, accents included, so 40 characters across 240 px. In practice a footer must stay under 39 characters not to be clipped, and narrow columns (picross, coded keypad, address screen) wrap with `wrapped()`. The simulator (section 14) shows every screen for checking.
+**Keys.** In the texts, a hint is written "key: action" (`"ENTER: confirm"`): `hint()` and `drawFooter()` draw what comes before the first `:` in orange and the rest in the text colour. The Cardputer arrows (keys `;` `.` `,` `/`) are written `K_UP`, `K_DOWN`, `K_LEFT`, `K_RIGHT` (codes 1 to 4) and drawn as 9 px orange triangles. In a footer, `|` separates the groups, which `drawFooter()` spreads across the width (6 to 24 px apart). Back is written `ESC`.
+
+**Room on screen.** The `efontJA_12` font is 6 px per Latin character, accents included, so 40 characters across 240 px. In practice all the groups of a footer must stay under about 230 px (width minus the minimum gaps), and narrow columns (picross, coded keypad, address screen) wrap with `wrapped()`. The simulator (section 14) shows every screen for checking.
 
 ### Drawing
 
@@ -192,7 +194,7 @@ stateDiagram-v2
 | `Launch` | Liftoff animation (6.5 s) | Countdown stopped, record saved |
 | `Win` / `GameOver` | End screens | ENTER goes back to the title, the chosen mode is kept |
 
-"back" = the `` ` `` key (backtick).
+"back" = `ESC` (the Cardputer `` ` `` key, checked with `` hasChar(ks, '`') ``).
 
 `enter(St)` changes state and stores the time in `stateStart`, used by animations and timed transitions.
 

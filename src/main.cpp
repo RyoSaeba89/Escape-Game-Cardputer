@@ -620,10 +620,118 @@ void drawHud() {
     }
 }
 
-void drawFooter(const String &s) {
+// ---- Touches : les flèches (touches ; . , / du Cardputer, codes 1 à 4 dans
+// les textes, voir textes.h) sont dessinées en triangles, et dans une indication
+// « touche : action » la touche est en orange, l'action dans la couleur donnée.
+constexpr int ARROW_W = 9;  // place prise par une flèche
+
+bool isArrow(char c) {
+    return c >= 1 && c <= 4;
+}
+
+void drawArrow(char c, int x, int y, uint16_t col) {
+    int cx = x + 3;
+    int cy = y + 6;
+    switch (c) {
+        case 1: canvas.fillTriangle(cx - 3, cy + 2, cx + 3, cy + 2, cx, cy - 3, col); break;   // haut
+        case 2: canvas.fillTriangle(cx - 3, cy - 2, cx + 3, cy - 2, cx, cy + 3, col); break;   // bas
+        case 3: canvas.fillTriangle(cx + 2, cy - 3, cx + 2, cy + 3, cx - 3, cy, col); break;   // gauche
+        default: canvas.fillTriangle(cx - 2, cy - 3, cx - 2, cy + 3, cx + 3, cy, col); break;  // droite
+    }
+}
+
+// Largeur des n premiers caractères de s, flèches comprises
+int runWidth(const char *s, int n) {
+    int w = 0;
+    String run;
+    for (int i = 0; i < n; i++) {
+        if (isArrow(s[i])) {
+            w += canvas.textWidth(run) + ARROW_W;
+            run = "";
+        } else {
+            run += s[i];
+        }
+    }
+    return w + canvas.textWidth(run);
+}
+
+// Dessine les n premiers caractères de s (coin haut gauche), flèches en
+// arrowCol ; renvoie le x de fin
+int drawRun(const char *s, int n, int x, int y, uint16_t col, uint16_t arrowCol) {
+    canvas.setTextSize(1);
+    canvas.setTextDatum(TL_DATUM);
+    canvas.setTextColor(col);
+    String run;
+    for (int i = 0; i <= n; i++) {
+        if (i == n || isArrow(s[i])) {
+            canvas.drawString(run, x, y);
+            x += canvas.textWidth(run);
+            run = "";
+            if (i < n) {
+                drawArrow(s[i], x, y, arrowCol);
+                x += ARROW_W;
+            }
+        } else {
+            run += s[i];
+        }
+    }
+    return x;
+}
+
+// Indication de n caractères : ce qui précède le premier « : » est la touche
+void drawHintRun(const char *s, int n, int x, int y, uint16_t col, uint16_t keyCol) {
+    const char *colon = static_cast<const char *>(memchr(s, ':', n));
+    if (!colon) {
+        drawRun(s, n, x, y, col, keyCol);
+        return;
+    }
+    int k = colon - s;
+    while (k > 0 && s[k - 1] == ' ') {
+        k--;
+    }
+    x = drawRun(s, k, x, y, keyCol, keyCol);
+    drawRun(s + k, n - k, x, y, col, keyCol);
+}
+
+void hint(const char *s, int x, int y, uint16_t col, textdatum_t datum = TL_DATUM, bool shadow = false) {
+    int n = strlen(s);
+    int w = runWidth(s, n);
+    if (datum == TC_DATUM) {
+        x -= w / 2;
+    } else if (datum == TR_DATUM) {
+        x -= w;
+    }
+    if (shadow) {
+        drawHintRun(s, n, x + 1, y + 1, C_BLACK, C_BLACK);
+    }
+    drawHintRun(s, n, x, y, col, C_ORANGE);
+}
+
+// Pied de page : groupes « touche : action » séparés par '|', répartis sur la largeur
+void drawFooter(const char *s) {
     canvas.fillRect(0, H - 14, W, 14, C_PANEL);
     canvas.drawFastHLine(0, H - 15, W, C_BORDER);
-    text(s, W / 2, H - 13, C_DIM, 1, TC_DATUM);
+    const char *grp[4];
+    int len[4];
+    int n = 0;
+    int total = 0;
+    for (const char *p = s; n < 4;) {
+        const char *e = strchr(p, '|');
+        grp[n] = p;
+        len[n] = e ? e - p : strlen(p);
+        total += runWidth(grp[n], len[n]);
+        n++;
+        if (!e) {
+            break;
+        }
+        p = e + 1;
+    }
+    int gap = n > 1 ? std::max(6, std::min(24, (W - 4 - total) / (n - 1))) : 0;
+    int x = (W - total - gap * (n - 1)) / 2;
+    for (int i = 0; i < n; i++) {
+        drawHintRun(grp[i], len[i], x, H - 13, C_DIM, C_ORANGE);
+        x += runWidth(grp[i], len[i]) + gap;
+    }
 }
 
 void drawErrorFlash() {
@@ -637,7 +745,7 @@ void drawErrorFlash() {
 void drawMorseHelp() {
     canvas.fillRect(0, 16, W, H - 16, C_PANEL);
     text(tr(MORSE_HELP), 4, 18, C_ORANGE);
-    text(tr(MORSE_CLOSE), W - 4, 18, C_DIM, 1, TR_DATUM);
+    hint(tr(MORSE_CLOSE), W - 4, 18, C_DIM, TR_DATUM);
     for (int i = 0; i < 26; i++) {
         int col = i / 7;
         int row = i % 7;
@@ -850,7 +958,7 @@ void drawWifiList() {
             canvas.fillCircle(x + i * 5, 11, 1, (millis() / 250) % 4 > (uint32_t)i ? C_ORANGE : C_PANEL2);
         }
     } else {
-        text(tr(WIFI_REFRESH), W - 4, 3, C_DIM, 1, TR_DATUM);
+        hint(tr(WIFI_REFRESH), W - 4, 3, C_DIM, TR_DATUM);
     }
     if (scanning) {
         if (blink()) {
@@ -943,7 +1051,7 @@ void drawAddress() {
         }
     }
     if (blink()) {
-        text(tr(ADDR_CONTINUE), tx, 104, C_YELLOW);
+        hint(tr(ADDR_CONTINUE), tx, 104, C_YELLOW);
     }
     drawFooter(tr(ap ? ADDR_FOOTER_AP : ADDR_FOOTER));
 }
@@ -957,7 +1065,7 @@ void drawTitle(uint32_t now) {
     shadowText("EXPLORER 3", W / 2 + 1, 10, C_ORANGE, 3, TC_DATUM);
     shadowText(tr(TITLE_SUB), W / 2, 50, C_TEXT, 1, TC_DATUM);
     if (blink()) {
-        shadowText(tr(TITLE_START), W / 2, 118, C_YELLOW, 1, TC_DATUM);
+        hint(tr(TITLE_START), W / 2, 118, C_YELLOW, TC_DATUM, true);
     }
 }
 
@@ -970,7 +1078,7 @@ void drawBriefing() {
     int y = wrapped(tr(BRIEF_TEXT), 10, 24, W - 20, C_TEXT);
     wrapped(tr(BRIEF_RULES), 10, y + 4, W - 20, C_CYAN);
     if (blink()) {
-        text(tr(BRIEF_START), W / 2, H - 14, C_YELLOW, 1, TC_DATUM);
+        hint(tr(BRIEF_START), W / 2, H - 14, C_YELLOW, TC_DATUM);
     }
 }
 
@@ -1098,8 +1206,8 @@ void drawPuzzlePicross() {
     text(tr(P3_TITLE), px, 19, C_ORANGE);
     text(tr(P3_PLACE), px, 33, C_TEXT);
     wrapped(tr(P3_TEXT), px, 50, W - px - 4, C_DIM, 13);
-    text(tr(P3_MOVE), px, 104, C_CYAN);
-    text(tr(P3_LIGHT), px, 118, C_CYAN);
+    hint(tr(P3_MOVE), px, 104, C_CYAN);
+    hint(tr(P3_LIGHT), px, 118, C_CYAN);
 }
 
 void drawSolderingIron(int cx, int cy) {
@@ -1395,7 +1503,7 @@ void drawWin(uint32_t now) {
         shadowText(tr(WIN_RECORD) + fmtTime(bestO2), 8, 90, C_DIM, 1, TL_DATUM);
     }
     if (blink()) {
-        shadowText(tr(WIN_AGAIN), W - 4, 120, C_YELLOW, 1, TR_DATUM);
+        hint(tr(WIN_AGAIN), W - 4, 120, C_YELLOW, TR_DATUM, true);
     }
 }
 
@@ -1408,7 +1516,7 @@ void drawGameOver(uint32_t now) {
     shadowText(tr(LOST_TEXT1), W / 2, 44, C_TEXT, 1, TC_DATUM);
     shadowText(tr(LOST_TEXT2), W / 2, 58, C_TEXT, 1, TC_DATUM);
     if (blink()) {
-        shadowText(tr(LOST_AGAIN), W / 2, 118, C_YELLOW, 1, TC_DATUM);
+        hint(tr(LOST_AGAIN), W / 2, 118, C_YELLOW, TC_DATUM, true);
     }
 }
 
@@ -1948,7 +2056,7 @@ void drawPause() {
     if (blink()) {
         canvas.fillTriangle(48, 93, 48, 105, 56, 99, C_YELLOW);
     }
-    text(tr(PAUSE_RESUME), W / 2 + 8, 93, C_TEXT, 1, TC_DATUM);
+    hint(tr(PAUSE_RESUME), W / 2 + 8, 93, C_TEXT, TC_DATUM);
 }
 
 bool canPause() {

@@ -37,8 +37,8 @@ pio run -e simulateur
 | `Entrée` | `ENTRÉE` |
 | `Retour arrière`, `Suppr` | `DEL` |
 | `Tab`, `Espace` | `TAB`, `ESPACE` |
-| `Échap` | `` ` `` (retour) |
-| Flèches | `;` `.` `,` `/` |
+| `Échap` | `ESC` (touche `` ` ``, retour) |
+| Flèches | Flèches (touches `;` `.` `,` `/`) |
 | `F1` | `Fn` (3 fois : pause) |
 | `F12` | Capture de l'écran (`capture-1.bmp`, `capture-2.bmp`…) |
 

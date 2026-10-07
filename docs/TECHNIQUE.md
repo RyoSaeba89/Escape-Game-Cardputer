@@ -110,7 +110,9 @@ drawFooter(tr(P2_FOOTER));
 
 `tr()` renvoie le texte dans la langue courante (`lang` : 0 français, 1 anglais). Les deux traductions sont côte à côte, ce qui évite d'en oublier une. Les textes de la page web sont dans la page elle-même (section 9.7).
 
-**Place à l'écran.** La police `efontJA_12` donne 6 px par caractère latin, accents compris, soit 40 caractères sur 240 px. En pratique, un pied de page doit rester sous 39 caractères pour ne pas être rogné, et les colonnes étroites (picross, clavier codé, écran d'adresse) passent à la ligne avec `wrapped()`. Le simulateur (section 14) permet de vérifier chaque écran.
+**Touches.** Dans les textes, une indication s'écrit « touche : action » (`"ENTRÉE : ok"`) : `hint()` et `drawFooter()` dessinent ce qui précède le premier `:` en orange et le reste dans la couleur du texte. Les flèches du Cardputer (touches `;` `.` `,` `/`) s'écrivent `K_UP`, `K_DOWN`, `K_LEFT`, `K_RIGHT` (codes 1 à 4) et sont dessinées en triangles orange de 9 px. Dans un pied de page, `|` sépare les groupes, que `drawFooter()` répartit sur la largeur (6 à 24 px d'écart). Le retour s'écrit `ESC`.
+
+**Place à l'écran.** La police `efontJA_12` donne 6 px par caractère latin, accents compris, soit 40 caractères sur 240 px. En pratique, l'ensemble des groupes d'un pied de page doit rester sous 230 px environ (largeur moins les écarts minimum), et les colonnes étroites (picross, clavier codé, écran d'adresse) passent à la ligne avec `wrapped()`. Le simulateur (section 14) permet de vérifier chaque écran.
 
 ### Dessin
 
@@ -192,7 +194,7 @@ stateDiagram-v2
 | `Launch` | Animation du décollage (6,5 s) | Chrono arrêté, record enregistré |
 | `Win` / `GameOver` | Écrans de fin | ENTRÉE revient au titre, le mode choisi est gardé |
 
-« retour » = touche `` ` `` (accent grave).
+« retour » = `ESC` (touche `` ` `` du Cardputer, testée par `` hasChar(ks, '`') ``).
 
 `enter(St)` change d'état et note l'heure dans `stateStart`, qui sert aux animations et aux enchaînements temporisés.
 
