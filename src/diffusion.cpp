@@ -1,12 +1,14 @@
-// Mode diffusion : le Cardputer sert lui-même une page web. Le navigateur du PC
-// reçoit par WebSocket les lignes de l'écran qui ont changé (compressées) et
-// les sons à jouer, avec l'heure du Cardputer pour garder le rythme du Morse.
+// Mode avec écran : le Cardputer sert lui-même une page web. Le navigateur (PC,
+// télé) reçoit par WebSocket les lignes de l'écran qui ont changé (compressées)
+// et les sons à jouer, avec l'heure du Cardputer pour garder le rythme du Morse.
 // Tout le réseau tourne sur le cœur 0, le jeu reste seul sur le cœur 1.
 #include "diffusion.h"
 
+#include <ESPmDNS.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 
 #include <algorithm>
 
@@ -37,21 +39,41 @@ canvas{position:absolute;top:0;right:0;bottom:0;left:0;margin:auto;width:100vw;h
 #saisie span{display:inline-block;width:3.5vh;height:3.5vh;margin:0 .6vh;border:2px solid #50ff78;border-radius:.5vh;vertical-align:middle}
 #saisie span.on{background:#50ff78}
 #tab p{margin-bottom:0;color:#8c96af}
+#tab p.av{color:#f03c32}
 #tab.err{animation:err .5s}
 @keyframes err{0%,100%{box-shadow:none}40%{box-shadow:inset 0 0 0 2vh #f03c32}}
 </style></head><body>
 <div id="ecran">
 <canvas id="c" width="240" height="135"></canvas>
-<div id="tab"><h1>ORDINATEUR DE BORD : TABLE DES SYMBOLES</h1><div id="o2"></div><div id="grille"></div>
-<div id="saisie"></div><p>Le joueur du Cardputer vous donne une lettre du code : dites-lui quel symbole lui correspond.</p></div>
-<div id="son">Cliquer ou appuyer sur une touche pour activer le son<small>Double-clic, F ou Entrée : plein écran</small><small>Flèches haut et bas : marge pour la télé</small></div>
-<div id="etat">Connexion au Cardputer…</div>
+<div id="tab"><h1 id="t-h1"></h1><div id="o2"></div><div id="grille"></div>
+<div id="saisie"></div><p id="t-p"></p><p id="t-av" class="av"></p></div>
+<div id="son"><span id="t-son"></span><small id="t-fs"></small><small id="t-mg"></small></div>
+<div id="etat"></div>
 </div>
 <div id="marge"></div>
 <video id="veille" muted loop playsinline src="data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAHGEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHGTbuMU6uEElTDZ1OsggETTbuMU6uEHFO7a1OsggGw7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmoCrXsYMPQkBNgIRMYXZmV0GETGF2ZkSJiECfQAAAAAAAFlSua8iuAQAAAAAAAD/XgQFzxYgAAAAAAAAAAZyBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhDuaygDgkLCBELqBEJqBAlWwhFW5gQESVMNn0HNzzWPAi2PFiAAAAAAAAAABZ8iYRaOHRU5DT0RFUkSHi0xhdmMgbGlidnB4Z8ihRaOIRFVSQVRJT05Eh5MwMDowMDowMi4wMDAwMDAwMDAAH0O2dcPngQCjo4EAAIAQAgCdASoQABAAAEcIhYWImYSIAgIADA1gAP7/q1CAo5mBA+gAsQEAARAQABgAMD/0DAAAAP7/q1CAHFO7a5G7j7OBALeK94EB8YIBaPCBAw=="></video>
+<script src="/sym.js"></script>
 <script>
 const cv=document.getElementById('c'),g=cv.getContext('2d'),img=g.createImageData(240,135),px=img.data;
 const etat=document.getElementById('etat'),son=document.getElementById('son');
+
+// Textes de la page dans les deux langues ; le Cardputer envoie la sienne ("L,heure,fr").
+const TX={
+ fr:{son:'Cliquer ou appuyer sur une touche pour activer le son',fs:'Double-clic, F ou Entrée : plein écran',
+  mg:'Flèches haut et bas : marge pour la télé',cx:'Connexion au Cardputer…',h1:'ORDINATEUR DE BORD : TABLE DE DÉCODAGE',
+  p:'Le joueur du Cardputer vous donne une lettre du code : décrivez-lui le symbole correspondant.',
+  av:'Ne montrez pas cet écran au joueur du Cardputer !',sa:'Symboles tapés',mt:'Marge télé : '},
+ en:{son:'Click or press a key to enable sound',fs:'Double-click, F or Enter: full screen',
+  mg:'Up and down arrows: TV margin',cx:'Connecting to the Cardputer…',h1:'ON-BOARD COMPUTER: DECODING TABLE',
+  p:'The Cardputer player gives you a letter of the code: describe the matching symbol to them.',
+  av:'Don\'t let the Cardputer player see this screen!',sa:'Symbols typed',mt:'TV margin: '}};
+let lg='';try{lg=localStorage.getItem('lang')||'';}catch(_){}
+if(!TX[lg])lg=(navigator.language||'').slice(0,2)=='fr'?'fr':'en';
+let connecte=false,saisis=0;
+function langue(l){if(!TX[l])return;lg=l;try{localStorage.setItem('lang',l);}catch(_){}
+ document.documentElement.lang=l;const t=TX[l];
+ for(const k of ['son','fs','mg','h1','p','av'])document.getElementById('t-'+k).textContent=t[k];
+ if(!connecte)etat.textContent=t.cx;majSaisie();}
 for(let i=3;i<px.length;i+=4)px[i]=255;
 let dirty=true;
 function put(i,v){px[i]=(v>>8&0xF8)|(v>>13);px[i+1]=(v>>3&0xFC)|(v>>9&3);px[i+2]=(v<<3&0xF8)|(v>>2&7);}
@@ -111,7 +133,7 @@ try{marge=Number(localStorage.getItem('marge'))||0;}catch(_){}
 const q=/[?&]marge=(\d+)/.exec(location.search);if(q)marge=Number(q[1]);
 function appliquer(){marge=Math.max(0,Math.min(15,marge));ecran.style.transform=marge?'scale('+(1-marge/50)+')':'';}
 function changerMarge(d){marge+=d;appliquer();try{localStorage.setItem('marge',marge);}catch(_){}
- margeTxt.textContent='Marge télé : '+marge+' %';margeTxt.style.display='block';clearTimeout(margeVue);
+ margeTxt.textContent=TX[lg].mt+marge+' %';margeTxt.style.display='block';clearTimeout(margeVue);
  margeVue=setTimeout(()=>{margeTxt.style.display='none';},1500);}
 appliquer();
 // Clavier, télécommande ou manette : une première touche active le son
@@ -127,34 +149,34 @@ document.addEventListener('keydown',e=>{if(e.ctrlKey||e.altKey||e.metaKey)return
 
 // Table des symboles (ordinateur de bord) : remplace la copie de l'écran.
 // Message "K,heure,1,restant_ms,saisis,erreurs,table" ou "K,heure,0".
-// Symboles en pixel art 12×12 : mêmes dessins et même ordre que SYMBOLS[] dans
-// main.cpp, 3 chiffres hexadécimaux par ligne (☺ ♥ ♦ ♣ ♠ ♂ ♀ ♪ ☼ ⌂ ▲ ‼).
-const SYM=['1f8204402999999801801a059094f22041f8','00070ef9ffffffffff7fe3fc1f80f0060000','0600f01f83fc7feffffff7fe3fc1f80f0060',
- '0f01f81f80f0666ffffff6660600f01f8000','0600f01f83fc7feffffff76e0600f01f8000','01f0030050093d14208108108108104203c0',
- '1f82044024024022041f80601f8060060060','03003802c0260220200200203e07e07e03c0','0604622040f0108d0bd0b1080f0204462060',
- '060090108204402801801801801801801fff','0000600600f00f01f81f83fc3fc7fe7fe000','30c30c30c30c30c30c30c00000030c30c000'];
-function symbole(n){const h=SYM[n];if(!h)return '';let d='';
+// Symboles en pixel art 12×12 : SYM vient de /sym.js (les dessins de main.cpp),
+// 3 chiffres hexadécimaux par ligne.
+const SYMS=typeof SYM!='undefined'?SYM:[];
+function symbole(n){const h=SYMS[n];if(!h)return '';let d='';
  for(let r=0;r<12;r++){const v=parseInt(h.substr(r*3,3),16);
   for(let c=0;c<12;){if(v>>(11-c)&1){let e=c;while(e<12&&(v>>(11-e)&1))e++;d+='M'+c+' '+r+'h'+(e-c)+'v1h'+(c-e)+'z';c=e;}else c++;}}
  return '<svg viewBox="0 0 12 12" shape-rendering="crispEdges"><path d="'+d+'"/></svg>';}
 const tab=document.getElementById('tab'),o2=document.getElementById('o2'),grille=document.getElementById('grille'),saisie=document.getElementById('saisie');
 let tabOn=false,tabEnd=0,tabKey='',lastErr=-1;
+function majSaisie(){let h='';for(let i=0;i<4;i++)h+='<span'+(i<saisis?' class="on"':'')+'></span>';saisie.innerHTML=TX[lg].sa+' '+h;}
 function panel(a){tabOn=a[2]=='1';tab.style.display=tabOn?'flex':'none';if(!tabOn){lastErr=-1;return;}
  tabEnd=Number(a[1])+off+Number(a[3]);
  if(a[6]!==tabKey){tabKey=a[6];grille.innerHTML='';
   for(let i=0;i<tabKey.length;i+=2){const d=document.createElement('div');d.className='case';
    d.innerHTML='<b>'+tabKey[i]+'</b>'+symbole(parseInt(tabKey[i+1],16));grille.appendChild(d);}}
- let h='';for(let i=0;i<4;i++)h+='<span'+(i<Number(a[4])?' class="on"':'')+'></span>';saisie.innerHTML='Saisie '+h;
+ saisis=Number(a[4]);majSaisie();
  const e=Number(a[5]);if(lastErr>=0&&e!==lastErr){tab.classList.remove('err');void tab.offsetWidth;tab.classList.add('err');}lastErr=e;}
 setInterval(()=>{if(!tabOn)return;const r=Math.max(0,tabEnd-performance.now()),s=Math.ceil(r/1000);
  o2.textContent='O2 '+String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');o2.style.color=r<60000?'#f03c32':'#50c8ff';},100);
+langue(lg);
 
-function msg(s){const a=s.split(',').map(Number);sync(a[1]);if(s[0]=='K'){panel(s.split(','));return;}if(!ac)return;
+function msg(s){const a=s.split(',').map(Number);sync(a[1]);
+ if(s[0]=='K'){panel(s.split(','));return;}if(s[0]=='L'){langue(s.split(',')[2]);return;}if(!ac)return;
  if(s[0]=='T')tone(a[2],a[3],a[4],a[5]);else if(s[0]=='S')stop(a[2],a[3]);else if(s[0]=='R')rumble(a[2]);}
 function connect(){const ws=new WebSocket('ws://'+location.hostname+':81/');ws.binaryType='arraybuffer';
- ws.onopen=()=>{etat.textContent='';offs=[];};
+ ws.onopen=()=>{connecte=true;etat.textContent='';offs=[];};
  ws.onmessage=e=>{typeof e.data=='string'?msg(e.data):rows(e.data);};
- ws.onclose=()=>{etat.textContent='Connexion au Cardputer…';setTimeout(connect,1000);};}
+ ws.onclose=()=>{connecte=false;etat.textContent=TX[lg].cx;setTimeout(connect,1000);};}
 connect();
 </script></body></html>)rawliteral";
 
@@ -183,10 +205,16 @@ int nextRow = 0;          // reprise si une image ne tient pas dans un envoi
 uint8_t *frameBuf = nullptr;
 volatile int clients = 0;
 
-// Page réservée au PC : dernier texte demandé par le jeu (envoyé par la tâche réseau)
+// Page réservée à l'équipe de l'écran : dernier texte demandé par le jeu
+// (envoyé par la tâche réseau)
 portMUX_TYPE panelLock = portMUX_INITIALIZER_UNLOCKED;
 char panelText[128] = "0";
 volatile bool panelDirty = false;
+
+// Langue de la page ("L,heure,fr") et dessins des symboles (/sym.js)
+volatile uint8_t pageLang = 0;
+volatile bool langDirty = false;
+const char *symbolsJs = "const SYM=[];";
 
 uint32_t hashRow(const uint16_t *p) {
     const uint32_t *w = reinterpret_cast<const uint32_t *>(p);
@@ -266,6 +294,7 @@ void onWsEvent(uint8_t, WStype_t type, uint8_t *, size_t) {
     if (type == WStype_CONNECTED) {
         memset(rowHash, 0, sizeof(rowHash));  // nouveau navigateur : écran complet
         panelDirty = true;
+        langDirty = true;
     }
     if (type == WStype_CONNECTED || type == WStype_DISCONNECTED) {
         clients = ws.connectedClients();
@@ -296,6 +325,13 @@ void netTask(void *) {
             ws.broadcastTXT(txt);
         }
         uint32_t now = millis();
+        if (langDirty) {
+            langDirty = false;
+            if (clients) {
+                snprintf(txt, sizeof(txt), "L,%lu,%s", (unsigned long)now, pageLang ? "en" : "fr");
+                ws.broadcastTXT(txt);
+            }
+        }
         if (panelDirty) {
             char copy[sizeof(panelText)];
             portENTER_CRITICAL(&panelLock);
@@ -331,54 +367,224 @@ void queueSound(const SoundMsg &m) {
 
 // ---------------------------------------------------------------- Wi-Fi
 
-void startScan() {
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    WiFi.scanNetworks(true);
+namespace {
+
+// Recherche : passe active (les box répondent à une demande), puis passive
+// (écoute des balises, pour celles qui répondent mal). Le pilote refuse de
+// chercher pendant une tentative de connexion : chaque passe est retentée.
+constexpr int SCAN_TRIES = 5;
+constexpr uint32_t SCAN_RETRY_MS = 700;
+constexpr uint32_t ACTIVE_MS_PER_CHAN = 400;   // délai de garde de la bibliothèque : × 20
+constexpr uint32_t PASSIVE_MS_PER_CHAN = 300;
+
+enum class Pass { Off, Active, Passive };
+Pass scanPass = Pass::Off;
+bool scanStarted = false;
+int scanTries = 0;
+uint32_t scanRetryAt = 0;
+std::vector<WifiNet> found;
+
+// Connexion : causes données par le pilote (événement « déconnecté »)
+volatile uint8_t lastReason = 0;
+volatile int disconnects = 0;
+volatile int passwordFails = 0;
+bool apMode = false;
+
+void onDisconnect(arduino_event_id_t, arduino_event_info_t info) {
+    uint8_t r = info.wifi_sta_disconnected.reason;
+    if (r == WIFI_REASON_ASSOC_LEAVE) {
+        return;  // déconnexion demandée par nous (WiFi.disconnect()), pas un échec
+    }
+    lastReason = r;
+    disconnects++;
+    if (r == WIFI_REASON_AUTH_FAIL || r == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT || r == WIFI_REASON_HANDSHAKE_TIMEOUT) {
+        passwordFails++;
+    }
 }
 
-bool scanDone(std::vector<WifiNet> &out) {
-    int n = WiFi.scanComplete();
-    if (n == WIFI_SCAN_RUNNING) {
-        return false;
+void stationMode() {
+    static bool hooked = false;
+    if (!hooked) {
+        WiFi.onEvent(onDisconnect, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+        hooked = true;
     }
-    out.clear();
+    if (apMode) {
+        WiFi.softAPdisconnect(true);
+        apMode = false;
+    }
+    WiFi.setHostname("explorer3");
+    WiFi.mode(WIFI_STA);
+}
+
+// Arrête une recherche en cours (avant une connexion ou le réseau Explorer3)
+void stopScan() {
+    if (scanPass != Pass::Off) {
+        esp_wifi_scan_stop();
+        WiFi.scanDelete();
+        scanPass = Pass::Off;
+        scanStarted = false;
+    }
+}
+
+bool launchPass() {
+    bool passive = scanPass == Pass::Passive;
+    int16_t r = WiFi.scanNetworks(true, false, passive, passive ? PASSIVE_MS_PER_CHAN : ACTIVE_MS_PER_CHAN);
+    return r == WIFI_SCAN_RUNNING || r >= 0;
+}
+
+// Ajoute les réseaux trouvés par la passe (sans doublons ni réseaux masqués)
+void mergeResults(int n) {
     for (int i = 0; i < n; i++) {
         String s = WiFi.SSID(i);
         if (s.isEmpty()) {
             continue;
         }
-        auto it = std::find_if(out.begin(), out.end(), [&](const WifiNet &e) { return e.ssid == s; });
-        if (it != out.end()) {
+        auto it = std::find_if(found.begin(), found.end(), [&](const WifiNet &e) { return e.ssid == s; });
+        if (it != found.end()) {
             it->rssi = std::max(it->rssi, (int)WiFi.RSSI(i));
         } else {
-            out.push_back({s, WiFi.RSSI(i), WiFi.encryptionType(i) == WIFI_AUTH_OPEN});
+            found.push_back({s, WiFi.RSSI(i), WiFi.encryptionType(i) == WIFI_AUTH_OPEN});
         }
     }
+    std::sort(found.begin(), found.end(), [](const WifiNet &a, const WifiNet &b) { return a.rssi > b.rssi; });
+}
+
+// Passe refusée ou trop longue : nouvel essai un peu plus tard
+Scan retryPass(std::vector<WifiNet> &out) {
+    esp_wifi_scan_stop();
     WiFi.scanDelete();
-    std::sort(out.begin(), out.end(), [](const WifiNet &a, const WifiNet &b) { return a.rssi > b.rssi; });
-    return true;
+    if (++scanTries >= SCAN_TRIES) {
+        bool second = scanPass == Pass::Passive;
+        scanPass = Pass::Off;
+        if (second) {
+            out = found;  // la première liste reste valable
+            return Scan::Done;
+        }
+        return Scan::Failed;
+    }
+    WiFi.disconnect();  // arrête une tentative de connexion qui gênerait la recherche
+    scanRetryAt = millis() + SCAN_RETRY_MS;
+    return Scan::Running;
+}
+
+}  // namespace
+
+void startScan() {
+    stationMode();
+    WiFi.disconnect();
+    WiFi.scanDelete();
+    found.clear();
+    scanPass = Pass::Active;
+    scanStarted = false;
+    scanTries = 0;
+    scanRetryAt = millis() + 100;
+}
+
+Scan pollScan(std::vector<WifiNet> &out) {
+    if (scanPass == Pass::Off) {
+        out = found;
+        return Scan::Done;
+    }
+    if (!scanStarted) {
+        if ((int32_t)(millis() - scanRetryAt) < 0) {
+            return Scan::Running;
+        }
+        if (!launchPass()) {
+            return retryPass(out);
+        }
+        scanStarted = true;
+        return Scan::Running;
+    }
+    int16_t n = WiFi.scanComplete();
+    if (n == WIFI_SCAN_RUNNING) {
+        return Scan::Running;
+    }
+    scanStarted = false;
+    if (n < 0) {
+        return retryPass(out);
+    }
+    mergeResults(n);
+    WiFi.scanDelete();
+    out = found;
+    if (scanPass == Pass::Active) {
+        scanPass = Pass::Passive;
+        scanTries = 0;
+        scanRetryAt = millis() + 50;
+        return Scan::Partial;
+    }
+    scanPass = Pass::Off;
+    return Scan::Done;
 }
 
 void connect(const String &ssid, const String &pass) {
-    WiFi.mode(WIFI_STA);
+    stopScan();
+    stationMode();
     WiFi.disconnect();
-    WiFi.setHostname("explorer3");
+    lastReason = 0;
+    disconnects = 0;
+    passwordFails = 0;
+    WiFi.setAutoReconnect(true);  // le pilote réessaie de lui-même après un échec
     WiFi.begin(ssid.c_str(), pass.c_str());
 }
 
-bool connected() {
-    return WiFi.status() == WL_CONNECTED;
+Link link() {
+    if (WiFi.status() == WL_CONNECTED) {
+        return Link::Connected;
+    }
+    return passwordFails >= 2 ? Link::BadPassword : Link::Connecting;
 }
 
-String address() {
-    return "http://" + WiFi.localIP().toString();
+Link failure() {
+    return lastReason == WIFI_REASON_NO_AP_FOUND ? Link::NotFound : Link::NoAnswer;
+}
+
+int attempt() {
+    return disconnects + 1;
+}
+
+// ---------------------------------------------------------------- réseau Explorer3
+
+bool startAccessPoint() {
+    stopScan();
+    WiFi.disconnect();
+    WiFi.mode(WIFI_AP);
+    apMode = WiFi.softAP(AP_SSID, AP_PASS);
+    return apMode;
+}
+
+bool accessPoint() {
+    return apMode;
+}
+
+int apClients() {
+    return apMode ? WiFi.softAPgetStationNum() : 0;
+}
+
+String wifiQrText() {
+    return String("WIFI:T:WPA;S:") + AP_SSID + ";P:" + AP_PASS + ";;";
+}
+
+String ipAddress() {
+    return (apMode ? WiFi.softAPIP() : WiFi.localIP()).toString();
 }
 
 // ---------------------------------------------------------------- serveur
 
+namespace {
+
+// Nom explorer3.local (PC, Mac, téléphones ; pas la Ouya), annoncé sur le réseau en place
+void announce() {
+    MDNS.end();
+    if (MDNS.begin("explorer3")) {
+        MDNS.addService("http", "tcp", 80);
+    }
+}
+
+}  // namespace
+
 bool startServer(const uint16_t *screen, int w, int h) {
     WiFi.setSleep(false);  // sinon le Wi-Fi s'endort entre deux paquets (saccades)
+    announce();
     if (screenMutex) {
         return true;  // déjà démarré (changement de Wi-Fi)
     }
@@ -408,6 +614,7 @@ bool startServer(const uint16_t *screen, int w, int h) {
     screenH = std::min(h, MAX_H);
     screenMutex = mutex;
     http.on("/", [] { http.send_P(200, "text/html", PAGE); });
+    http.on("/sym.js", [] { http.send(200, "application/javascript", symbolsJs); });
     http.onNotFound([] { http.send(404, "text/plain", "404"); });
     http.begin();
     ws.begin();
@@ -449,7 +656,7 @@ void sendRumble(uint32_t at) {
     queueSound({'R', 0, 0, 0, at});
 }
 
-// ---------------------------------------------------------------- page du PC
+// ---------------------------------------------------------------- page de l'écran
 
 void setPanel(const String &text) {
     portENTER_CRITICAL(&panelLock);
@@ -457,6 +664,15 @@ void setPanel(const String &text) {
     panelText[sizeof(panelText) - 1] = 0;
     panelDirty = true;
     portEXIT_CRITICAL(&panelLock);
+}
+
+void setLanguage(uint8_t lang) {
+    pageLang = lang;
+    langDirty = true;
+}
+
+void setSymbols(const char *js) {
+    symbolsJs = js;
 }
 
 }  // namespace mirror

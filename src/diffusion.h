@@ -1,5 +1,6 @@
-// Mode diffusion : l'écran et le son du jeu sont recopiés en direct dans le
-// navigateur d'un PC sur le même Wi-Fi (page web servie par le Cardputer).
+// Mode avec écran : l'écran et le son du jeu sont recopiés en direct dans le
+// navigateur d'un PC ou d'une télé (page web servie par le Cardputer), sur le
+// Wi-Fi de la box ou sur le réseau Explorer3 créé par le Cardputer.
 #pragma once
 #include <Arduino.h>
 
@@ -7,21 +8,47 @@
 
 namespace mirror {
 
+// Réseau créé par le Cardputer quand il n'y a pas de box (WPA2 : 8 caractères au moins)
+constexpr const char *AP_SSID = "Explorer3";
+constexpr const char *AP_PASS = "Explorer3";
+constexpr const char *HOST_NAME = "explorer3.local";  // mDNS, en plus de l'adresse IP
+
 struct WifiNet {
     String ssid;
     int rssi;
     bool open;
 };
 
-// Wi-Fi
-void startScan();
-bool scanDone(std::vector<WifiNet> &out);  // true une fois la recherche finie (liste triée)
-void connect(const String &ssid, const String &pass);
-bool connected();
-String address();  // "http://192.168.1.42"
+// ---------------------------------------------------------------- Wi-Fi de la box
 
-// Serveur : page web (port 80) + flux écran/son (WebSocket, port 81).
-// false si la mémoire manque (rien n'est démarré).
+// Recherche en deux passes (active, puis passive pour les réseaux qui répondent
+// mal) dont les résultats sont réunis. Un refus du pilote est retenté tout seul.
+enum class Scan { Running, Partial, Done, Failed };
+void startScan();
+// Partial : première liste, la seconde passe continue ; Done : liste complète ;
+// Failed : recherche impossible malgré les nouveaux essais. Listes triées par signal.
+Scan pollScan(std::vector<WifiNet> &out);
+
+enum class Link { Connecting, Connected, BadPassword, NotFound, NoAnswer };
+void connect(const String &ssid, const String &pass);
+Link link();     // BadPassword dès que le mot de passe est refusé deux fois
+Link failure();  // cause probable après le délai : NotFound ou NoAnswer
+int attempt();   // numéro de l'essai en cours (le pilote réessaie de lui-même)
+
+// ---------------------------------------------------------------- réseau Explorer3
+
+bool startAccessPoint();
+bool accessPoint();  // true si le Cardputer est en point d'accès
+int apClients();     // appareils connectés au réseau Explorer3
+String wifiQrText(); // texte du QR code qui fait rejoindre le réseau
+
+String ipAddress();  // "192.168.1.42" (box) ou "192.168.4.1" (Explorer3)
+
+// ---------------------------------------------------------------- serveur
+
+// Page web (port 80) + flux écran/son (WebSocket, port 81) + nom explorer3.local.
+// false si la mémoire manque (rien n'est démarré). À rappeler après chaque
+// changement de réseau : le nom explorer3.local est alors annoncé de nouveau.
 bool startServer(const uint16_t *screen, int w, int h);
 int clientCount();
 
@@ -29,13 +56,16 @@ int clientCount();
 void lockScreen();
 void unlockScreen();
 
-// Son joué par le PC (heures en millis() du Cardputer)
+// Son joué par le navigateur (heures en millis() du Cardputer)
 void sendTone(uint32_t at, uint16_t freq, uint16_t dur, uint8_t ch);
 void sendStop(uint32_t at, uint8_t ch);  // ch = 255 : tous les canaux
 void sendRumble(uint32_t at);           // grondement du décollage
 
-// Page réservée au PC (table des symboles) : "0" = copie de l'écran,
+// Page réservée à l'équipe de l'écran (table des symboles) : "0" = copie de l'écran,
 // "1,restant_ms,saisis,erreurs,table" = table (table = lettre + n° de symbole en hexa)
 void setPanel(const String &text);
+
+void setLanguage(uint8_t lang);       // 0 = français, 1 = anglais (textes de la page)
+void setSymbols(const char *js);      // dessins des symboles (/sym.js), gardé tel quel
 
 }  // namespace mirror

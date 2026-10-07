@@ -8,14 +8,16 @@
 // Puis saisie de NASA, décollage et écran de fin.
 // Fn appuyé 3 fois d'affilée : pause / reprise (maître du jeu).
 // Record (O2 restant) gardé en mémoire même après extinction.
-// Au démarrage : mode Solo, ou Diffusion (écran et son recopiés dans le
-// navigateur d'un PC sur le même Wi-Fi, voir diffusion.cpp).
+// Jeu en français ou en anglais (choix au premier démarrage, textes dans textes.h).
+// Au démarrage : « Cardputer seul », ou « Avec écran » (écran et son recopiés
+// dans le navigateur d'un PC ou d'une télé, voir diffusion.cpp).
 #include <Arduino.h>
 #include <M5Cardputer.h>
 #include <Preferences.h>
 #include <utility/Adafruit_TCA8418/Adafruit_TCA8418.h>
 
 #include "diffusion.h"
+#include "textes.h"
 
 #include <algorithm>
 #include <memory>
@@ -23,6 +25,8 @@
 #include <vector>
 
 namespace {
+
+using namespace textes;
 
 constexpr int W = 240;
 constexpr int H = 135;
@@ -110,7 +114,10 @@ const char *const PICROSS[5] = {
     "#####",
 };
 
-enum class St { Mode, WifiList, Password, Connecting, Address, Title, Briefing, Puzzle, Solved, Computer, Launch, Win, GameOver };
+enum class St {
+    Lang, Mode, WifiList, SsidEntry, Password, Connecting, Address,
+    Title, Briefing, Puzzle, Solved, Computer, Launch, Win, GameOver
+};
 
 using KeysState = std::decay<decltype(M5Cardputer.Keyboard.keysState())>::type;
 
@@ -162,6 +169,14 @@ M5Canvas canvas(&M5Cardputer.Display);
 
 St state = St::Mode;
 int puzzle = 0;  // 0..3
+
+// Langue : 0 = français, 1 = anglais (clé NVS "lang", absente au premier démarrage)
+uint8_t lang = 0;
+int langSel = 0;
+
+const char *tr(Tx &t) {
+    return t[lang];
+}
 uint32_t stateStart = 0;
 
 // Chrono
@@ -191,6 +206,7 @@ std::vector<int> colClues[5];
 // Ordinateur de bord
 String typedCode;
 int termShown = 0;
+uint32_t codeRefusedUntil = 0;  // « CODE REFUSÉ » affiché jusqu'à cette heure
 
 // Pause (Fn x3)
 bool paused = false;
@@ -204,21 +220,27 @@ Preferences prefs;
 uint32_t bestO2 = 0;
 bool newRecord = false;
 
-// Mode diffusion : le son part vers le PC au lieu du haut-parleur
+// Mode « avec écran » : le son part vers le navigateur au lieu du haut-parleur
 bool mirrorMode = false;
-int modeSel = 0;
+int modeSel = 0;  // 0 Cardputer seul, 1 avec écran, 2 langue
 uint32_t chanUntil[5];  // fin du son en cours sur chaque canal
 std::vector<mirror::WifiNet> nets;
-bool scanning = false;
-int netSel = 0;
+bool scanning = false;   // première passe de la recherche en cours
+bool refining = false;   // seconde passe en cours (la liste peut encore s'allonger)
+bool scanFailed = false;
+int netSel = 0;          // 0 = créer Explorer3, 1..n = réseaux, n + 1 = autre réseau
 String wifiSsid;
 String wifiPass;
 String wifiError;
 constexpr uint32_t WIFI_TIMEOUT_MS = 20000;
+bool qrPage = true;       // écran d'adresse : QR de la page (sinon QR du Wi-Fi Explorer3)
+bool apJoined = false;    // un appareil a déjà rejoint Explorer3 (bascule automatique faite)
+String symbolsJs;         // dessins des symboles pour la page web (/sym.js)
 
-// Clavier codé de l'ordinateur de bord (mode diffusion) : les touches 1 à 9
-// portent des symboles, seule l'équipe du PC a la table lettre -> symbole.
-// Même ordre que les symboles de la page web (codes Alt ☺ ♥ ♦ ♣ ♠ ♂ ♀ ♪ ☼ ⌂ ▲ ‼).
+// Clavier codé de l'ordinateur de bord (mode avec écran) : les touches 1 à 9
+// portent des symboles, seule l'équipe de l'écran a la table lettre -> symbole.
+// Inspirés des codes Alt ☺ ♥ ♦ ♣ ♠ ♂ ♀ ♪ ☼ ⌂ ▲ ‼ ; la page web reçoit ces mêmes
+// dessins (buildSymbolsJs), le rang sert de numéro de symbole dans la table.
 constexpr int SYM_COUNT = 12;
 const char *const SYMBOLS[SYM_COUNT][12] = {
     {"...XXXXXX...", "..X......X..", ".X........X.", "X..XX..XX..X", "X..XX..XX..X", "X..........X",
@@ -614,8 +636,8 @@ void drawErrorFlash() {
 
 void drawMorseHelp() {
     canvas.fillRect(0, 16, W, H - 16, C_PANEL);
-    text("ALPHABET MORSE", 4, 18, C_ORANGE);
-    text("TAB : fermer", W - 4, 18, C_DIM, 1, TR_DATUM);
+    text(tr(MORSE_HELP), 4, 18, C_ORANGE);
+    text(tr(MORSE_CLOSE), W - 4, 18, C_DIM, 1, TR_DATUM);
     for (int i = 0; i < 26; i++) {
         int col = i / 7;
         int row = i % 7;
@@ -765,94 +787,165 @@ void drawScreenTitle(const String &title) {
     text(title, 4, 3, C_ORANGE);
 }
 
+// Liste d'entrées encadrées (langue, mode) : nom en haut, précision en dessous
+void drawChoices(const char *const *names, const char *const *infos, int count, int sel, int top, int h, int gap) {
+    for (int i = 0; i < count; i++) {
+        int y = top + i * (h + gap);
+        bool on = i == sel;
+        canvas.fillRoundRect(16, y, W - 32, h, 5, on ? C_PANEL2 : C_PANEL);
+        canvas.drawRoundRect(16, y, W - 32, h, 5, on ? C_YELLOW : C_BORDER);
+        if (on) {
+            canvas.fillTriangle(24, y + h / 2 - 6, 24, y + h / 2 + 6, 31, y + h / 2, C_YELLOW);
+        }
+        int ty = (h - 26) / 2 + 1;
+        text(names[i], 38, y + ty, on ? C_YELLOW : C_TEXT);
+        text(infos[i], 38, y + ty + 13, C_DIM);
+    }
+}
+
+void drawLang() {
+    canvas.fillScreen(C_SPACE);
+    drawStars(H, true);
+    shadowText(tr(LANG_TITLE), W / 2 + 1, 8, C_ORANGE, 1, TC_DATUM);
+    const char *names[2] = {LANG_NAMES[0], LANG_NAMES[1]};
+    const char *infos[2] = {LANG_INFOS[0], LANG_INFOS[1]};
+    drawChoices(names, infos, 2, langSel, 32, 32, 8);
+    drawFooter(tr(LANG_FOOTER));
+}
+
 void drawMode() {
     canvas.fillScreen(C_SPACE);
     drawStars(H, true);
-    shadowText("EXPLORER 3", W / 2 + 1, 6, C_ORANGE, 2, TC_DATUM);
-    const char *const names[2] = {"Solo", "Diffusion"};
-    const char *const infos[2] = {"Le jeu sur le Cardputer", "Écran et son aussi sur le PC"};
-    for (int i = 0; i < 2; i++) {
-        int y = 36 + i * 38;
-        bool sel = i == modeSel;
-        canvas.fillRoundRect(16, y, W - 32, 32, 5, sel ? C_PANEL2 : C_PANEL);
-        canvas.drawRoundRect(16, y, W - 32, 32, 5, sel ? C_YELLOW : C_BORDER);
-        if (sel) {
-            canvas.fillTriangle(24, y + 10, 24, y + 22, 31, y + 16, C_YELLOW);
-        }
-        text(names[i], 38, y + 3, sel ? C_YELLOW : C_TEXT);
-        text(infos[i], 38, y + 17, C_DIM);
+    shadowText("EXPLORER 3", W / 2 + 1, 4, C_ORANGE, 2, TC_DATUM);
+    const char *names[3] = {tr(MODE_SOLO), tr(MODE_SCREEN), tr(MODE_LANG)};
+    const char *infos[3] = {tr(MODE_SOLO_INFO), tr(MODE_SCREEN_INFO), tr(MODE_LANG_INFO)};
+    drawChoices(names, infos, 3, modeSel, 31, 28, 2);
+    drawFooter(tr(MODE_FOOTER));
+}
+
+// Petit cadenas 7×8 (réseau protégé)
+void drawLock(int x, int y, uint16_t col) {
+    canvas.drawRoundRect(x + 1, y, 5, 6, 2, col);
+    canvas.fillRect(x, y + 3, 7, 5, col);
+}
+
+// 4 barres de signal, de -86 dBm (1 barre) à -60 dBm et plus (4 barres)
+void drawSignal(int x, int y, int rssi, uint16_t col) {
+    int bars = rssi >= -60 ? 4 : rssi >= -70 ? 3 : rssi >= -78 ? 2 : 1;
+    for (int i = 0; i < 4; i++) {
+        int h = 3 + i * 2;
+        canvas.fillRect(x + i * 4, y + 9 - h, 3, h, i < bars ? col : C_DGREY);
     }
-    drawFooter("; . choisir   ENTRÉE valider");
+}
+
+int wifiCount() {
+    return (int)nets.size() + 2;  // + « créer Explorer3 » et « autre réseau »
 }
 
 void drawWifiList() {
-    drawScreenTitle("DIFFUSION : CHOIX DU WI-FI");
+    drawScreenTitle(tr(WIFI_TITLE));
+    if (scanning || refining) {  // recherche en cours : trois points après le titre
+        int x = 8 + canvas.textWidth(tr(WIFI_TITLE));
+        for (int i = 0; i < 3; i++) {
+            canvas.fillCircle(x + i * 5, 11, 1, (millis() / 250) % 4 > (uint32_t)i ? C_ORANGE : C_PANEL2);
+        }
+    } else {
+        text(tr(WIFI_REFRESH), W - 4, 3, C_DIM, 1, TR_DATUM);
+    }
     if (scanning) {
         if (blink()) {
-            text("Recherche des réseaux...", W / 2, 60, C_CYAN, 1, TC_DATUM);
+            text(tr(WIFI_SEARCHING), W / 2, 60, C_CYAN, 1, TC_DATUM);
         }
-    } else if (nets.empty()) {
-        text("Aucun réseau trouvé", W / 2, 60, C_DIM, 1, TC_DATUM);
     } else {
         const int rows = 6;
-        int top = std::max(0, std::min(netSel - rows / 2, (int)nets.size() - rows));
-        for (int r = 0; r < rows && top + r < (int)nets.size(); r++) {
+        int count = wifiCount();
+        int top = std::max(0, std::min(netSel - rows / 2, count - rows));
+        for (int r = 0; r < rows && top + r < count; r++) {
             int i = top + r;
             int y = 20 + r * 16;
             bool sel = i == netSel;
             if (sel) {
                 canvas.fillRect(0, y, W, 16, C_PANEL2);
             }
-            text(fit(nets[i].ssid, 180), 6, y + 2, sel ? C_YELLOW : C_TEXT);
-            text(String(nets[i].rssi) + (nets[i].open ? "" : " *"), W - 4, y + 2, C_DIM, 1, TR_DATUM);
+            if (i == 0 || i == count - 1) {
+                text(tr(i == 0 ? WIFI_CREATE : WIFI_OTHER), 6, y + 2, sel ? C_YELLOW : C_CYAN);
+                continue;
+            }
+            const mirror::WifiNet &n = nets[i - 1];
+            text(fit(n.ssid, 176), 6, y + 2, sel ? C_YELLOW : C_TEXT);
+            if (!n.open) {
+                drawLock(W - 31, y + 4, C_DIM);
+            }
+            drawSignal(W - 20, y + 3, n.rssi, sel ? C_YELLOW : C_TEXT);
+        }
+        if (nets.empty()) {
+            text(tr(scanFailed ? WIFI_SCAN_FAILED : WIFI_NONE), W / 2, 66, scanFailed ? C_ORANGE : C_DIM, 1, TC_DATUM);
         }
     }
     if (!wifiError.isEmpty()) {
         canvas.fillRect(0, H - 30, W, 15, C_SPACE);
         text(fit(wifiError, W - 8), W / 2, H - 29, C_RED, 1, TC_DATUM);
     }
-    drawFooter("; . ENTRÉE choisir  R relancer  ` retour");
+    drawFooter(tr(WIFI_FOOTER));
 }
 
-void drawPassword() {
-    drawScreenTitle("MOT DE PASSE WI-FI");
-    text(fit(wifiSsid, W - 16), W / 2, 30, C_CYAN, 1, TC_DATUM);
+// Saisie d'un texte (nom de réseau masqué ou mot de passe), affiché en clair
+void drawTyping(const char *title, const String &top, uint16_t topCol, const String &value) {
+    drawScreenTitle(title);
+    text(fit(top, W - 16), W / 2, 30, topCol, 1, TC_DATUM);
     canvas.fillRoundRect(8, 52, W - 16, 24, 4, C_PANEL);
     canvas.drawRoundRect(8, 52, W - 16, 24, 4, C_YELLOW);
-    String shown = wifiPass + (blink() ? "_" : " ");
+    String shown = value + (blink() ? "_" : " ");
     while (canvas.textWidth(shown) > W - 32 && shown.length() > 1) {
         shown.remove(0, 1);
     }
     text(shown, 16, 58, C_TEXT);
-    drawFooter("ENTRÉE valider   DEL effacer   ` retour");
+    drawFooter(tr(TYPING_FOOTER));
 }
 
 void drawConnecting(uint32_t now) {
-    drawScreenTitle("DIFFUSION : CONNEXION");
-    text("Connexion au Wi-Fi", W / 2, 40, C_TEXT, 1, TC_DATUM);
-    text(fit(wifiSsid, W - 16), W / 2, 58, C_CYAN, 1, TC_DATUM);
+    drawScreenTitle(tr(CONNECT_TITLE));
+    text(fit(wifiSsid, W - 16), W / 2, 42, C_CYAN, 1, TC_DATUM);
     int dots = (now - stateStart) / 300 % 4;
     for (int i = 0; i < 3; i++) {
-        canvas.fillCircle(W / 2 - 16 + i * 16, 88, 3, i < dots ? C_YELLOW : C_DGREY);
+        canvas.fillCircle(W / 2 - 16 + i * 16, 70, 3, i < dots ? C_YELLOW : C_DGREY);
     }
-    drawFooter("` : choisir un autre Wi-Fi");
+    int attempt = mirror::attempt();
+    if (attempt > 1) {
+        text(String(tr(CONNECT_ATTEMPT)) + String(attempt), W / 2, 86, C_DIM, 1, TC_DATUM);
+    }
+    drawFooter(tr(CONNECT_FOOTER));
 }
 
+// Écran d'adresse : QR code à gauche (99 px : 4 modules de marge blanche pour
+// le QR de la page, 2 pour celui du Wi-Fi), textes à droite
 void drawAddress() {
-    drawScreenTitle("DIFFUSION : PRÊT");
-    text("Sur le PC, ouvrir dans le navigateur :", W / 2, 24, C_TEXT, 1, TC_DATUM);
-    canvas.fillRoundRect(8, 42, W - 16, 24, 4, C_PANEL);
-    canvas.drawRoundRect(8, 42, W - 16, 24, 4, C_CYAN);
-    text(mirror::address(), W / 2, 48, C_YELLOW, 1, TC_DATUM);
-    if (mirror::clientCount() > 0) {
-        text("PC connecté", W / 2, 74, C_GREEN, 1, TC_DATUM);
+    drawScreenTitle(tr(ADDR_TITLE));
+    const int tx = 110;
+    bool ap = mirror::accessPoint();
+    String ip = mirror::ipAddress();
+    if (ap && !qrPage) {
+        canvas.qrcode(mirror::wifiQrText().c_str(), 4, 20, 99, 1);
+        text(tr(ADDR_JOIN), tx, 21, C_TEXT);
+        text(mirror::AP_SSID, tx, 36, C_YELLOW);
+        text(tr(ADDR_PASSWORD), tx, 53, C_DIM);
+        text(mirror::AP_PASS, tx, 67, C_YELLOW);
+        text(tr(ADDR_DEVICES) + String(mirror::apClients()), tx, 85, C_DIM);
     } else {
-        text("En attente du PC...", W / 2, 74, C_DIM, 1, TC_DATUM);
+        canvas.qrcode(("http://" + ip).c_str(), 4, 20, 99, 1);
+        text(tr(ap ? ADDR_PAGE : ADDR_OPEN), tx, 21, C_TEXT);
+        text(ip, tx, 36, C_YELLOW);
+        text(mirror::HOST_NAME, tx, 50, C_CYAN);
+        if (mirror::clientCount() > 0) {
+            text(tr(ADDR_BROWSER_OK), tx, 70, C_GREEN);
+        } else {
+            wrapped(tr(ADDR_WAITING), tx, 70, W - tx - 2, C_DIM, 13);
+        }
     }
     if (blink()) {
-        text("ENTRÉE pour continuer", W / 2, 96, C_YELLOW, 1, TC_DATUM);
+        text(tr(ADDR_CONTINUE), tx, 104, C_YELLOW);
     }
-    drawFooter("` : changer de Wi-Fi");
+    drawFooter(tr(ap ? ADDR_FOOTER_AP : ADDR_FOOTER));
 }
 
 void drawTitle(uint32_t now) {
@@ -862,9 +955,9 @@ void drawTitle(uint32_t now) {
     canvas.fillEllipse(176, 101, 8, 2, C_MARS3);
     drawSmoke(160, 82, now);
     shadowText("EXPLORER 3", W / 2 + 1, 10, C_ORANGE, 3, TC_DATUM);
-    shadowText("Escape game : crash sur Mars", W / 2, 50, C_TEXT, 1, TC_DATUM);
+    shadowText(tr(TITLE_SUB), W / 2, 50, C_TEXT, 1, TC_DATUM);
     if (blink()) {
-        shadowText("ENTRÉE pour commencer", W / 2, 118, C_YELLOW, 1, TC_DATUM);
+        shadowText(tr(TITLE_START), W / 2, 118, C_YELLOW, 1, TC_DATUM);
     }
 }
 
@@ -873,14 +966,17 @@ void drawBriefing() {
     drawStars(H, false);
     canvas.fillRoundRect(3, 3, W - 6, H - 22, 5, C_PANEL);
     canvas.drawRoundRect(3, 3, W - 6, H - 22, 5, C_BORDER);
-    text("JOURNAL DE BORD - SOL 1", 10, 8, C_ORANGE);
-    int y = wrapped("Notre vaisseau Explorer 3 s'est écrasé sur Mars. Pour redécoller, réparez-le et trouvez "
-                    "le code de démarrage de la fusée.",
-                    10, 24, W - 20, C_TEXT);
-    wrapped("4 énigmes, 5 minutes d'oxygène. Chaque erreur coûte 10 secondes !", 10, y + 4, W - 20, C_CYAN);
+    text(tr(BRIEF_TITLE), 10, 8, C_ORANGE);
+    int y = wrapped(tr(BRIEF_TEXT), 10, 24, W - 20, C_TEXT);
+    wrapped(tr(BRIEF_RULES), 10, y + 4, W - 20, C_CYAN);
     if (blink()) {
-        text("ENTRÉE : démarrer le chrono", W / 2, H - 14, C_YELLOW, 1, TC_DATUM);
+        text(tr(BRIEF_START), W / 2, H - 14, C_YELLOW, 1, TC_DATUM);
     }
+}
+
+// Mauvaise réponse encore affichée (« X : ACCÈS REFUSÉ »)
+bool wrongShown(uint32_t now) {
+    return wrongLetter && (int32_t)(errFlashUntil + 600 - now) > 0;
 }
 
 void drawLamp(int cx, int cy, bool on) {
@@ -920,23 +1016,21 @@ void drawPuzzleMorse(uint32_t now, bool light) {
     canvas.fillScreen(C_SPACE);
     drawHud();
     if (light) {
-        text("ÉNIGME 1/4 : COFFRE DU FER À SOUDER", 4, 19, C_ORANGE);
-        wrapped("Le coffre est verrouillé. Son voyant clignote en code Morse : tapez la lettre !", 4, 36,
-                140, C_TEXT, 13);
+        text(tr(P1_TITLE), 4, 19, C_ORANGE);
+        wrapped(tr(P1_TEXT), 4, 36, 140, C_TEXT, 13);
         drawLamp(186, 74, lampOn(now));
     } else {
-        text("ÉNIGME 4/4 : ORDINATEUR DE BORD", 4, 19, C_ORANGE);
-        wrapped("L'ordinateur de bord émet un signal Morse sonore. Quelle est la dernière lettre du code ?", 4,
-                36, 140, C_TEXT, 13);
+        text(tr(P4_TITLE), 4, 19, C_ORANGE);
+        wrapped(tr(P4_TEXT), 4, 36, 140, C_TEXT, 13);
         drawSpeaker(186, 74, morsePlaying);
     }
     if (morsePlaying && (int32_t)(now - morseEnd) >= 0) {
         morsePlaying = false;
     }
-    if (wrongLetter && (int32_t)(errFlashUntil + 600 - now) > 0) {
-        text(String(wrongLetter) + " : faux !", 4, 105, C_RED);
+    if (wrongShown(now)) {
+        text(String(wrongLetter) + tr(DENIED), 4, 105, C_RED);
     }
-    drawFooter(morsePlaying ? "Signal en cours   TAB : alphabet Morse" : "ESPACE : rejouer   TAB : alphabet Morse");
+    drawFooter(tr(morsePlaying ? MORSE_PLAYING : light ? P1_FOOTER : P4_FOOTER));
     if (helpOpen) {
         drawMorseHelp();
     }
@@ -945,20 +1039,23 @@ void drawPuzzleMorse(uint32_t now, bool light) {
 void drawPuzzleQuiz(uint32_t now) {
     canvas.fillScreen(C_SPACE);
     drawHud();
-    text("ÉNIGME 2/4 : RÉSERVOIRS DE CARBURANT", 4, 19, C_ORANGE);
-    wrapped("Question de sécurité : quel est le premier rover à avoir atterri sur Mars ?", 4, 35, W - 8, C_TEXT, 13);
+    text(tr(P2_TITLE), 4, 19, C_ORANGE);
+    wrapped(tr(P2_TEXT), 4, 35, W - 8, C_TEXT, 13);
+    if (wrongShown(now)) {
+        text(String(wrongLetter) + tr(DENIED), 4, 61, C_RED);
+    }
     const char *opts[4] = {"Sojourner", "Spirit", "Curiosity", "Perseverance"};
     for (int i = 0; i < 4; i++) {
         int x = 4 + (i % 2) * 118;
         int y = 75 + (i / 2) * 23;
-        bool bad = wrongLetter == 'A' + i && (int32_t)(errFlashUntil + 600 - now) > 0;
+        bool bad = wrongLetter == 'A' + i && wrongShown(now);
         canvas.fillRoundRect(x, y, 114, 21, 4, bad ? rgb(90, 20, 20) : C_PANEL2);
         canvas.drawRoundRect(x, y, 114, 21, 4, bad ? C_RED : C_BORDER);
         canvas.fillRoundRect(x + 3, y + 3, 15, 15, 3, C_ORANGE);
         text(String((char)('A' + i)), x + 11, y + 4, C_BLACK, 1, TC_DATUM);
         text(opts[i], x + 24, y + 4, C_TEXT);
     }
-    drawFooter("Tapez A, B, C ou D");
+    drawFooter(tr(P2_FOOTER));
 }
 
 void drawPuzzlePicross() {
@@ -998,11 +1095,11 @@ void drawPuzzlePicross() {
     canvas.drawRect(x, y, cell + 1, cell + 1, C_YELLOW);
 
     const int px = 130;
-    text("ÉNIGME 3/4", px, 19, C_ORANGE);
-    text("Pièces détachées", px, 33, C_TEXT);
-    wrapped("Remplissez la grille. Chaque chiffre = un bloc de cases pleines.", px, 50, W - px - 4, C_DIM, 13);
-    text("; . , /  bouger", px, 104, C_CYAN);
-    text("OK  noircir", px, 118, C_CYAN);
+    text(tr(P3_TITLE), px, 19, C_ORANGE);
+    text(tr(P3_PLACE), px, 33, C_TEXT);
+    wrapped(tr(P3_TEXT), px, 50, W - px - 4, C_DIM, 13);
+    text(tr(P3_MOVE), px, 104, C_CYAN);
+    text(tr(P3_LIGHT), px, 118, C_CYAN);
 }
 
 void drawSolderingIron(int cx, int cy) {
@@ -1041,9 +1138,7 @@ void drawSolved() {
     drawHud();
     canvas.fillRoundRect(3, 19, W - 6, H - 38, 5, C_PANEL);
     canvas.drawRoundRect(3, 19, W - 6, H - 38, 5, C_GREEN);
-    const char *title[3] = {"COFFRE OUVERT !", "RÉSERVOIRS OUVERTS", "STOCKAGE OUVERT !"};
-    const char *item[3] = {"Fer à souder récupéré", "Carburant récupéré", "Pièces détachées récupérées"};
-    text(title[puzzle], W / 2, 24, C_GREEN, 2, TC_DATUM);
+    text(tr(SOLVED_TITLES[puzzle]), W / 2, 24, C_GREEN, 2, TC_DATUM);
     int ix = 56;
     int iy = 82;
     if (puzzle == 0) {
@@ -1053,26 +1148,18 @@ void drawSolved() {
     } else {
         drawGear(ix - 6, iy - 4);
     }
-    wrapped(item[puzzle], 100, 50, W - 108, C_TEXT);
-    text("Lettre du code :", 100, 88, C_DIM);
+    wrapped(tr(SOLVED_ITEMS[puzzle]), 100, 50, W - 108, C_TEXT);
+    text(tr(SOLVED_LETTER), 100, 88, C_DIM);
     canvas.fillRoundRect(200, 78, 28, 30, 4, C_ORANGE);
     text(String(CODE[puzzle]), 214 + 1, 82, C_BLACK, 2, TC_DATUM);
     if (blink()) {
-        drawFooter("ENTRÉE : continuer");
+        drawFooter(tr(SOLVED_NEXT));
     } else {
         drawFooter("");
     }
 }
 
-const char *const TERM_LINES[] = {
-    "> Diagnostic des systèmes...",
-    "> Fer à souder ........ OK",
-    "> Carburant ........... OK",
-    "> Pièces détachées .... OK",
-    "> CODE DE REDÉMARRAGE TROUVÉ : NASA",
-};
-constexpr int TERM_COUNT = 5;
-constexpr uint32_t TERM_STEP = 600;
+constexpr uint32_t TERM_STEP = 600;  // une ligne du terminal (TERM_LINES, textes.h) toutes les 600 ms
 
 int termVisible(uint32_t now) {
     int n = (now - stateStart) / TERM_STEP + 1;
@@ -1130,9 +1217,38 @@ void drawSymbol(int id, int x, int y, int s, uint16_t col) {
     }
 }
 
-void drawKeypad() {
-    text("CLAVIER CODÉ", 4, 20, C_ORANGE);
-    wrapped("Demandez au PC le symbole de chaque lettre.", 4, 36, 88, C_TERM, 13);
+// Mauvais code : « CODE REFUSÉ » affiché 1,5 s
+bool codeRefused(uint32_t now) {
+    return (int32_t)(codeRefusedUntil - now) > 0;
+}
+
+// Les mêmes dessins pour la page web (servis en /sym.js) : 3 chiffres
+// hexadécimaux par ligne de 12 pixels, bit de poids fort = pixel de gauche.
+String buildSymbolsJs() {
+    String js = "const SYM=[";
+    for (int s = 0; s < SYM_COUNT; s++) {
+        js += s ? ",'" : "'";
+        for (int r = 0; r < 12; r++) {
+            int v = 0;
+            for (int c = 0; c < 12; c++) {
+                v = v << 1 | (SYMBOLS[s][r][c] == 'X');
+            }
+            char hex[4];
+            snprintf(hex, sizeof(hex), "%03x", v);
+            js += hex;
+        }
+        js += "'";
+    }
+    return js + "];";
+}
+
+void drawKeypad(uint32_t now) {
+    text(tr(KEYPAD_TITLE), 4, 20, C_ORANGE);
+    if (codeRefused(now)) {
+        wrapped(tr(KEYPAD_REFUSED), 4, 36, 88, C_RED, 13);
+    } else {
+        wrapped(tr(KEYPAD_HINT), 4, 36, 88, C_TERM, 13);
+    }
     for (int i = 0; i < 4; i++) {
         int x = 4 + i * 22;
         canvas.drawRect(x, 92, 20, 20, C_TERM);
@@ -1150,7 +1266,7 @@ void drawKeypad() {
         text(String(k + 1), x + 5, y + 10, C_DIM);
         drawSymbol(keySym[k], x + 17, y + 4, 2, C_TEXT);
     }
-    drawFooter("1-9 symbole   DEL effacer   ENTRÉE ok");
+    drawFooter(tr(KEYPAD_FOOTER));
 }
 
 // Page du PC : table des symboles pendant l'ordinateur de bord, sinon copie
@@ -1183,16 +1299,19 @@ void drawComputer(uint32_t now) {
     canvas.fillScreen(C_BLACK);
     drawHud();
     if (mirrorMode && keypadShown(now)) {
-        drawKeypad();
+        drawKeypad(now);
         return;
     }
     int n = termVisible(now);
     for (int i = 0; i < n; i++) {
         uint16_t col = (i == TERM_COUNT - 1) ? C_YELLOW : C_TERM;
-        text(TERM_LINES[i], 4, 19 + i * 13, col);
+        text(tr(TERM_LINES[i]), 4, 19 + i * 13, col);
     }
     if (n == TERM_COUNT) {
-        text("Code de démarrage :", 4, 92, C_TERM);
+        text(tr(CODE_LABEL), 4, 92, C_TERM);
+        if (codeRefused(now)) {
+            text(tr(CODE_REFUSED), 4, 106, C_RED);
+        }
         for (int i = 0; i < 4; i++) {
             int x = 124 + i * 26;
             canvas.drawRect(x, 88, 22, 22, C_TERM);
@@ -1202,7 +1321,7 @@ void drawComputer(uint32_t now) {
                 canvas.fillRect(x + 6, 104, 10, 2, C_TERM);
             }
         }
-        drawFooter("Tapez le code puis ENTRÉE   DEL effacer");
+        drawFooter(tr(CODE_FOOTER));
     }
 }
 
@@ -1237,9 +1356,9 @@ void drawLaunch(uint32_t now) {
         canvas.fillCircle(W / 2 + off + random(-1, 2), ground + 4 - (i % 2) * 4, r, rgb(g, g - 8, g - 16));
     }
     if (t < 1500) {
-        shadowText("ALLUMAGE DES MOTEURS", W / 2, 8, C_YELLOW, 1, TC_DATUM);
+        shadowText(tr(LAUNCH_IGNITION), W / 2, 8, C_YELLOW, 1, TC_DATUM);
     } else if (t < 3500) {
-        shadowText("DÉCOLLAGE !", W / 2, 8, C_ORANGE, 2, TC_DATUM);
+        shadowText(tr(LAUNCH_LIFTOFF), W / 2, 8, C_ORANGE, 2, TC_DATUM);
     }
 }
 
@@ -1264,19 +1383,19 @@ void drawWin(uint32_t now) {
     drawFlame(rx + ROCKET_W, ry + ROCKET_H * 2, 2, 16);
     drawRocket(rx, ry, 2);
 
-    shadowText("MISSION", 8, 10, C_ORANGE, 2, TL_DATUM);
-    shadowText("ACCOMPLIE !", 8, 36, C_ORANGE, 2, TL_DATUM);
-    shadowText("Explorer 3 a redécollé !", 8, 62, C_TEXT, 1, TL_DATUM);
-    shadowText("O2 restant : " + fmtTime(frozenRemaining), 8, 76, C_CYAN, 1, TL_DATUM);
+    shadowText(tr(WIN_TITLE1), 8, 10, C_ORANGE, 2, TL_DATUM);
+    shadowText(tr(WIN_TITLE2), 8, 36, C_ORANGE, 2, TL_DATUM);
+    shadowText(tr(WIN_TEXT), 8, 62, C_TEXT, 1, TL_DATUM);
+    shadowText(tr(WIN_O2) + fmtTime(frozenRemaining), 8, 76, C_CYAN, 1, TL_DATUM);
     if (newRecord) {
         if (blink(300)) {
-            shadowText("NOUVEAU RECORD !", 8, 90, C_YELLOW, 1, TL_DATUM);
+            shadowText(tr(WIN_NEW_RECORD), 8, 90, C_YELLOW, 1, TL_DATUM);
         }
     } else {
-        shadowText("Record : " + fmtTime(bestO2), 8, 90, C_DIM, 1, TL_DATUM);
+        shadowText(tr(WIN_RECORD) + fmtTime(bestO2), 8, 90, C_DIM, 1, TL_DATUM);
     }
     if (blink()) {
-        shadowText("ENTRÉE : rejouer", W - 4, 120, C_YELLOW, 1, TR_DATUM);
+        shadowText(tr(WIN_AGAIN), W - 4, 120, C_YELLOW, 1, TR_DATUM);
     }
 }
 
@@ -1285,11 +1404,11 @@ void drawGameOver(uint32_t now) {
     drawRocket(140, 82, 2, true);
     canvas.fillRect(136, 100, 46, 6, C_MARS2);
     canvas.fillEllipse(176, 101, 8, 2, C_MARS3);
-    shadowText("OXYGÈNE ÉPUISÉ", W / 2, 14, C_RED, 2, TC_DATUM);
-    shadowText("Mission échouée...", W / 2, 44, C_TEXT, 1, TC_DATUM);
-    shadowText("Explorer 3 reste sur Mars.", W / 2, 58, C_TEXT, 1, TC_DATUM);
+    shadowText(tr(LOST_TITLE), W / 2, 14, C_RED, 2, TC_DATUM);
+    shadowText(tr(LOST_TEXT1), W / 2, 44, C_TEXT, 1, TC_DATUM);
+    shadowText(tr(LOST_TEXT2), W / 2, 58, C_TEXT, 1, TC_DATUM);
     if (blink()) {
-        shadowText("ENTRÉE : rejouer", W / 2, 118, C_YELLOW, 1, TC_DATUM);
+        shadowText(tr(LOST_AGAIN), W / 2, 118, C_YELLOW, 1, TC_DATUM);
     }
 }
 
@@ -1415,6 +1534,8 @@ void answerLetter(char got, char expected) {
 void startWifiScan() {
     mirror::startScan();
     scanning = true;
+    refining = false;
+    scanFailed = false;
     nets.clear();
     netSel = 0;
     enter(St::WifiList);
@@ -1426,14 +1547,79 @@ void startWifiConnect() {
     enter(St::Connecting);
 }
 
+// Le serveur web démarre sur le réseau en place (box ou Explorer3)
+bool startScreenServer() {
+    if (!mirror::startServer(static_cast<const uint16_t *>(canvas.getBuffer()), W, H)) {
+        startWifiScan();
+        wifiError = tr(ERR_MEMORY);
+        return false;
+    }
+    mirror::setLanguage(lang);
+    return true;
+}
+
+// Réseau Explorer3 créé par le Cardputer (pas de box) : jamais mémorisé
+void startHotspot() {
+    wifiError = "";
+    if (!mirror::startAccessPoint()) {
+        wifiError = tr(ERR_AP);
+        return;
+    }
+    prefs.putBool("auto", false);  // la prochaine fois : liste des Wi-Fi
+    if (startScreenServer()) {
+        qrPage = false;  // d'abord le QR qui fait rejoindre le Wi-Fi
+        apJoined = false;
+        enter(St::Address);
+    }
+}
+
+void chooseLang(uint8_t l) {
+    lang = l;
+    prefs.putUChar("lang", l);
+    mirror::setLanguage(l);
+}
+
+// Saisie d'un texte au clavier (nom de réseau, mot de passe) : DEL efface,
+// les autres caractères s'ajoutent (ENTRÉE et ` sont traités par l'appelant).
+void typeInto(String &s, const KeysState &ks) {
+    if (ks.del) {
+        if (!s.isEmpty()) {
+            s.remove(s.length() - 1);
+        }
+    } else {
+        for (char c : ks.word) {
+            s += c;
+        }
+    }
+}
+
 void handleKey(const KeysState &ks) {
     switch (state) {
-        case St::Mode:
+        case St::Lang:
             if (hasChar(ks, ';') || hasChar(ks, '.')) {
-                modeSel = 1 - modeSel;
+                langSel = 1 - langSel;
                 sfxClick();
             } else if (ks.enter) {
                 sfxClick();
+                chooseLang(langSel);
+                enter(St::Mode);
+            }
+            break;
+
+        case St::Mode:
+            if (hasChar(ks, ';')) {
+                modeSel = (modeSel + 2) % 3;
+                sfxClick();
+            } else if (hasChar(ks, '.')) {
+                modeSel = (modeSel + 1) % 3;
+                sfxClick();
+            } else if (ks.enter) {
+                sfxClick();
+                if (modeSel == 2) {
+                    langSel = lang;
+                    enter(St::Lang);
+                    break;
+                }
                 mirrorMode = modeSel == 1;
                 if (!mirrorMode) {
                     enter(St::Title);
@@ -1441,15 +1627,16 @@ void handleKey(const KeysState &ks) {
                 }
                 wifiSsid = prefs.getString("ssid", "");
                 wifiPass = prefs.getString("pass", "");
-                if (wifiSsid.isEmpty()) {
+                if (wifiSsid.isEmpty() || !prefs.getBool("auto", true)) {
                     startWifiScan();
                 } else {
-                    startWifiConnect();  // Wi-Fi mémorisé
+                    startWifiConnect();  // box mémorisée
                 }
             }
             break;
 
-        case St::WifiList:
+        case St::WifiList: {
+            int count = wifiCount();
             if (hasChar(ks, '`')) {
                 mirrorMode = false;
                 wifiError = "";
@@ -1461,34 +1648,52 @@ void handleKey(const KeysState &ks) {
                 startWifiScan();
             } else if (hasChar(ks, ';') && netSel > 0) {
                 netSel--;
-            } else if (hasChar(ks, '.') && netSel + 1 < (int)nets.size()) {
+                wifiError = "";  // le message cachait la dernière ligne
+            } else if (hasChar(ks, '.') && netSel + 1 < count) {
                 netSel++;
-            } else if (ks.enter && !nets.empty()) {
-                bool sameNet = nets[netSel].ssid == prefs.getString("ssid", "");
-                wifiSsid = nets[netSel].ssid;
-                wifiPass = sameNet ? prefs.getString("pass", "") : String();
-                if (nets[netSel].open) {
-                    startWifiConnect();
+                wifiError = "";
+            } else if (ks.enter) {
+                wifiError = "";
+                if (netSel == 0) {
+                    startHotspot();
+                } else if (netSel == count - 1) {
+                    wifiSsid = "";
+                    enter(St::SsidEntry);
                 } else {
-                    wifiError = "";
-                    enter(St::Password);
+                    const mirror::WifiNet &n = nets[netSel - 1];
+                    bool sameNet = n.ssid == prefs.getString("ssid", "");
+                    wifiSsid = n.ssid;
+                    wifiPass = sameNet ? prefs.getString("pass", "") : String();
+                    if (n.open) {
+                        startWifiConnect();
+                    } else {
+                        enter(St::Password);
+                    }
                 }
+            }
+            break;
+        }
+
+        case St::SsidEntry:
+            if (ks.enter) {
+                if (!wifiSsid.isEmpty()) {
+                    wifiPass = "";
+                    enter(St::Password);  // vide pour un réseau ouvert
+                }
+            } else if (hasChar(ks, '`') && !ks.shift) {
+                enter(St::WifiList);
+            } else {
+                typeInto(wifiSsid, ks);
             }
             break;
 
         case St::Password:
             if (ks.enter) {
                 startWifiConnect();
-            } else if (ks.del) {
-                if (!wifiPass.isEmpty()) {
-                    wifiPass.remove(wifiPass.length() - 1);
-                }
             } else if (hasChar(ks, '`') && !ks.shift) {
-                startWifiScan();
+                enter(St::WifiList);
             } else {
-                for (char c : ks.word) {
-                    wifiPass += c;
-                }
+                typeInto(wifiPass, ks);
             }
             break;
 
@@ -1502,11 +1707,13 @@ void handleKey(const KeysState &ks) {
             if (ks.enter) {
                 sfxClick();
                 enter(St::Title);
+            } else if (ks.tab && mirror::accessPoint()) {
+                qrPage = !qrPage;
+                sfxClick();
             } else if (hasChar(ks, '`')) {
                 startWifiScan();
             }
             break;
-
         case St::Title:
             if (ks.enter) {
                 sfxClick();
@@ -1593,6 +1800,7 @@ void handleKey(const KeysState &ks) {
                         startLaunch();
                     } else {
                         typedCode = "";
+                        codeRefusedUntil = millis() + 1500;
                         penalty();
                     }
                 }
@@ -1612,6 +1820,7 @@ void handleKey(const KeysState &ks) {
                     startLaunch();
                 } else {
                     typedCode = "";
+                    codeRefusedUntil = millis() + 1500;
                     penalty();
                 }
             }
@@ -1632,24 +1841,52 @@ void handleKey(const KeysState &ks) {
 }
 
 void update(uint32_t now) {
-    if (state == St::WifiList && scanning && mirror::scanDone(nets)) {
-        scanning = false;
-        netSel = 0;
+    if (state == St::WifiList && (scanning || refining)) {
+        std::vector<mirror::WifiNet> found;
+        mirror::Scan r = mirror::pollScan(found);
+        if (r == mirror::Scan::Partial || r == mirror::Scan::Done) {
+            // Garder la sélection sur le même réseau quand la liste se complète
+            String sel = netSel > 0 && netSel <= (int)nets.size() ? nets[netSel - 1].ssid : String();
+            nets = found;
+            if (scanning) {
+                netSel = nets.empty() ? 0 : 1;
+            } else if (!sel.isEmpty()) {
+                for (size_t i = 0; i < nets.size(); i++) {
+                    if (nets[i].ssid == sel) {
+                        netSel = i + 1;
+                    }
+                }
+            }
+            netSel = std::min(netSel, wifiCount() - 1);
+            scanning = false;
+            refining = r == mirror::Scan::Partial;
+        } else if (r == mirror::Scan::Failed) {
+            scanFailed = nets.empty();
+            scanning = refining = false;
+        }
     }
     if (state == St::Connecting) {
-        if (mirror::connected()) {
+        mirror::Link link = mirror::link();
+        if (link == mirror::Link::Connected) {
             prefs.putString("ssid", wifiSsid);
             prefs.putString("pass", wifiPass);
-            if (mirror::startServer(static_cast<const uint16_t *>(canvas.getBuffer()), W, H)) {
+            prefs.putBool("auto", true);
+            if (startScreenServer()) {
+                qrPage = true;
                 enter(St::Address);
-            } else {
-                startWifiScan();
-                wifiError = "Diffusion impossible : mémoire pleine";
             }
-        } else if (now - stateStart > WIFI_TIMEOUT_MS) {
+        } else if (link == mirror::Link::BadPassword) {
             startWifiScan();
-            wifiError = "Connexion impossible à " + wifiSsid;
+            wifiError = tr(ERR_PASSWORD);
+        } else if (now - stateStart > WIFI_TIMEOUT_MS) {
+            bool notFound = mirror::failure() == mirror::Link::NotFound;
+            startWifiScan();
+            wifiError = tr(notFound ? ERR_NOT_FOUND : ERR_NO_ANSWER);
         }
+    }
+    if (state == St::Address && mirror::accessPoint() && !apJoined && mirror::apClients() > 0) {
+        apJoined = true;  // un appareil a rejoint Explorer3 : QR de la page
+        qrPage = true;
     }
 
     bool playing = state == St::Puzzle || state == St::Solved || state == St::Computer;
@@ -1704,14 +1941,14 @@ void drawPause() {
     drawHud();
     canvas.fillRoundRect(30, 24, W - 60, 96, 6, C_PANEL);
     canvas.drawRoundRect(30, 24, W - 60, 96, 6, C_ORANGE);
-    shadowText("PAUSE", W / 2, 30, C_ORANGE, 3, TC_DATUM);
-    text("Chrono arrêté : " + fmtTime(pausedRemaining), W / 2, 70, C_CYAN, 1, TC_DATUM);
+    shadowText(tr(PAUSE_TITLE), W / 2, 30, C_ORANGE, 3, TC_DATUM);
+    text(tr(PAUSE_TIMER) + fmtTime(pausedRemaining), W / 2, 70, C_CYAN, 1, TC_DATUM);
     canvas.fillRoundRect(40, 88, W - 80, 22, 4, C_PANEL2);
     canvas.drawRoundRect(40, 88, W - 80, 22, 4, C_YELLOW);
     if (blink()) {
         canvas.fillTriangle(48, 93, 48, 105, 56, 99, C_YELLOW);
     }
-    text("Reprendre : Fn Fn Fn", W / 2 + 8, 93, C_TEXT, 1, TC_DATUM);
+    text(tr(PAUSE_RESUME), W / 2 + 8, 93, C_TEXT, 1, TC_DATUM);
 }
 
 bool canPause() {
@@ -1763,9 +2000,11 @@ void render(uint32_t now) {
         return;
     }
     switch (state) {
+        case St::Lang: drawLang(); break;
         case St::Mode: drawMode(); break;
         case St::WifiList: drawWifiList(); break;
-        case St::Password: drawPassword(); break;
+        case St::SsidEntry: drawTyping(tr(SSID_TITLE), tr(SSID_HINT), C_DIM, wifiSsid); break;
+        case St::Password: drawTyping(tr(PASS_TITLE), wifiSsid, C_CYAN, wifiPass); break;
         case St::Connecting: drawConnecting(now); break;
         case St::Address: drawAddress(); break;
         case St::Title: drawTitle(now); break;
@@ -1815,7 +2054,14 @@ void setup() {
     randomSeed(esp_random());
     prefs.begin("explorer3", false);
     bestO2 = prefs.getUInt("best_o2", 0);
-    enter(St::Mode);
+    symbolsJs = buildSymbolsJs();
+    mirror::setSymbols(symbolsJs.c_str());
+    if (prefs.isKey("lang")) {
+        lang = prefs.getUChar("lang", 0) ? 1 : 0;
+        enter(St::Mode);
+    } else {
+        enter(St::Lang);  // premier démarrage : choix de la langue
+    }
 }
 
 void loop() {
