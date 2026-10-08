@@ -4,7 +4,7 @@
 
 This document describes how the game works inside, for anyone who wants to build, understand or change it. It does not give the puzzle solutions, but they are in plain text in the source code.
 
-Version described: **v1.5** (in preparation): game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator.
+Version described: **v1.6**: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6).
 
 ## Contents
 
@@ -51,7 +51,7 @@ The game is in **French or English**, chosen on first start-up (section 3). Two 
 | Platform | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Board | `esp32-s3-devkitc-1`, 8 MB flash, `default_8MB.csv` partitions (application up to 3.3 MB) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (serial port over native USB) |
-| Libraries | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions used for v1.5: 1.1.1, 0.2.25, 0.2.32 and 2.7.3) |
+| Libraries | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions used for v1.6: 1.1.1, 0.2.25, 0.2.32 and 2.7.3) |
 
 ```
 pio run                # build
@@ -420,7 +420,7 @@ Keys combined with `Ctrl`, `Alt` or `Meta` are ignored, so browser shortcuts kee
 
 **TV margin (overscan).** Many TVs crop the edges of the picture. The margin, 0 to 15 % on each side, shrinks the whole page. It is kept in the browser's `localStorage` (inside a `try`, since storage may be forbidden). It can also be forced with `?marge=5` in the address. A "TV margin: n %" message shows for 1.5 s after each change.
 
-**Screen kept on.** As soon as sound is enabled, the page loops a black 16×16, 2 s WebM video, muted and almost invisible (`#veille`, 502 bytes embedded in base64). On Android, a browser playing a video keeps the screen from going to sleep. The Wake Lock API is also requested when it exists, but it is only available over HTTPS, so never on this page. Because of this, the Ouya screen saver is not guaranteed to be blocked: check it on the console.
+**Screen kept on.** As soon as sound is enabled, the page plays a muted, almost invisible video (`#veille`, 2×2 px). On Android, a browser playing a video keeps the screen from going to sleep, but not for any video: Firefox only does it for a video without sound if it comes from a stream (`MediaStream`), and Chrome/Brave require a large video (at least 20% of the screen), one with sound, or one from a stream. The video therefore gets the stream (`captureStream()`) of a small 16×16 px canvas (`#veillec`), redrawn every second to keep the stream alive. A browser without `captureStream()` keeps the old source, a black 16×16 px, 2 s looping WebM video (502 bytes embedded in base64). The Wake Lock API is also requested when it exists, but it is only available over HTTPS, so never on this page. The Ouya screen saver is not guaranteed to be blocked: check it on the console.
 
 **Installing Firefox 68 on the Ouya.** The official APK is `fennec-68.11.0.multi.android-arm.apk`, on archive.mozilla.org (`pub/mobile/releases/68.11.0/android-api-16/multi/`). Install it with `adb install`, or by downloading it over plain HTTP from a PC on the network, after allowing unknown sources. See the README.
 
@@ -454,7 +454,7 @@ The keypad shows up 600 ms after the last terminal line (`keypadShown()`). `type
 
 ## 11. Memory and performance
 
-Figures measured on v1.5:
+Figures measured on v1.6:
 
 | Item | Size |
 |---|---|

@@ -27,7 +27,7 @@ canvas{position:absolute;top:0;right:0;bottom:0;left:0;margin:auto;width:100vw;h
 #son small{margin-top:12px;font-size:16px;color:#aaa}
 #etat{position:absolute;left:12px;bottom:10px;font-size:16px;color:#f80}
 #marge{position:absolute;top:10px;left:0;right:0;display:none;font-size:20px;color:#ffe146;text-align:center}
-#veille{position:absolute;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none}
+#veille,#veillec{position:absolute;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none}
 #tab{display:none;flex-direction:column;align-items:center;justify-content:center;background:#06061a;font-size:2.6vh;text-align:center}
 #tab>*+*{margin-top:2.5vh}
 #tab h1{margin:0;color:#ffa028;font-size:4vh;letter-spacing:.08em}
@@ -111,9 +111,20 @@ function makeNoise(){const n=8000,f=400,tmp=new Float32Array(n+f);let v=0,peak=1
  for(let i=0;i<f;i++){const a=i/f;tmp[i]=tmp[i]*a+tmp[n+i]*(1-a);}
  const b=ac.createBuffer(1,n,8000),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=tmp[i]/peak*.92;return b;}
 function resume(){if(ac&&ac.state=='suspended')ac.resume();}
-// Écran toujours allumé : vidéo muette en boucle (Firefox 68 sur la Ouya), Wake Lock si la page est en HTTPS
+// Écran toujours allumé : vidéo muette invisible. Firefox et Chrome/Brave ne gardent
+// l'écran allumé pour une vidéo muette que si elle vient d'un flux (MediaStream) :
+// elle reçoit celui d'un petit canvas redessiné chaque seconde. La WebM reste pour
+// les navigateurs sans captureStream. Wake Lock en plus si la page est en HTTPS.
 const veille=document.getElementById('veille');
-function eveil(){const p=veille.play();if(p&&p.catch)p.catch(()=>{});
+let fluxEssaye=false;
+function flux(){fluxEssaye=true;const c=document.createElement('canvas');
+ if(!c.captureStream||!('srcObject' in veille))return;
+ c.id='veillec';c.width=c.height=16;document.body.appendChild(c);
+ const x=c.getContext('2d');let n=0;
+ function peindre(){x.fillStyle=n++%2?'#000':'#010101';x.fillRect(0,0,16,16);}
+ peindre();
+ try{veille.srcObject=c.captureStream();setInterval(peindre,1000);}catch(_){}}
+function eveil(){if(!fluxEssaye)flux();const p=veille.play();if(p&&p.catch)p.catch(()=>{});
  if(navigator.wakeLock)navigator.wakeLock.request('screen').catch(()=>{});}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ac){resume();eveil();}});
 function activer(){if(ac)return;ac=new(window.AudioContext||window.webkitAudioContext)();resume();

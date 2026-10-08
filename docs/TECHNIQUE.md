@@ -4,7 +4,7 @@
 
 Ce document décrit le fonctionnement interne du jeu pour qui veut le compiler, le comprendre ou le modifier. Il ne donne pas les solutions des énigmes, mais elles sont en clair dans le code source.
 
-Version décrite : **v1.5** (en préparation) : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC.
+Version décrite : **v1.6** : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6).
 
 ## Sommaire
 
@@ -51,7 +51,7 @@ Configuration de `platformio.ini` (environnement `cardputer-adv`, celui par déf
 | Plateforme | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Carte | `esp32-s3-devkitc-1`, flash 8 Mo, partitions `default_8MB.csv` (application jusqu'à 3,3 Mo) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (port série par l'USB natif) |
-| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v1.5 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
+| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v1.6 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
 
 ```
 pio run                # compile
@@ -420,7 +420,7 @@ Les touches combinées avec `Ctrl`, `Alt` ou `Méta` sont ignorées, pour ne pas
 
 **Marge télé (overscan).** Beaucoup de télés coupent les bords de l'image. La marge, de 0 à 15 % de chaque côté, réduit l'ensemble de la page. Elle est gardée dans le `localStorage` du navigateur (dans un `try`, car le stockage peut être interdit). On peut aussi l'imposer avec `?marge=5` dans l'adresse. Un message « Marge télé : n % » s'affiche 1,5 s à chaque réglage.
 
-**Écran toujours allumé.** Dès que le son est activé, la page lit en boucle une vidéo WebM noire de 16×16 pixels et 2 s, muette et presque invisible (`#veille`, 502 octets intégrés en base64). Sur Android, un navigateur qui lit une vidéo empêche l'écran de se mettre en veille. L'API Wake Lock est aussi demandée quand elle existe, mais elle n'est disponible qu'en HTTPS, donc jamais sur cette page. À cause de cela, l'économiseur d'écran de la Ouya n'est pas garanti d'être bloqué : à vérifier sur la console.
+**Écran toujours allumé.** Dès que le son est activé, la page lit une vidéo muette et presque invisible (`#veille`, 2×2 px). Sur Android, un navigateur qui lit une vidéo empêche l'écran de se mettre en veille, mais pas pour n'importe quelle vidéo : Firefox ne le fait pour une vidéo sans son que si elle vient d'un flux (`MediaStream`), et Chrome/Brave demandent une vidéo grande (20 % de l'écran au moins), avec du son, ou venant d'un flux. La vidéo reçoit donc le flux (`captureStream()`) d'un petit canvas de 16×16 px (`#veillec`), redessiné chaque seconde pour que le flux reste vivant. Un navigateur sans `captureStream()` garde l'ancienne source, une vidéo WebM noire de 16×16 px et 2 s en boucle (502 octets intégrés en base64). L'API Wake Lock est aussi demandée quand elle existe, mais elle n'est disponible qu'en HTTPS, donc jamais sur cette page. L'économiseur d'écran de la Ouya n'est pas garanti d'être bloqué : à vérifier sur la console.
 
 **Installer Firefox 68 sur la Ouya.** L'APK officiel est `fennec-68.11.0.multi.android-arm.apk`, sur archive.mozilla.org (`pub/mobile/releases/68.11.0/android-api-16/multi/`). Il s'installe avec `adb install` ou en le téléchargeant en HTTP depuis un PC du réseau, après avoir autorisé les sources inconnues. Voir le README.
 
@@ -454,7 +454,7 @@ Le clavier s'affiche 600 ms après la dernière ligne du terminal (`keypadShown(
 
 ## 11. Mémoire et performances
 
-Valeurs mesurées sur la v1.5 :
+Valeurs mesurées sur la v1.6 :
 
 | Élément | Taille |
 |---|---|
