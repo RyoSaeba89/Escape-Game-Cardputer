@@ -4,7 +4,7 @@
 
 This document describes how the game works inside, for anyone who wants to build, understand or change it. It does not give the puzzle solutions, but they are in plain text in the source code.
 
-Version described: **v1.7**: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7).
+Version described: **v1.8**: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7); coded keypad table fitted to portrait, for the iPhone captive portal window (v1.8).
 
 ## Contents
 
@@ -51,7 +51,7 @@ The game is in **French or English**, chosen on first start-up (section 3). Two 
 | Platform | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Board | `esp32-s3-devkitc-1`, 8 MB flash, `default_8MB.csv` partitions (application up to 3.3 MB) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (serial port over native USB) |
-| Libraries | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions used for v1.7: 1.1.1, 0.2.25, 0.2.32 and 2.7.3) |
+| Libraries | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions used for v1.8: 1.1.1, 0.2.25, 0.2.32 and 2.7.3) |
 
 ```
 pio run                # build
@@ -454,6 +454,7 @@ The keypad shows up 600 ms after the last terminal line (`keypadShown()`). `type
 
 - The table is a series of `letter` + `symbol number in hexadecimal` (`0` to `b`) pairs, sorted by letter.
 - The page shows the 9 boxes, the O2 countdown, 4 boxes that fill up according to `typed` (without telling which symbols were typed) and a red warning ("Don't let the Cardputer player see this screen!"). It flashes red when `errors` changes.
+- **Portrait.** The table sizes are in `vh`, proportional to the screen height. In portrait, the grid would get wider than the screen: this happens in the iPhone captive portal window, which always stays in portrait, and no web page can rotate it. A `@media (orientation:portrait)` block therefore replaces these sizes with `vw` sizes, proportional to the width. In landscape it does not apply and the display is unchanged.
 - The countdown is recomputed locally every 100 ms from `remaining_ms` and the clock, so it runs smoothly.
 - The game sends the state on every change, and every 500 ms while the table is shown. During pause and as soon as `Computer` is left, it sends `0`.
 
@@ -461,7 +462,7 @@ The keypad shows up 600 ms after the last terminal line (`keypadShown()`). `type
 
 ## 11. Memory and performance
 
-Figures measured on v1.7:
+Figures measured on v1.8:
 
 | Item | Size |
 |---|---|
@@ -486,7 +487,7 @@ Without PSRAM, large allocations must be avoided: no second full-screen sprite n
 - On the Ouya, keeping the screen awake with the invisible video (section 9.8) has not been checked on the console.
 - Wi-Fi failure reasons come from the driver: "Wrong password" may, rarely, come from a very weak signal.
 - On Explorer3, with an Android phone that has mobile data, the page works in the "Sign in to network" window (captive portal, section 9.3), not in a browser opened by hand: Firefox, Brave or the page's QR code go over 4G. No full screen in that window.
-- The captive portal has been checked on Android. On iPhone and Windows, the system also opens its own window: not checked yet.
+- The captive portal has been checked on Android and iPhone. On iPhone, its window stays in portrait (section 10). On Windows, the system also opens its own window: not checked yet.
 
 ## 13. Changing the game
 

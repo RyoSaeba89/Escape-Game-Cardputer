@@ -4,7 +4,7 @@
 
 Ce document décrit le fonctionnement interne du jeu pour qui veut le compiler, le comprendre ou le modifier. Il ne donne pas les solutions des énigmes, mais elles sont en clair dans le code source.
 
-Version décrite : **v1.7** : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7).
+Version décrite : **v1.8** : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
 
 ## Sommaire
 
@@ -51,7 +51,7 @@ Configuration de `platformio.ini` (environnement `cardputer-adv`, celui par déf
 | Plateforme | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Carte | `esp32-s3-devkitc-1`, flash 8 Mo, partitions `default_8MB.csv` (application jusqu'à 3,3 Mo) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (port série par l'USB natif) |
-| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v1.7 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
+| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v1.8 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
 
 ```
 pio run                # compile
@@ -454,6 +454,7 @@ Le clavier s'affiche 600 ms après la dernière ligne du terminal (`keypadShown(
 
 - La table est une suite de paires `lettre` + `numéro de symbole en hexadécimal` (`0` à `b`), triée par lettre.
 - La page affiche les 9 cases, le chrono O2, 4 cases qui se remplissent selon `saisis` (sans dire quels symboles ont été tapés) et un avertissement en rouge (« Ne montrez pas cet écran au joueur du Cardputer ! »). Elle clignote en rouge quand `erreurs` change.
+- **Portrait.** Les tailles de la table sont en `vh`, proportionnelles à la hauteur de l'écran. En portrait, la grille deviendrait plus large que l'écran : c'est le cas dans la fenêtre du portail captif de l'iPhone, qui reste toujours en portrait, et aucune page web ne peut la faire pivoter. Un bloc `@media (orientation:portrait)` remplace donc ces tailles par des tailles en `vw`, proportionnelles à la largeur. En paysage, il ne s'applique pas et l'affichage est inchangé.
 - Le chrono est recalculé localement toutes les 100 ms à partir de `restant_ms` et de l'horloge, pour défiler sans à-coups.
 - Le jeu renvoie l'état à chaque changement, et toutes les 500 ms tant que la table est affichée. Pendant la pause et dès la sortie de `Computer`, il envoie `0`.
 
@@ -461,7 +462,7 @@ Le clavier s'affiche 600 ms après la dernière ligne du terminal (`keypadShown(
 
 ## 11. Mémoire et performances
 
-Valeurs mesurées sur la v1.7 :
+Valeurs mesurées sur la v1.8 :
 
 | Élément | Taille |
 |---|---|
@@ -486,7 +487,7 @@ Sans PSRAM, il faut éviter les grosses allocations : pas de second sprite plein
 - Sur la Ouya, le blocage de la mise en veille par la vidéo invisible (section 9.8) n'a pas été vérifié sur la console.
 - Les causes d'échec Wi-Fi viennent du pilote : « Mot de passe refusé » peut, rarement, venir d'un signal très faible.
 - Sur Explorer3, avec un téléphone Android qui a les données mobiles, la page marche dans la fenêtre « Se connecter au réseau » (portail captif, section 9.3), pas dans un navigateur ouvert à la main : Firefox, Brave ou le QR code de la page passent par la 4G. Dans cette fenêtre, pas de plein écran.
-- Le portail captif a été vérifié sur Android. Sur iPhone et sous Windows, le système ouvre aussi sa propre fenêtre : pas encore vérifié.
+- Le portail captif a été vérifié sur Android et sur iPhone. Sur iPhone, sa fenêtre reste en portrait (section 10). Sous Windows, le système ouvre aussi sa propre fenêtre : pas encore vérifié.
 
 ## 13. Modifier le jeu
 

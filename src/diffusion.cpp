@@ -43,6 +43,10 @@ canvas{position:absolute;top:0;right:0;bottom:0;left:0;margin:auto;width:100vw;h
 #tab p.av{color:#f03c32}
 #tab.err{animation:err .5s}
 @keyframes err{0%,100%{box-shadow:none}40%{box-shadow:inset 0 0 0 2vh #f03c32}}
+@media (orientation:portrait){
+#tab{font-size:4vw}#tab>*+*{margin-top:3vw}#tab h1{font-size:5.5vw}#o2{font-size:9vw}
+#grille{grid-gap:2vw;gap:2vw}.case{padding:1vw 4vw}.case b{font-size:9vw}
+.case svg{width:9vw;height:9vw;margin-left:3vw}#saisie span{width:4.5vw;height:4.5vw}}
 </style></head><body>
 <div id="ecran">
 <canvas id="c" width="240" height="135"></canvas>
