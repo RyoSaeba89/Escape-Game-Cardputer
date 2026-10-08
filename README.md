@@ -69,7 +69,7 @@ Chaque équipe n'a qu'une partie des indices : il faut se parler ! Placer l'écr
 | # | Lieu | Équipage (Cardputer) | Centre de contrôle (écran) |
 |---|------|----------------------|----------------------------|
 | 1 | Coffre du fer à souder | Un voyant clignote en **Morse** | L'alphabet Morse |
-| 2 | Réservoirs de carburant | Une question sur Mars, aux réponses **chiffrées** | L'indice pour les déchiffrer |
+| 2 | Réservoirs de carburant | Un **labyrinthe** : le personnage, sa trace et la sortie, sans les planètes | Le labyrinthe complet : il faut passer par les planètes dans l'ordre |
 | 3 | Soute à pièces | L'alphabet Morse | Un signal **Morse sonore** |
 | 4 | Ordinateur de bord | Un **picross** sans les chiffres (« ? ») | Les chiffres et la grille de l'équipage en direct |
 | Code | Ordinateur de bord | Un **clavier codé** à symboles | La table de décodage |
@@ -231,7 +231,7 @@ Each team only has part of the clues: talk to each other! Place the screen so th
 | # | Place | Crew (Cardputer) | Mission control (screen) |
 |---|-------|------------------|--------------------------|
 | 1 | Soldering iron safe | A light blinking in **Morse code** | The Morse code chart |
-| 2 | Fuel tanks | A question about Mars, with **coded** answers | The clue to decode them |
+| 2 | Fuel tanks | A **maze**: the character, its trail and the exit, without the planets | The full maze: the planets must be crossed in order |
 | 3 | Cargo hold | The Morse code chart | An **audio Morse** signal |
 | 4 | On-board computer | A **picross** without the numbers ("?") | The numbers and the crew's grid, live |
 | Code | On-board computer | A **coded keypad** with symbols | The decoding table |

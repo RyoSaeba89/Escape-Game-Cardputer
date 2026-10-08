@@ -4,7 +4,7 @@
 
 Ce document décrit le fonctionnement interne du jeu pour qui veut le compiler, le comprendre ou le modifier. Il ne donne pas les solutions des énigmes, mais elles sont en clair dans le code source.
 
-Version décrite : **v2.0** : le mode « Avec écran » devient **Multijoueur**, un jeu à deux équipes (code MARS, page du centre de contrôle à chaque énigme, page Règles). Versions précédentes : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
+Version décrite : **v2.1** : en multijoueur, l'énigme 2 devient un labyrinthe des planètes (v2.1) ; le mode « Avec écran » devient **Multijoueur**, un jeu à deux équipes (code MARS, page du centre de contrôle à chaque énigme, page Règles) (v2.0). Versions précédentes : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
 
 ## Sommaire
 
@@ -51,7 +51,7 @@ Configuration de `platformio.ini` (environnement `cardputer-adv`, celui par déf
 | Plateforme | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Carte | `esp32-s3-devkitc-1`, flash 8 Mo, partitions `default_8MB.csv` (application jusqu'à 3,3 Mo) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (port série par l'USB natif) |
-| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v2.0 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
+| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v2.1 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
 
 ```
 pio run                # compile
@@ -245,7 +245,8 @@ Les mécanismes sont décrits ici, pas les réponses. L'ordre des énigmes dépe
 | Type (`Pz`) | Mécanisme | Seul | Multijoueur | Code |
 |---|---|---|---|---|
 | `Lamp` | Un voyant clignote une lettre en Morse (unité `LAMP_UNIT_MS` = 400 ms) ; on tape la lettre | 1 | 1 | `startMorseLamp()`, `lampOn()` |
-| `Quiz` | QCM à 4 réponses (A à D) ; en multijoueur, réponses chiffrées en César | 2 | 2 | `drawPuzzleQuiz()`, `caesar()` |
+| `Quiz` | QCM à 4 réponses (A à D) | 2 | | `drawPuzzleQuiz()` |
+| `Maze` | Labyrinthe des planètes : grille 4×4 `MAZE[]`, aller de l'entrée à la sortie en passant par les 8 planètes dans l'ordre | | 2 | `drawPuzzleMaze()`, `mazeMove()`, `mazeReset()` |
 | `Picross` | Picross 5×5 ; les indices des lignes et colonnes sont calculés à partir du motif `PICROSS[]` | 3 | 4 | `buildClues()`, `lineClues()`, `picrossSolved()` |
 | `Sound` | Signal Morse sonore, 700 Hz, unité `SOUND_UNIT_MS` = 200 ms ; on tape la lettre | 4 | 3 | `startMorseSound()`, `drawPuzzleSoundMulti()` |
 
@@ -446,7 +447,7 @@ Elle n'existe qu'en multijoueur. L'équipage joue sur le Cardputer, le centre de
 | `0` | Titre, journal de bord, parties réparées, pause, décollage, fins | Copie de l'écran du Cardputer | |
 | `R` | Règles, avant le chrono | Ses règles | Ses règles |
 | `1,…` | Énigme 1, coffre (M) | Alphabet Morse, rappel point = flash court, trait = flash long | Le voyant, sans alphabet |
-| `2,…` | Énigme 2, réservoirs (A) | L'indice du décalage de César | La question en clair et les 4 réponses chiffrées |
+| `2,…` | Énigme 2, réservoirs (A) | Le labyrinthe complet : planètes, entrée, sortie, personnage et trace | La grille vide, le personnage, sa trace et la sortie |
 | `3,…` | Énigme 3, soute (R) | Le signal sonore, un haut-parleur qui s'allume à chaque bip | L'alphabet Morse en permanence, `ESPACE` relance le signal |
 | `4,…` | Énigme 4, ordinateur de bord (S) | Les vrais chiffres et la grille de l'équipage en direct | La grille, avec des « ? » à la place des chiffres |
 | `C,…` | Ordinateur de bord, code | Table de décodage du clavier codé | Le clavier codé |
@@ -456,7 +457,7 @@ Elle n'existe qu'en multijoueur. L'équipage joue sur le Cardputer, le centre de
 - Données du clavier codé : `saisis,table`. La table est une suite de paires `lettre` + `numéro de symbole en hexadécimal` (`0` à `b`), triée par lettre. La page affiche les 9 cases et 4 cases qui se remplissent selon `saisis`, sans dire quels symboles ont été tapés.
 - Le jeu renvoie l'état à chaque changement, et toutes les 500 ms pendant les énigmes et le clavier codé. Pendant la pause, il envoie `0`.
 - La page ne reconstruit son contenu que si la page ou ses données changent, pas à chaque envoi du chrono.
-- **Énigme 2.** Les réponses sont écrites en clair dans `textes.h` (`P2_ANSWERS_MULTI`) et chiffrées à l'affichage par `caesar()`, avec `CAESAR_SHIFT` = 4. L'indice du centre de contrôle donne ce décalage par une devinette.
+- **Énigme 2, labyrinthe.** La grille est fixe (`MAZE[]` : `E` entrée, `X` sortie, `1` à `8` de Mercure à Neptune) et n'a qu'une solution. L'entrée et la sortie sont des cases de la grille qui touchent chacune 3 planètes : ni le premier ni le dernier pas ne se devinent. Une flèche avance d'une case (`mazeMove()`) ; une flèche vers le bord ne fait rien. Toute autre case que la planète suivante (puis la sortie après Neptune), entrée et cases déjà parcourues comprises, coûte −10 s, ramène le personnage à l'entrée et efface la trace ; la mauvaise case reste en rouge 1,5 s sur les deux écrans. Données envoyées : `grille,position,trace,mauvaise_case` (16 caractères de `MAZE`, numéro de case 0 à 15, 16 chiffres `0`/`1`, `-1` si aucune). Le personnage (`ASTRO[]`, astronaute 9×12) est le même dessin sur la page, servi avec les symboles dans `/sym.js`. Les planètes de la page sont de petits SVG (rond coloré, anneaux pour Saturne).
 - **Énigme 3.** La page note l'heure de chaque note du canal `CH_MORSE` (messages `T`) et allume le haut-parleur pendant les bips, même si le son n'est pas activé.
 - **Portrait.** Les tailles de la page sont en `vh`, proportionnelles à la hauteur de l'écran. En portrait, le contenu deviendrait plus large que l'écran : c'est le cas dans la fenêtre du portail captif de l'iPhone, qui reste toujours en portrait, et aucune page web ne peut la faire pivoter. Un bloc `@media (orientation:portrait)` remplace donc ces tailles par des tailles en `vw`, proportionnelles à la largeur, et l'alphabet Morse passe de 7 à 3 colonnes. En paysage, il ne s'applique pas.
 
@@ -474,11 +475,11 @@ Le clavier s'affiche 600 ms après la dernière ligne du terminal (`keypadShown(
 
 ## 11. Mémoire et performances
 
-Valeurs mesurées sur la v2.0 :
+Valeurs mesurées sur la v2.1 :
 
 | Élément | Taille |
 |---|---|
-| Programme | ~1,41 Mo sur 3,3 Mo (42 %), dont la page web ~19 Ko et le répondeur mDNS ~40 Ko |
+| Programme | ~1,41 Mo sur 3,3 Mo (42 %), dont la page web ~22 Ko et le répondeur mDNS ~40 Ko |
 | RAM statique | ~72 Ko sur 320 Ko (22 %), dont le bruit du décollage (16 Ko) et le tampon du DNS (512 octets) |
 | Sprite de l'écran (tas) | 64 800 octets |
 | Mode multijoueur (tas) | Tampon d'envoi 12 Ko, pile de la tâche réseau 6 Ko, file des sons ~1 Ko, plus la pile Wi-Fi, lwIP et mDNS |

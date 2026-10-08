@@ -111,13 +111,12 @@ constexpr Tx P2_TITLE = {"ÉNIGME 2/4 : RÉSERVOIRS DE CARBURANT", "PUZZLE 2/4: 
 constexpr Tx P2_TEXT = {"Verrou des réservoirs : quel est le premier rover à avoir roulé sur Mars ?",
                         "Fuel tank lock: which rover was the first to drive on Mars?"};
 constexpr Tx P2_FOOTER = {"A B C D : répondre", "A B C D: answer"};
-// Multijoueur : la question en clair, les réponses chiffrées par le jeu (code de
-// César, décalage CAESAR_SHIFT) ; seul le centre de contrôle a l'indice.
-constexpr Tx P2_TEXT_MULTI = {"Pourquoi Mars est-elle rouge ?", "Why is Mars red?"};
-constexpr Tx P2_CODED = {"Réponses chiffrées ! Le centre de contrôle a la clé.",
-                         "Coded answers! Mission control has the key."};
-constexpr Tx P2_ANSWERS_MULTI[4] = {
-    {"LA ROUILLE", "RUST"}, {"LA LAVE", "LAVA"}, {"LE SABLE", "SAND"}, {"LE SOLEIL", "THE SUN"}};
+// Multijoueur : labyrinthe des planètes, l'équipage ne voit pas leurs noms
+constexpr Tx P2_TEXT_MAZE = {"Labyrinthe ! Le centre de contrôle vous guide case par case jusqu'à la sortie.",
+                             "Maze! Mission control guides you cell by cell to the exit."};
+constexpr Tx P2_FOOTER_MAZE = {K_UP K_DOWN K_LEFT K_RIGHT " : avancer d'une case",
+                               K_UP K_DOWN K_LEFT K_RIGHT ": move one cell"};
+constexpr Tx P2_WRONG_MAZE = {"MAUVAISE CASE : retour à l'entrée", "WRONG CELL: back to the entrance"};
 
 constexpr Tx P3_TITLE = {"ÉNIGME 3/4", "PUZZLE 3/4"};
 constexpr Tx P3_PLACE = {"Soute à pièces", "Cargo hold"};
