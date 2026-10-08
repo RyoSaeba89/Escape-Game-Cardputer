@@ -4,7 +4,7 @@
 
 Ce document décrit le fonctionnement interne du jeu pour qui veut le compiler, le comprendre ou le modifier. Il ne donne pas les solutions des énigmes, mais elles sont en clair dans le code source.
 
-Version décrite : **v1.8** : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
+Version décrite : **v2.0** : le mode « Avec écran » devient **Multijoueur**, un jeu à deux équipes (code MARS, page du centre de contrôle à chaque énigme, page Règles). Versions précédentes : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
 
 ## Sommaire
 
@@ -16,8 +16,8 @@ Version décrite : **v1.8** : jeu en français et en anglais, réseau Explorer3,
 6. [Son](#6-son)
 7. [Énigmes](#7-énigmes)
 8. [Clavier du Cardputer ADV](#8-clavier-du-cardputer-adv)
-9. [Mode avec écran](#9-mode-avec-écran)
-10. [Clavier codé (jeu asymétrique)](#10-clavier-codé-jeu-asymétrique)
+9. [Mode multijoueur](#9-mode-multijoueur)
+10. [Page du centre de contrôle (jeu asymétrique)](#10-page-du-centre-de-contrôle-jeu-asymétrique)
 11. [Mémoire et performances](#11-mémoire-et-performances)
 12. [Limites connues et sécurité](#12-limites-connues-et-sécurité)
 13. [Modifier le jeu](#13-modifier-le-jeu)
@@ -29,16 +29,16 @@ Version décrite : **v1.8** : jeu en français et en anglais, réseau Explorer3,
 |---|---|
 | Matériel | M5Stack **Cardputer ADV** : ESP32-S3 (2 cœurs, 240 MHz), 8 Mo de flash, **pas de PSRAM**, écran 240×135, codec audio ES8311 (mono), clavier TCA8418 |
 | Framework | Arduino (core ESP32 2.0.x) via PlatformIO |
-| Langage | C++17 côté Cardputer, HTML/CSS/JavaScript pour la page web du mode avec écran |
-| Fichiers | `src/main.cpp` (le jeu), `src/textes.h` (textes français et anglais), `src/diffusion.cpp` et `src/diffusion.h` (le mode avec écran), `sim/` (simulateur PC) |
+| Langage | C++17 côté Cardputer, HTML/CSS/JavaScript pour la page web du mode multijoueur |
+| Fichiers | `src/main.cpp` (le jeu), `src/textes.h` (textes français et anglais), `src/diffusion.cpp` et `src/diffusion.h` (le mode multijoueur), `sim/` (simulateur PC) |
 | Licence | MIT |
 
 Le jeu dure 5 minutes : 4 énigmes à résoudre dans l'ordre, chacune donne une lettre d'un code de 4 lettres à taper sur l'ordinateur de bord pour faire décoller la fusée.
 
 Le jeu est en **français ou en anglais**, au choix au premier démarrage (section 3). Deux modes sont proposés ensuite :
 
-- **Cardputer seul** : tout se passe sur le Cardputer.
-- **Avec écran** : le Cardputer se connecte au Wi-Fi de la box (ou crée le sien, Explorer3), sert lui-même une page web, et le navigateur d'un PC ou d'une télé affiche une copie en direct de l'écran. Le son sort de cet écran. À la fin, l'écran affiche une table secrète pour le **clavier codé** (section 10).
+- **Cardputer seul** : tout se passe sur le Cardputer. Code **NASA**.
+- **Multijoueur** : un jeu à deux équipes, code **MARS**. L'**équipage** joue sur le Cardputer, le **centre de contrôle** sur la page web d'un PC, d'une télé ou d'un téléphone. Le Cardputer se connecte au Wi-Fi de la box (ou crée le sien, Explorer3) et sert lui-même cette page. Le son sort de la page. Pendant les énigmes et sur l'ordinateur de bord, la page montre au centre de contrôle la partie des indices que l'équipage n'a pas (section 10) ; le reste du temps, elle recopie l'écran du Cardputer.
 
 ## 2. Compiler et installer
 
@@ -51,7 +51,7 @@ Configuration de `platformio.ini` (environnement `cardputer-adv`, celui par déf
 | Plateforme | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Carte | `esp32-s3-devkitc-1`, flash 8 Mo, partitions `default_8MB.csv` (application jusqu'à 3,3 Mo) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (port série par l'USB natif) |
-| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v1.8 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
+| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v2.0 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
 
 ```
 pio run                # compile
@@ -86,13 +86,13 @@ Tout le jeu est dans `src/main.cpp`, dans un espace de noms anonyme. Les section
 |---|---|
 | Constantes | Taille d'écran, durée de partie, pénalité, unités Morse, canaux audio, palette de couleurs (RGB565), alphabet Morse, dessins en pixel art (fusée, picross, symboles) |
 | Lecteur clavier | `PolledKeyboardReader` (section 8) |
-| État global | État courant, langue, chrono, énigme, saisie, pause, record, variables du mode avec écran |
+| État global | État courant, langue, chrono, énigme, saisie, pause, record, variables du mode multijoueur |
 | son | Ordonnanceur de notes, effets sonores, bruit du décollage |
 | chrono | `remaining()`, `fmtTime()`, `penalty()` |
 | dessin | Primitives (texte, texte ombré, retour à la ligne, décor, HUD, pied de page) |
 | Morse, picross | Logique des énigmes |
 | écrans | Un `drawXxx()` par écran |
-| clavier codé | Génération du clavier, saisie, dessins des symboles pour la page web, message vers l'écran (section 10) |
+| clavier codé | Génération du clavier, saisie, dessins des symboles pour la page web, état de la page du centre de contrôle (section 10) |
 | logique | Transitions (`enter`, `startPuzzle`, `solvePuzzle`…), clavier (`handleKey`), mise à jour (`update`), pause |
 | `setup()` / `loop()` | Démarrage et boucle principale |
 
@@ -116,7 +116,7 @@ drawFooter(tr(P2_FOOTER));
 
 ### Dessin
 
-Tout l'écran est dessiné dans un sprite `M5Canvas` de 240×135 en 16 bits (64 800 octets), puis envoyé d'un coup à l'écran avec `pushSprite()`. Il n'y a donc pas de scintillement, et le mode avec écran peut lire cette même image. La police est `efontJA_12`, choisie parce qu'elle contient les lettres accentuées françaises (É, È, À…), contrairement à `efontCN_12`.
+Tout l'écran est dessiné dans un sprite `M5Canvas` de 240×135 en 16 bits (64 800 octets), puis envoyé d'un coup à l'écran avec `pushSprite()`. Il n'y a donc pas de scintillement, et le mode multijoueur peut lire cette même image. La police est `efontJA_12`, choisie parce qu'elle contient les lettres accentuées françaises (É, È, À…), contrairement à `efontCN_12`.
 
 ### Données gardées en mémoire (NVS)
 
@@ -125,9 +125,9 @@ Espace `Preferences` nommé `explorer3` :
 | Clé | Type | Contenu |
 |---|---|---|
 | `lang` | uchar | Langue (0 français, 1 anglais). Absente au premier démarrage : l'écran de langue s'affiche |
-| `best_o2` | uint | Record : plus grande réserve d'O2 restante à la victoire (ms) |
+| `best_o2` | uint | Record : plus grande réserve d'O₂ restante à la victoire (ms) |
 | `ssid`, `pass` | chaîne | Dernier Wi-Fi de box utilisé, enregistré seulement après une connexion réussie |
-| `auto` | bool | `true` : « Avec écran » se reconnecte directement à `ssid`. Mis à `false` quand on crée le réseau Explorer3, pour repasser la fois suivante par la liste des Wi-Fi. Absente = `true` |
+| `auto` | bool | `true` : « Multijoueur » se reconnecte directement à `ssid`. Mis à `false` quand on crée le réseau Explorer3, pour repasser la fois suivante par la liste des Wi-Fi. Absente = `true` |
 
 ## 4. Boucle principale et machine à états
 
@@ -138,8 +138,8 @@ Espace `Preferences` nommé `explorer3` :
 1. lecture du clavier (`updateKeyList` puis `updateKeysState`) ;
 2. lancement des notes arrivées à échéance (`runNotes`) ;
 3. touche nouvellement appuyée : `Fn` seul part au compteur de pause, sinon `handleKey()` (sauf en pause) ;
-4. `update(now)` (sauf en pause) : chrono, alarme O2, enchaînements temporisés, recherche et connexion Wi-Fi ;
-5. en mode avec écran : `updatePanel(now)`, qui envoie l'état de la page de l'écran ;
+4. `update(now)` (sauf en pause) : chrono, alarme O₂, enchaînements temporisés, recherche et connexion Wi-Fi ;
+5. en multijoueur : `updatePanel(now)`, qui envoie l'état de la page du centre de contrôle ;
 6. `render(now)` entre `mirror::lockScreen()` et `mirror::unlockScreen()` ;
 7. `delay(10)`.
 
@@ -152,8 +152,8 @@ stateDiagram-v2
     Lang --> Mode : ENTRÉE
     Mode --> Lang : Langue / Language
     Mode --> Title : Cardputer seul
-    Mode --> Connecting : Avec écran, box mémorisée
-    Mode --> WifiList : Avec écran, sinon
+    Mode --> Connecting : Multijoueur, box mémorisée
+    Mode --> WifiList : Multijoueur, sinon
     WifiList --> Password : réseau protégé
     WifiList --> Connecting : réseau ouvert
     WifiList --> SsidEntry : Autre réseau
@@ -168,15 +168,17 @@ stateDiagram-v2
     Address --> Title : ENTRÉE
     Address --> WifiList : retour
     Title --> Briefing : ENTRÉE
-    Briefing --> Puzzle : ENTRÉE (le chrono démarre)
+    Briefing --> Puzzle : ENTRÉE, Cardputer seul (le chrono démarre)
+    Briefing --> Rules : ENTRÉE, multijoueur
+    Rules --> Puzzle : ENTRÉE (le chrono démarre)
     Puzzle --> Solved : énigmes 1 à 3 résolues
     Solved --> Puzzle : ENTRÉE (énigme suivante)
     Puzzle --> Computer : énigme 4 résolue
     Computer --> Launch : bon code
     Launch --> Win : après 6,5 s
-    Puzzle --> GameOver : O2 à zéro
-    Solved --> GameOver : O2 à zéro
-    Computer --> GameOver : O2 à zéro
+    Puzzle --> GameOver : O₂ à zéro
+    Solved --> GameOver : O₂ à zéro
+    Computer --> GameOver : O₂ à zéro
     Win --> Title : ENTRÉE
     GameOver --> Title : ENTRÉE
 ```
@@ -184,10 +186,11 @@ stateDiagram-v2
 | État | Écran | Remarques |
 |---|---|---|
 | `Lang` | Langue / Language | Au premier démarrage, puis depuis le choix du mode |
-| `Mode` | Cardputer seul / Avec écran / Langue | |
-| `WifiList`, `SsidEntry`, `Password`, `Connecting`, `Address` | Configuration du mode avec écran | Section 9.3 |
+| `Mode` | Cardputer seul / Multijoueur / Langue | |
+| `WifiList`, `SsidEntry`, `Password`, `Connecting`, `Address` | Configuration du mode multijoueur | Section 9.3 |
 | `Title` | Titre (Mars, fusée couchée) | |
-| `Briefing` | Journal de bord | ENTRÉE démarre le chrono |
+| `Briefing` | Journal de bord (texte du mode) | Cardputer seul : ENTRÉE démarre le chrono |
+| `Rules` | Règles de l'équipage (multijoueur) | Le centre de contrôle a les siennes ; ENTRÉE démarre le chrono |
 | `Puzzle` | Énigme `puzzle` (0 à 3) | |
 | `Solved` | Partie du vaisseau réparée, lettre gravée dessus | |
 | `Computer` | Ordinateur de bord, saisie du code | 5 lignes de texte apparaissent toutes les 600 ms, puis la saisie |
@@ -202,10 +205,10 @@ stateDiagram-v2
 
 - La partie dure `GAME_MS` = 5 min. Le chrono repose sur une échéance absolue `deadline` (en `millis()`), et `remaining()` calcule le temps restant.
 - **Pénalité** (`penalty()`) : `deadline` recule de `PENALTY_MS` = 10 s. Le bord de l'écran clignote en rouge pendant 0,4 s, « −10 s » s'affiche 1,5 s et le compteur `errCount` augmente (il sert à la page de l'écran). La lettre fausse s'affiche avec « ACCÈS REFUSÉ » (énigmes 1, 2 et 4), un mauvais code avec « CODE REFUSÉ » pendant 1,5 s (`codeRefusedUntil`).
-- **HUD** : jauge d'O2 verte au-dessus de 50 %, orange au-dessus de 20 %, rouge en dessous. Le temps clignote sous 1 minute. Les cases des lettres du code se remplissent au fil des énigmes.
-- **Alarme O2** : 3 bips à 2 kHz, répétés toutes les `1500 + 8500 × restant / GAME_MS` ms, donc de toutes les 10 s au début à toutes les 1,5 s à la fin. Elle se tait pendant les deux énigmes de Morse.
+- **HUD** : jauge d'O₂ verte au-dessus de 50 %, orange au-dessus de 20 %, rouge en dessous. Le temps clignote sous 1 minute. Les cases des lettres du code se remplissent au fil des énigmes.
+- **Alarme O₂** : 3 bips à 2 kHz, répétés toutes les `1500 + 8500 × restant / GAME_MS` ms, donc de toutes les 10 s au début à toutes les 1,5 s à la fin. Elle se tait pendant les deux énigmes de Morse.
 - **Pause du maître du jeu** : `Fn` appuyé seul 3 fois, avec moins de `FN_GAP_MS` = 800 ms entre deux appuis, pendant `Puzzle`, `Solved` ou `Computer`. Le temps restant est gelé dans `pausedRemaining`, le son est coupé et l'énigme masquée. À la reprise, `deadline` et `stateStart` sont décalés de la durée de la pause.
-- **Record** : à la victoire, si l'O2 restant dépasse `best_o2`, il est enregistré et l'écran affiche « NOUVEAU RECORD ! ».
+- **Record** : à la victoire, si l'O₂ restant dépasse `best_o2`, il est enregistré et l'écran affiche « NOUVEAU RECORD ! ».
 
 ## 6. Son
 
@@ -225,11 +228,11 @@ Le haut-parleur de M5Unified mélange plusieurs canaux virtuels :
 
 `schedule(at, freq, dur, ch)` range une note dans un tableau fixe de 64 places (`notes[]`). `runNotes(now)`, appelé deux fois par tour de boucle, joue les notes dont l'heure est passée. Un effet sonore ou un signal Morse est donc une suite de notes horodatées, sans `delay()`. `cancelChannel(ch)` annule les notes en attente d'un canal et coupe ce canal, `stopAllSound()` fait de même pour tous.
 
-C'est le **seul endroit** où le son sort, ce qui permet au mode avec écran de l'envoyer au navigateur au lieu du haut-parleur (section 9.5) :
+C'est le **seul endroit** où le son sort, ce qui permet au mode multijoueur de l'envoyer au navigateur au lieu du haut-parleur (section 9.5) :
 
-- `runNotes` appelle `Speaker.tone()` sur le Cardputer seul, et `mirror::sendTone()` avec écran ;
-- `cancelChannel` et `stopAllSound` appellent `Speaker.stop()` sur le Cardputer seul, et `mirror::sendStop()` avec écran ;
-- `channelPlaying(ch)` remplace `Speaker.isPlaying(ch)`. Avec écran, il se base sur `chanUntil[ch]`, l'heure de fin de la note en cours, puisque le haut-parleur ne joue rien.
+- `runNotes` appelle `Speaker.tone()` sur le Cardputer seul, et `mirror::sendTone()` en multijoueur ;
+- `cancelChannel` et `stopAllSound` appellent `Speaker.stop()` sur le Cardputer seul, et `mirror::sendStop()` en multijoueur ;
+- `channelPlaying(ch)` remplace `Speaker.isPlaying(ch)`. En multijoueur, il se base sur `chanUntil[ch]`, l'heure de fin de la note en cours, puisque le haut-parleur ne joue rien.
 
 ### Décollage
 
@@ -237,18 +240,19 @@ C'est le **seul endroit** où le son sort, ce qui permet au mode avec écran de 
 
 ## 7. Énigmes
 
-Les mécanismes sont décrits ici, pas les réponses.
+Les mécanismes sont décrits ici, pas les réponses. L'ordre des énigmes dépend du mode (`ORDER_SOLO`, `ORDER_MULTI`, `puzzleKind()`). La lettre à trouver est celle du code à la place de l'énigme (`answer()` = `code()[puzzle]`, avec `CODE_SOLO` ou `CODE_MULTI`). Les lieux restent dans le même ordre dans les deux modes : coffre du fer à souder, réservoirs de carburant, soute à pièces, ordinateur de bord.
 
-| # | Mécanisme | Code |
-|---|---|---|
-| 1 | Un voyant clignote une lettre en Morse (unité `LAMP_UNIT_MS` = 400 ms) ; on tape la lettre | `startMorseLamp()`, `lampOn()` |
-| 2 | QCM à 4 réponses (A à D) | `drawPuzzleQuiz()` |
-| 3 | Picross 5×5 dans la soute à pièces ; les indices des lignes et colonnes sont calculés à partir du motif `PICROSS[]` | `buildClues()`, `lineClues()`, `picrossSolved()` |
-| 4 | Signal Morse sonore, 700 Hz, unité `SOUND_UNIT_MS` = 200 ms ; on tape la lettre | `startMorseSound()` |
+| Type (`Pz`) | Mécanisme | Seul | Multijoueur | Code |
+|---|---|---|---|---|
+| `Lamp` | Un voyant clignote une lettre en Morse (unité `LAMP_UNIT_MS` = 400 ms) ; on tape la lettre | 1 | 1 | `startMorseLamp()`, `lampOn()` |
+| `Quiz` | QCM à 4 réponses (A à D) ; en multijoueur, réponses chiffrées en César | 2 | 2 | `drawPuzzleQuiz()`, `caesar()` |
+| `Picross` | Picross 5×5 ; les indices des lignes et colonnes sont calculés à partir du motif `PICROSS[]` | 3 | 4 | `buildClues()`, `lineClues()`, `picrossSolved()` |
+| `Sound` | Signal Morse sonore, 700 Hz, unité `SOUND_UNIT_MS` = 200 ms ; on tape la lettre | 4 | 3 | `startMorseSound()`, `drawPuzzleSoundMulti()` |
 
-- `TAB` affiche l'alphabet Morse (`drawMorseHelp()`), n'importe quelle touche le ferme, `ESPACE` relance le signal (« revoir » pour le voyant, « réécouter » pour le son).
+- Cardputer seul : `TAB` affiche l'alphabet Morse (`drawMorseHelp()`), n'importe quelle touche le ferme, `ESPACE` relance le signal (« revoir » pour le voyant, « réécouter » pour le son).
+- Multijoueur : pas de `TAB`. `ESPACE` relance le signal, qui sort sur la page du centre de contrôle pour le son. Ce que voit chaque équipe est décrit section 10.
 - Une mauvaise lettre déclenche `penalty()`. Une bonne lettre appelle `solvePuzzle()`.
-- Le picross est validé quand la grille est **identique** au motif (`picrossSolved()`). Les cases allumées sont orange sur fond sombre ; les indices d'une ligne ou d'une colonne passent en vert dès qu'elle les respecte (`rowOk()`, `colOk()`).
+- Le picross est validé quand la grille est **identique** au motif (`picrossSolved()`). Les cases allumées sont orange sur fond sombre ; les indices d'une ligne ou d'une colonne passent en vert dès qu'elle les respecte (`rowOk()`, `colOk()`). En multijoueur, l'équipage voit des « ? » à la place des chiffres, qui passent aussi au vert.
 
 ## 8. Clavier du Cardputer ADV
 
@@ -256,7 +260,7 @@ Le clavier de l'ADV est un contrôleur TCA8418 relié en I²C, qui signale ses �
 
 `PolledKeyboardReader` remplace ce lecteur : à chaque tour de boucle, il vide la file d'événements du TCA8418 (`getEvent()` jusqu'à 0), sans dépendre de l'interruption. Il produit la même liste de touches que la bibliothèque. Il est installé dans `setup()` avec `M5Cardputer.begin(cfg, false)` puis `Keyboard.begin(std::unique_ptr<KeyboardReader>(...))`, uniquement si la carte détectée est un Cardputer ADV.
 
-## 9. Mode avec écran
+## 9. Mode multijoueur
 
 ### 9.1 Principe
 
@@ -269,12 +273,12 @@ flowchart LR
         G -->|"état de la page, langue<br/>(setPanel, setLanguage)"| N
         N["Cœur 0 : tâche réseau<br/>HTTP :80 + WebSocket :81<br/>mDNS explorer3.local<br/>DNS :53 (Explorer3)"]
     end
-    N -->|"page web, /sym.js (une fois)"| B["Navigateur (PC, télé)"]
+    N -->|"page web, /sym.js (une fois)"| B["Navigateur (PC, télé, téléphone)"]
     N -->|"lignes d'écran compressées (binaire)"| B
-    N -->|"sons, horloge, table, langue (texte)"| B
+    N -->|"sons, horloge, page du contrôle, langue (texte)"| B
 ```
 
-L'écran n'a rien à installer : le Cardputer sert lui-même la page (`http://<adresse>/`) et pousse ensuite tout par WebSocket. Le jeu tourne seul sur le cœur 1, la tâche réseau sur le cœur 0. Le jeu ne bloque donc jamais sur le Wi-Fi.
+Le centre de contrôle n'a rien à installer : le Cardputer sert lui-même la page (`http://<adresse>/`) et pousse ensuite tout par WebSocket. Le jeu tourne seul sur le cœur 1, la tâche réseau sur le cœur 0. Le jeu ne bloque donc jamais sur le Wi-Fi.
 
 ### 9.2 Interface `mirror::` (`diffusion.h`)
 
@@ -288,7 +292,7 @@ L'écran n'a rien à installer : le Cardputer sert lui-même la page (`http://<a
 | `clientCount()` | Nombre de navigateurs connectés (affiche « Navigateur connecté ») |
 | `lockScreen()`, `unlockScreen()` | Verrou (mutex FreeRTOS) autour du dessin ; ne fait rien tant que le serveur n'est pas démarré |
 | `sendTone()`, `sendStop()`, `sendRumble()` | Sons à jouer par le navigateur (section 9.5) |
-| `setPanel(text)` | État de la page de l'équipe de l'écran (section 10) |
+| `setPanel(text)` | État de la page du centre de contrôle (section 10) |
 | `setLanguage(lang)` | Langue de la page (section 9.7) |
 | `setSymbols(js)` | Dessins des symboles servis en `/sym.js` (section 10) |
 | `AP_SSID`, `AP_PASS`, `HOST_NAME` | `Explorer3`, `Explorer3`, `explorer3.local` |
@@ -322,7 +326,7 @@ Il faut deux refus pour conclure au mauvais mot de passe, car un signal faible p
 - Le Wi-Fi est enregistré en NVS **après** une connexion réussie.
 - `WiFi.setSleep(false)` coupe la mise en veille du Wi-Fi, qui provoquerait sinon des saccades de 100 ms et plus.
 
-**Réseau Explorer3.** Pour jouer sans box (ou sur un réseau « invités » qui isole les appareils), le Cardputer devient point d'accès : `WiFi.softAP("Explorer3", "Explorer3")`, WPA2, adresse `192.168.4.1`. Le mot de passe fait 8 caractères, le minimum du WPA2. Ce choix n'est pas mémorisé (`auto` = `false`) : la fois suivante, « Avec écran » repasse par la liste.
+**Réseau Explorer3.** Pour jouer sans box (ou sur un réseau « invités » qui isole les appareils), le Cardputer devient point d'accès : `WiFi.softAP("Explorer3", "Explorer3")`, WPA2, adresse `192.168.4.1`. Le mot de passe fait 8 caractères, le minimum du WPA2. Ce choix n'est pas mémorisé (`auto` = `false`) : la fois suivante, « Multijoueur » repasse par la liste.
 
 **Écran d'adresse et QR codes.** Un QR code de 99×99 px à gauche (`canvas.qrcode()` de M5GFX, correction d'erreur minimale), les textes à droite :
 
@@ -359,7 +363,7 @@ Les couleurs sont en RGB565, poids fort d'abord, dans l'ordre de la mémoire du 
 
 Tout ce qui s'affiche est dans un bloc `#ecran`, que la **marge télé** réduit avec `transform: scale(1 − 2 × marge / 100)` (section 9.8). Sans marge, aucune transformation n'est appliquée.
 
-### 9.5 Son sur l'écran
+### 9.5 Son sur la page
 
 Le son est envoyé sous forme de commandes, pas d'audio : quelques octets par note. Chaque message texte commence par l'heure du Cardputer au moment de l'envoi :
 
@@ -369,7 +373,7 @@ Le son est envoyé sous forme de commandes, pas d'audio : quelques octets par no
 | `T,maintenant,à,fréquence,durée,canal` | Jouer une note à l'heure `à` (ms du Cardputer) |
 | `S,maintenant,à,canal` | Couper un canal à l'heure `à` (`255` = tous) |
 | `R,maintenant,à` | Lancer le grondement du décollage à l'heure `à` |
-| `K,maintenant,...` | État de la page de l'équipe de l'écran (section 10) |
+| `K,maintenant,...` | État de la page du centre de contrôle (section 10) |
 | `L,maintenant,fr` ou `en` | Langue de la page (section 9.7) |
 
 **Synchronisation.** Pour chaque message, la page calcule `performance.now() − maintenant`. Elle garde la plus petite valeur des 40 derniers messages : c'est la mesure la moins retardée par le réseau. Une note prévue à l'heure `à` est jouée par Web Audio à `à + décalage + LAT`, avec `LAT` = 150 ms de marge. Les écarts de délai du Wi-Fi sont absorbés et le rythme du Morse reste exact. En contrepartie, le son est en retard d'environ 0,15 s.
@@ -386,7 +390,7 @@ Les navigateurs interdisent le son avant une action de l'utilisateur. Le context
 2. `http.handleClient()` et `ws.loop()` ;
 3. envoi des sons en attente (file FreeRTOS de 64 éléments, remplie sans attente par le jeu) ;
 4. envoi de la langue si elle a changé ;
-5. envoi de l'état de la page de l'écran s'il a changé ;
+5. envoi de l'état de la page du centre de contrôle s'il a changé ;
 6. horloge toutes les 250 ms ;
 7. image toutes les 40 ms ;
 8. `vTaskDelay(1)`.
@@ -431,45 +435,53 @@ Les touches combinées avec `Ctrl`, `Alt` ou `Méta` sont ignorées, pour ne pas
 
 **Installer Firefox 68 sur la Ouya.** L'APK officiel est `fennec-68.11.0.multi.android-arm.apk`, sur archive.mozilla.org (`pub/mobile/releases/68.11.0/android-api-16/multi/`). Il s'installe avec `adb install` ou en le téléchargeant en HTTP depuis un PC du réseau, après avoir autorisé les sources inconnues. Voir le README.
 
-## 10. Clavier codé (jeu asymétrique)
+## 10. Page du centre de contrôle (jeu asymétrique)
 
-Il n'existe qu'en mode avec écran. Il remplace la saisie du code en lettres sur l'ordinateur de bord par un jeu à deux équipes : le joueur du Cardputer voit des symboles, l'équipe de l'écran voit la table de décodage.
+Elle n'existe qu'en multijoueur. L'équipage joue sur le Cardputer, le centre de contrôle sur la page web. Chaque équipe n'a qu'une partie des indices : elles doivent se parler. Avant le chrono, chacune a sa page Règles (`St::Rules` sur le Cardputer, `R` sur la page), qui dit aussi de ne pas montrer son écran à l'autre équipe.
 
-### Génération (`buildKeypad()`, à l'entrée dans `Computer`)
+### Pages (`updatePanel()` puis `mirror::setPanel()`)
+
+| Texte | Moment | Centre de contrôle (page) | Équipage (Cardputer) |
+|---|---|---|---|
+| `0` | Titre, journal de bord, parties réparées, pause, décollage, fins | Copie de l'écran du Cardputer | |
+| `R` | Règles, avant le chrono | Ses règles | Ses règles |
+| `1,…` | Énigme 1, coffre (M) | Alphabet Morse, rappel point = flash court, trait = flash long | Le voyant, sans alphabet |
+| `2,…` | Énigme 2, réservoirs (A) | L'indice du décalage de César | La question en clair et les 4 réponses chiffrées |
+| `3,…` | Énigme 3, soute (R) | Le signal sonore, un haut-parleur qui s'allume à chaque bip | L'alphabet Morse en permanence, `ESPACE` relance le signal |
+| `4,…` | Énigme 4, ordinateur de bord (S) | Les vrais chiffres et la grille de l'équipage en direct | La grille, avec des « ? » à la place des chiffres |
+| `C,…` | Ordinateur de bord, code | Table de décodage du clavier codé | Le clavier codé |
+
+- Pour `1` à `4` et `C`, le texte continue par `restant_ms,erreurs,données`. La page affiche alors « CENTRE DE CONTRÔLE », le titre et le chrono O₂, recalculé localement toutes les 50 ms à partir de `restant_ms` et de l'horloge pour défiler sans à-coups. Elle clignote en rouge quand `erreurs` change.
+- Données du picross : `grille,lignes,colonnes`, soit 25 chiffres `0`/`1` ligne par ligne, puis les indices (lignes séparées par `/`, chiffres d'une ligne par `.`, par exemple `3.1/1.1.1`). La page recalcule quelles lignes et colonnes respectent leurs indices, pour les passer en vert.
+- Données du clavier codé : `saisis,table`. La table est une suite de paires `lettre` + `numéro de symbole en hexadécimal` (`0` à `b`), triée par lettre. La page affiche les 9 cases et 4 cases qui se remplissent selon `saisis`, sans dire quels symboles ont été tapés.
+- Le jeu renvoie l'état à chaque changement, et toutes les 500 ms pendant les énigmes et le clavier codé. Pendant la pause, il envoie `0`.
+- La page ne reconstruit son contenu que si la page ou ses données changent, pas à chaque envoi du chrono.
+- **Énigme 2.** Les réponses sont écrites en clair dans `textes.h` (`P2_ANSWERS_MULTI`) et chiffrées à l'affichage par `caesar()`, avec `CAESAR_SHIFT` = 4. L'indice du centre de contrôle donne ce décalage par une devinette.
+- **Énigme 3.** La page note l'heure de chaque note du canal `CH_MORSE` (messages `T`) et allume le haut-parleur pendant les bips, même si le son n'est pas activé.
+- **Portrait.** Les tailles de la page sont en `vh`, proportionnelles à la hauteur de l'écran. En portrait, le contenu deviendrait plus large que l'écran : c'est le cas dans la fenêtre du portail captif de l'iPhone, qui reste toujours en portrait, et aucune page web ne peut la faire pivoter. Un bloc `@media (orientation:portrait)` remplace donc ces tailles par des tailles en `vw`, proportionnelles à la largeur, et l'alphabet Morse passe de 7 à 3 colonnes. En paysage, il ne s'applique pas.
+
+### Clavier codé : génération (`buildKeypad()`, à l'entrée dans `Computer`)
 
 - 9 symboles tirés au hasard parmi 12 (`SYMBOLS[]`) et répartis sur les touches `1` à `9` (`keySym[]`) ;
-- 9 lettres : les 3 lettres distinctes du code et 6 autres lettres tirées au hasard, réparties au hasard sur ces touches (`keyLetter[]`) ;
+- 9 lettres : les lettres distinctes du code (les 4 de MARS) et d'autres lettres tirées au hasard, réparties au hasard sur ces touches (`keyLetter[]`) ;
 - les 12 symboles, inspirés des codes Alt de la page de code 437, sont dessinés en pixel art 12×12 (agrandis ×2 sur le clavier) : ☺ ♥ ♦ ♣ ♠ ♂ ♀ ♪ ☼ ⌂ ▲ ‼. ☻ et ♫ ont été écartés, trop proches de ☺ et ♪.
 
-### Saisie
+### Clavier codé : saisie
 
 Le clavier s'affiche 600 ms après la dernière ligne du terminal (`keypadShown()`). `typedCode` garde les touches tapées (`'1'` à `'9'`). DEL efface la dernière. ENTRÉE, quand les 4 touches sont saisies, compare `keypadCode()` (les lettres de ces touches) au code : s'il est bon, la fusée décolle ; sinon, la saisie est vidée, « CODE REFUSÉ » remplace la consigne pendant 1,5 s et `penalty()` est appelée.
-
-### Page de l'écran (`updatePanel()` puis `mirror::setPanel()`)
-
-| Texte | Effet sur la page |
-|---|---|
-| `0` | Copie de l'écran du Cardputer |
-| `1,restant_ms,saisis,erreurs,table` | Table à la place de la copie |
-
-- La table est une suite de paires `lettre` + `numéro de symbole en hexadécimal` (`0` à `b`), triée par lettre.
-- La page affiche les 9 cases, le chrono O2, 4 cases qui se remplissent selon `saisis` (sans dire quels symboles ont été tapés) et un avertissement en rouge (« Ne montrez pas cet écran au joueur du Cardputer ! »). Elle clignote en rouge quand `erreurs` change.
-- **Portrait.** Les tailles de la table sont en `vh`, proportionnelles à la hauteur de l'écran. En portrait, la grille deviendrait plus large que l'écran : c'est le cas dans la fenêtre du portail captif de l'iPhone, qui reste toujours en portrait, et aucune page web ne peut la faire pivoter. Un bloc `@media (orientation:portrait)` remplace donc ces tailles par des tailles en `vw`, proportionnelles à la largeur. En paysage, il ne s'applique pas et l'affichage est inchangé.
-- Le chrono est recalculé localement toutes les 100 ms à partir de `restant_ms` et de l'horloge, pour défiler sans à-coups.
-- Le jeu renvoie l'état à chaque changement, et toutes les 500 ms tant que la table est affichée. Pendant la pause et dès la sortie de `Computer`, il envoie `0`.
 
 **Symboles sur la page.** Ce sont les **mêmes dessins** que sur le Cardputer, sans copie à tenir à jour : au démarrage, `buildSymbolsJs()` les code en JavaScript (`const SYM=[…]`, 36 chiffres hexadécimaux par symbole, soit 3 par ligne de 12 pixels, bit de poids fort = pixel de gauche) et `mirror::setSymbols()` les sert en `/sym.js`. La page charge ce script, puis `symbole(n)` fait de chaque dessin un SVG `viewBox="0 0 12 12"` avec `shape-rendering="crispEdges"`, en regroupant les pixels voisins d'une ligne en un seul rectangle. Le rendu ne dépend d'aucune police.
 
 ## 11. Mémoire et performances
 
-Valeurs mesurées sur la v1.8 :
+Valeurs mesurées sur la v2.0 :
 
 | Élément | Taille |
 |---|---|
-| Programme | ~1,40 Mo sur 3,3 Mo (42 %), dont la page web ~12 Ko et le répondeur mDNS ~40 Ko |
+| Programme | ~1,41 Mo sur 3,3 Mo (42 %), dont la page web ~19 Ko et le répondeur mDNS ~40 Ko |
 | RAM statique | ~72 Ko sur 320 Ko (22 %), dont le bruit du décollage (16 Ko) et le tampon du DNS (512 octets) |
 | Sprite de l'écran (tas) | 64 800 octets |
-| Mode avec écran (tas) | Tampon d'envoi 12 Ko, pile de la tâche réseau 6 Ko, file des sons ~1 Ko, plus la pile Wi-Fi, lwIP et mDNS |
+| Mode multijoueur (tas) | Tampon d'envoi 12 Ko, pile de la tâche réseau 6 Ko, file des sons ~1 Ko, plus la pile Wi-Fi, lwIP et mDNS |
 | Débit d'image | 5 à 10 Ko par écran complet, beaucoup moins quand peu de choses bougent ; 25 images/s au plus |
 | Délai | Image : un tour de tâche réseau plus le Wi-Fi, en général moins de 100 ms. Son : environ 150 ms, volontaire. |
 
@@ -482,7 +494,7 @@ Sans PSRAM, il faut éviter les grosses allocations : pas de second sprite plein
 - **Le réseau Explorer3 a un mot de passe connu de tous** (il est dans le README et sur l'écran). Il protège seulement des connexions par hasard.
 - **Le mot de passe Wi-Fi est enregistré en clair** dans la NVS du Cardputer.
 - Si la mémoire manque au démarrage du serveur (tampon d'envoi, verrou, file des sons, tâche réseau), rien n'est démarré et le Cardputer affiche « Mémoire insuffisante ». Avec la mémoire actuelle, cela ne devrait pas arriver.
-- Avec écran, le Cardputer est muet : si personne n'a cliqué ou appuyé sur une touche pour activer le son sur l'écran, la partie se joue sans son.
+- En multijoueur, le Cardputer est muet : si personne n'a cliqué ou appuyé sur une touche pour activer le son sur la page, la partie se joue sans son, et le centre de contrôle n'entend pas le signal de l'énigme 3.
 - `explorer3.local` ne fonctionne pas sur la Ouya ni sur les vieux Android : l'adresse IP reste affichée.
 - Sur la Ouya, le blocage de la mise en veille par la vidéo invisible (section 9.8) n'a pas été vérifié sur la console.
 - Les causes d'échec Wi-Fi viennent du pilote : « Mot de passe refusé » peut, rarement, venir d'un signal très faible.
@@ -496,7 +508,7 @@ Sans PSRAM, il faut éviter les grosses allocations : pas de second sprite plein
 - **Ajouter une langue** : passer `Tx` à 3 cases, compléter chaque texte, ajouter la langue à l'écran `Lang` et à l'objet `TX` de la page.
 - **Ajouter un écran** : ajouter une valeur à `St`, une fonction `drawXxx()`, son `case` dans `render()` et, si besoin, dans `handleKey()` et `update()`.
 - **Ajouter ou modifier un symbole du clavier codé** : changer le dessin 12×12 dans `SYMBOLS[]` (et `SYM_COUNT` pour un ajout). La page reçoit le même dessin tout seul (`/sym.js`). Au-delà de 16 symboles, le numéro sur un seul chiffre hexadécimal ne suffit plus et il faut changer le format de la table.
-- **Modifier la page de l'écran** : elle est entièrement dans la chaîne `PAGE` de `diffusion.cpp` (HTML, CSS et JavaScript d'un seul bloc), textes compris (objet `TX`). Respecter les règles de compatibilité de la section 9.8 pour ne pas perdre Firefox 68 et la Ouya.
+- **Modifier la page du centre de contrôle** : elle est entièrement dans la chaîne `PAGE` de `diffusion.cpp` (HTML, CSS et JavaScript d'un seul bloc), textes compris (objet `TX`). Respecter les règles de compatibilité de la section 9.8 pour ne pas perdre Firefox 68 et la Ouya.
 - **Après un changement d'interface**, vérifier chaque écran dans les deux langues avec le simulateur, et utiliser `fit()` pour les textes de longueur variable comme les noms de Wi-Fi.
 
 ## 14. Simulateur PC

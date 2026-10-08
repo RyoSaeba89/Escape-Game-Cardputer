@@ -46,6 +46,10 @@ public:
         size_t p = _s.find(c, from);
         return p == std::string::npos ? -1 : (int)p;
     }
+    int indexOf(const char *s, unsigned int from = 0) const {
+        size_t p = _s.find(s, from);
+        return p == std::string::npos ? -1 : (int)p;
+    }
     String substring(unsigned int from, unsigned int to) const {
         if (from > _s.size()) return String();
         return String(_s.substr(from, std::min<size_t>(to, _s.size()) - from));

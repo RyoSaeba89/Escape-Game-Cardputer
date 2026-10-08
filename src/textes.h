@@ -25,8 +25,8 @@ constexpr Tx LANG_FOOTER = {K_UP K_DOWN "|ENTRÉE / ENTER : ok", K_UP K_DOWN "|E
 // ---------------------------------------------------------------- choix du mode
 constexpr Tx MODE_SOLO = {"Cardputer seul", "Cardputer only"};
 constexpr Tx MODE_SOLO_INFO = {"Tout le jeu sur le Cardputer", "Everything on the Cardputer"};
-constexpr Tx MODE_SCREEN = {"Avec écran", "With a screen"};
-constexpr Tx MODE_SCREEN_INFO = {"Écran et son sur PC ou télé", "Screen and sound on a PC or TV"};
+constexpr Tx MODE_MULTI = {"Multijoueur", "Multiplayer"};
+constexpr Tx MODE_MULTI_INFO = {"Jeu à deux équipes", "Two-team game"};
 constexpr Tx MODE_LANG = {"Langue / Language", "Langue / Language"};
 constexpr Tx MODE_LANG_INFO = {"Français", "English"};
 constexpr Tx MODE_FOOTER = {K_UP K_DOWN " : choisir|ENTRÉE : ok", K_UP K_DOWN ": select|ENTER: confirm"};
@@ -82,6 +82,19 @@ constexpr Tx BRIEF_RULES = {"4 énigmes, 5 minutes d'oxygène. Chaque erreur co�
                             "4 puzzles, 5 minutes of oxygen. Each mistake costs 10 seconds!"};
 constexpr Tx BRIEF_START = {"ENTRÉE : démarrer le chrono", "ENTER: start the countdown"};
 
+// Multijoueur : l'équipage (Cardputer, sur Mars) et le centre de contrôle (écran, sur Terre)
+constexpr Tx BRIEF_TEXT_MULTI = {
+    "Explorer 3 s'est écrasé sur Mars ! Guidé par le centre de contrôle, l'équipage doit le réparer et "
+    "retrouver son code.",
+    "Explorer 3 has crashed on Mars! Guided by mission control, the crew must repair it and find its code."};
+constexpr Tx BRIEF_NEXT = {"ENTRÉE : continuer", "ENTER: continue"};
+
+constexpr Tx RULES_TITLE = {"RÈGLES", "RULES"};
+constexpr Tx RULES_CREW = {"Vous êtes l'équipage, sur Mars.", "You are the crew, on Mars."};
+constexpr Tx RULES_TALK = {"Le centre de contrôle a l'autre partie des indices : parlez-vous !",
+                           "Mission control has the other half of the clues: talk to each other!"};
+constexpr Tx RULES_NO_LOOK = {"Ne regardez pas l'écran du centre de contrôle.", "Don't look at mission control's screen."};
+
 // ---------------------------------------------------------------- énigmes
 constexpr Tx DENIED = {" : ACCÈS REFUSÉ", ": ACCESS DENIED"};  // après la lettre tapée
 
@@ -89,11 +102,22 @@ constexpr Tx P1_TITLE = {"ÉNIGME 1/4 : COFFRE DU FER À SOUDER", "PUZZLE 1/4: S
 constexpr Tx P1_TEXT = {"Le coffre est verrouillé. Son voyant clignote une lettre en Morse : tapez-la !",
                         "The safe is locked. Its light blinks a letter in Morse code: type it!"};
 constexpr Tx P1_FOOTER = {"ESPACE : revoir|TAB : alphabet Morse", "SPACE: watch again|TAB: Morse code"};
+constexpr Tx P1_TEXT_MULTI = {
+    "Le coffre est verrouillé. Décrivez les flashs du voyant au centre de contrôle : il a l'alphabet Morse !",
+    "The safe is locked. Describe the light's flashes to mission control: they have the Morse code!"};
+constexpr Tx P1_FOOTER_MULTI = {"ESPACE : revoir", "SPACE: watch again"};
 
 constexpr Tx P2_TITLE = {"ÉNIGME 2/4 : RÉSERVOIRS DE CARBURANT", "PUZZLE 2/4: FUEL TANKS"};
 constexpr Tx P2_TEXT = {"Verrou des réservoirs : quel est le premier rover à avoir roulé sur Mars ?",
                         "Fuel tank lock: which rover was the first to drive on Mars?"};
 constexpr Tx P2_FOOTER = {"A B C D : répondre", "A B C D: answer"};
+// Multijoueur : la question en clair, les réponses chiffrées par le jeu (code de
+// César, décalage CAESAR_SHIFT) ; seul le centre de contrôle a l'indice.
+constexpr Tx P2_TEXT_MULTI = {"Pourquoi Mars est-elle rouge ?", "Why is Mars red?"};
+constexpr Tx P2_CODED = {"Réponses chiffrées ! Le centre de contrôle a la clé.",
+                         "Coded answers! Mission control has the key."};
+constexpr Tx P2_ANSWERS_MULTI[4] = {
+    {"LA ROUILLE", "RUST"}, {"LA LAVE", "LAVA"}, {"LE SABLE", "SAND"}, {"LE SOLEIL", "THE SUN"}};
 
 constexpr Tx P3_TITLE = {"ÉNIGME 3/4", "PUZZLE 3/4"};
 constexpr Tx P3_PLACE = {"Soute à pièces", "Cargo hold"};
@@ -102,12 +126,21 @@ constexpr Tx P3_TEXT = {"Chaque chiffre = cases allumées à la suite, dans l'or
 constexpr Tx P3_MOVE = {K_UP K_DOWN K_LEFT K_RIGHT " : bouger", K_UP K_DOWN K_LEFT K_RIGHT ": move"};
 constexpr Tx P3_LIGHT = {"ENTRÉE : allumer", "ENTER: light up"};
 
+// Multijoueur : Morse sonore dans la soute (énigme 3), picross sur l'ordinateur de bord (énigme 4)
+constexpr Tx P3_TITLE_MULTI = {"ÉNIGME 3/4 : SOUTE À PIÈCES", "PUZZLE 3/4: CARGO HOLD"};
+constexpr Tx P3_FOOTER_MULTI = {"ESPACE : réécouter (centre de contrôle)", "SPACE: replay (for mission control)"};
+constexpr Tx P4_TITLE_MULTI = {"ÉNIGME 4/4", "PUZZLE 4/4"};
+constexpr Tx P4_PLACE_MULTI = {"Ordinateur de bord", "On-board computer"};
+constexpr Tx P4_TEXT_MULTI = {"Le centre de contrôle a les chiffres : demandez-les !",
+                              "Mission control has the numbers: ask them!"};
+
 constexpr Tx P4_TITLE = {"ÉNIGME 4/4 : ORDINATEUR DE BORD", "PUZZLE 4/4: ON-BOARD COMPUTER"};
 constexpr Tx P4_TEXT = {"L'ordinateur de bord émet en Morse la dernière lettre du code. Écoutez et tapez-la !",
                         "The on-board computer beeps the last letter of the code in Morse. Listen and type it!"};
 constexpr Tx P4_FOOTER = {"ESPACE : réécouter|TAB : alphabet Morse", "SPACE: listen again|TAB: Morse code"};
 
 constexpr Tx MORSE_PLAYING = {"Signal en cours|TAB : alphabet Morse", "Signal playing|TAB: Morse code"};
+constexpr Tx MORSE_PLAYING_MULTI = {"Signal en cours", "Signal playing"};
 constexpr Tx MORSE_HELP = {"ALPHABET MORSE", "MORSE CODE"};
 constexpr Tx MORSE_CLOSE = {"Une touche : fermer", "Any key: close"};
 
@@ -132,15 +165,14 @@ constexpr Tx TERM_LINES[TERM_COUNT] = {
     {"> Fer à souder ........ OK", "> Soldering iron ...... OK"},
     {"> Carburant ........... OK", "> Fuel ................ OK"},
     {"> Pièces détachées .... OK", "> Spare parts ......... OK"},
-    {"> CODE DE DÉMARRAGE TROUVÉ : NASA", "> START-UP CODE FOUND: NASA"},
+    {"> CODE DE DÉMARRAGE TROUVÉ : ", "> START-UP CODE FOUND: "},  // suivi du code
 };
 constexpr Tx CODE_LABEL = {"Code de démarrage :", "Start-up code:"};
 constexpr Tx CODE_REFUSED = {"> CODE REFUSÉ", "> CODE REJECTED"};
 constexpr Tx CODE_FOOTER = {"A-Z : code|ENTRÉE : ok|DEL : effacer", "A-Z: code|ENTER: confirm|DEL: erase"};
 
 constexpr Tx KEYPAD_TITLE = {"CLAVIER CODÉ", "CODED KEYPAD"};
-constexpr Tx KEYPAD_HINT = {"L'autre équipe a la table : demandez-lui les symboles.",
-                            "The other team has the table: ask them for the symbols."};
+constexpr Tx KEYPAD_HINT = {"Demandez les symboles au centre de contrôle.", "Ask mission control for the symbols."};
 constexpr Tx KEYPAD_REFUSED = {"CODE REFUSÉ", "CODE REJECTED"};
 constexpr Tx KEYPAD_FOOTER = {"1-9 : symbole|DEL : effacer|ENTRÉE : ok", "1-9: symbol|DEL: erase|ENTER: confirm"};
 
@@ -151,7 +183,7 @@ constexpr Tx LAUNCH_LIFTOFF = {"DÉCOLLAGE !", "LIFTOFF!"};
 constexpr Tx WIN_TITLE1 = {"MISSION", "MISSION"};
 constexpr Tx WIN_TITLE2 = {"ACCOMPLIE !", "COMPLETE!"};
 constexpr Tx WIN_TEXT = {"Explorer 3 a redécollé !", "Explorer 3 took off!"};
-constexpr Tx WIN_O2 = {"O2 restant : ", "O2 left: "};
+constexpr Tx WIN_O2 = {"O₂ restant : ", "O₂ left: "};
 constexpr Tx WIN_NEW_RECORD = {"NOUVEAU RECORD !", "NEW RECORD!"};
 constexpr Tx WIN_RECORD = {"Record : ", "Record: "};
 constexpr Tx WIN_AGAIN = {"ENTRÉE : rejouer", "ENTER: play again"};

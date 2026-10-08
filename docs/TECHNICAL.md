@@ -4,7 +4,7 @@
 
 This document describes how the game works inside, for anyone who wants to build, understand or change it. It does not give the puzzle solutions, but they are in plain text in the source code.
 
-Version described: **v1.8**: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7); coded keypad table fitted to portrait, for the iPhone captive portal window (v1.8).
+Version described: **v2.0**: "With a screen" mode becomes **Multiplayer**, a two-team game (code MARS, a mission control page for each puzzle, a Rules page). Earlier versions: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7); coded keypad table fitted to portrait, for the iPhone captive portal window (v1.8).
 
 ## Contents
 
@@ -16,8 +16,8 @@ Version described: **v1.8**: game in French and English, Explorer3 network, QR c
 6. [Sound](#6-sound)
 7. [Puzzles](#7-puzzles)
 8. [Cardputer ADV keyboard](#8-cardputer-adv-keyboard)
-9. ["With a screen" mode](#9-with-a-screen-mode)
-10. [Coded keypad (asymmetric play)](#10-coded-keypad-asymmetric-play)
+9. [Multiplayer mode](#9-multiplayer-mode)
+10. [Mission control page (asymmetric play)](#10-mission-control-page-asymmetric-play)
 11. [Memory and performance](#11-memory-and-performance)
 12. [Known limits and security](#12-known-limits-and-security)
 13. [Changing the game](#13-changing-the-game)
@@ -29,16 +29,16 @@ Version described: **v1.8**: game in French and English, Explorer3 network, QR c
 |---|---|
 | Hardware | M5Stack **Cardputer ADV**: ESP32-S3 (2 cores, 240 MHz), 8 MB flash, **no PSRAM**, 240×135 screen, ES8311 audio codec (mono), TCA8418 keyboard |
 | Framework | Arduino (ESP32 core 2.0.x) through PlatformIO |
-| Language | C++17 on the Cardputer, HTML/CSS/JavaScript for the "with a screen" web page |
-| Files | `src/main.cpp` (the game), `src/textes.h` (French and English texts), `src/diffusion.cpp` and `src/diffusion.h` ("with a screen" mode), `sim/` (PC simulator) |
+| Language | C++17 on the Cardputer, HTML/CSS/JavaScript for the multiplayer web page |
+| Files | `src/main.cpp` (the game), `src/textes.h` (French and English texts), `src/diffusion.cpp` and `src/diffusion.h` (multiplayer mode), `sim/` (PC simulator) |
 | License | MIT |
 
 The game lasts 5 minutes: 4 puzzles solved in order, each one gives one letter of a 4-letter code to type on the on-board computer to launch the rocket.
 
 The game is in **French or English**, chosen on first start-up (section 3). Two modes are then offered:
 
-- **Cardputer only**: everything happens on the Cardputer.
-- **With a screen**: the Cardputer joins the router's Wi-Fi (or creates its own, Explorer3), serves a web page itself, and the browser of a PC or TV shows a live copy of the screen. The sound comes out of that screen. At the end, the screen shows a secret table for the **coded keypad** (section 10).
+- **Cardputer only**: everything happens on the Cardputer. Code **NASA**.
+- **Multiplayer**: a two-team game, code **MARS**. The **crew** plays on the Cardputer, **mission control** on the web page of a PC, TV or phone. The Cardputer joins the router's Wi-Fi (or creates its own, Explorer3) and serves that page itself. The sound comes out of the page. During the puzzles and on the on-board computer, the page shows mission control the part of the clues the crew doesn't have (section 10); the rest of the time, it mirrors the Cardputer screen.
 
 ## 2. Building and installing
 
@@ -51,7 +51,7 @@ The game is in **French or English**, chosen on first start-up (section 3). Two 
 | Platform | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Board | `esp32-s3-devkitc-1`, 8 MB flash, `default_8MB.csv` partitions (application up to 3.3 MB) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (serial port over native USB) |
-| Libraries | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions used for v1.8: 1.1.1, 0.2.25, 0.2.32 and 2.7.3) |
+| Libraries | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions used for v2.0: 1.1.1, 0.2.25, 0.2.32 and 2.7.3) |
 
 ```
 pio run                # build
@@ -86,13 +86,13 @@ The whole game is in `src/main.cpp`, inside an anonymous namespace. Sections are
 |---|---|
 | Constants | Screen size, game length, penalty, Morse units, audio channels, colour palette (RGB565), Morse alphabet, pixel art drawings (rocket, picross, symbols) |
 | Keyboard reader | `PolledKeyboardReader` (section 8) |
-| Global state | Current state, language, countdown, puzzle, input, pause, record, "with a screen" variables |
+| Global state | Current state, language, countdown, puzzle, input, pause, record, multiplayer variables |
 | sound | Note scheduler, sound effects, liftoff noise |
 | countdown | `remaining()`, `fmtTime()`, `penalty()` |
 | drawing | Primitives (text, shadowed text, word wrap, scenery, HUD, footer) |
 | Morse, picross | Puzzle logic |
 | screens | One `drawXxx()` per screen |
-| coded keypad | Keypad generation, input, symbol drawings for the web page, message to the screen (section 10) |
+| coded keypad | Keypad generation, input, symbol drawings for the web page, state of the mission control page (section 10) |
 | logic | Transitions (`enter`, `startPuzzle`, `solvePuzzle`…), keyboard (`handleKey`), update (`update`), pause |
 | `setup()` / `loop()` | Start-up and main loop |
 
@@ -116,7 +116,7 @@ drawFooter(tr(P2_FOOTER));
 
 ### Drawing
 
-The whole screen is drawn into a 240×135, 16-bit `M5Canvas` sprite (64,800 bytes), then sent to the display in one go with `pushSprite()`. So there is no flicker, and "with a screen" mode can read this same image. The font is `efontJA_12`, chosen because it has French accented letters (É, È, À…), unlike `efontCN_12`.
+The whole screen is drawn into a 240×135, 16-bit `M5Canvas` sprite (64,800 bytes), then sent to the display in one go with `pushSprite()`. So there is no flicker, and multiplayer mode can read this same image. The font is `efontJA_12`, chosen because it has French accented letters (É, È, À…), unlike `efontCN_12`.
 
 ### Data kept in memory (NVS)
 
@@ -125,9 +125,9 @@ The whole screen is drawn into a 240×135, 16-bit `M5Canvas` sprite (64,800 byte
 | Key | Type | Content |
 |---|---|---|
 | `lang` | uchar | Language (0 French, 1 English). Missing on first start-up: the language screen is shown |
-| `best_o2` | uint | Record: largest O2 reserve left on winning (ms) |
+| `best_o2` | uint | Record: largest O₂ reserve left on winning (ms) |
 | `ssid`, `pass` | string | Last router Wi-Fi used, saved only after a successful connection |
-| `auto` | bool | `true`: "With a screen" reconnects directly to `ssid`. Set to `false` when the Explorer3 network is created, so the Wi-Fi list is shown next time. Missing = `true` |
+| `auto` | bool | `true`: "Multiplayer" reconnects directly to `ssid`. Set to `false` when the Explorer3 network is created, so the Wi-Fi list is shown next time. Missing = `true` |
 
 ## 4. Main loop and state machine
 
@@ -138,8 +138,8 @@ On each pass, about every 10 to 20 ms:
 1. read the keyboard (`updateKeyList` then `updateKeysState`);
 2. start the notes that are due (`runNotes`);
 3. newly pressed key: `Fn` alone goes to the pause counter, otherwise `handleKey()` (unless paused);
-4. `update(now)` (unless paused): countdown, O2 alarm, timed transitions, Wi-Fi search and connection;
-5. in "with a screen" mode: `updatePanel(now)`, which sends the state of the screen page;
+4. `update(now)` (unless paused): countdown, O₂ alarm, timed transitions, Wi-Fi search and connection;
+5. in multiplayer: `updatePanel(now)`, which sends the state of the mission control page;
 6. `render(now)` between `mirror::lockScreen()` and `mirror::unlockScreen()`;
 7. `delay(10)`.
 
@@ -152,8 +152,8 @@ stateDiagram-v2
     Lang --> Mode : ENTER
     Mode --> Lang : Langue / Language
     Mode --> Title : Cardputer only
-    Mode --> Connecting : With a screen, router saved
-    Mode --> WifiList : With a screen, otherwise
+    Mode --> Connecting : Multiplayer, router saved
+    Mode --> WifiList : Multiplayer, otherwise
     WifiList --> Password : protected network
     WifiList --> Connecting : open network
     WifiList --> SsidEntry : Other network
@@ -168,15 +168,17 @@ stateDiagram-v2
     Address --> Title : ENTER
     Address --> WifiList : back
     Title --> Briefing : ENTER
-    Briefing --> Puzzle : ENTER (countdown starts)
+    Briefing --> Puzzle : ENTER, Cardputer only (countdown starts)
+    Briefing --> Rules : ENTER, multiplayer
+    Rules --> Puzzle : ENTER (countdown starts)
     Puzzle --> Solved : puzzles 1 to 3 solved
     Solved --> Puzzle : ENTER (next puzzle)
     Puzzle --> Computer : puzzle 4 solved
     Computer --> Launch : right code
     Launch --> Win : after 6.5 s
-    Puzzle --> GameOver : O2 at zero
-    Solved --> GameOver : O2 at zero
-    Computer --> GameOver : O2 at zero
+    Puzzle --> GameOver : O₂ at zero
+    Solved --> GameOver : O₂ at zero
+    Computer --> GameOver : O₂ at zero
     Win --> Title : ENTER
     GameOver --> Title : ENTER
 ```
@@ -184,10 +186,11 @@ stateDiagram-v2
 | State | Screen | Notes |
 |---|---|---|
 | `Lang` | Langue / Language | On first start-up, then from the mode choice |
-| `Mode` | Cardputer only / With a screen / Language | |
-| `WifiList`, `SsidEntry`, `Password`, `Connecting`, `Address` | "With a screen" setup | Section 9.3 |
+| `Mode` | Cardputer only / Multiplayer / Language | |
+| `WifiList`, `SsidEntry`, `Password`, `Connecting`, `Address` | Multiplayer setup | Section 9.3 |
 | `Title` | Title (Mars, rocket on its side) | |
-| `Briefing` | Captain's log | ENTER starts the countdown |
+| `Briefing` | Captain's log (text of the mode) | Cardputer only: ENTER starts the countdown |
+| `Rules` | Crew rules (multiplayer) | Mission control has its own; ENTER starts the countdown |
 | `Puzzle` | Puzzle `puzzle` (0 to 3) | |
 | `Solved` | Ship part repaired, letter engraved on it | |
 | `Computer` | On-board computer, code input | 5 lines of text appear every 600 ms, then the input |
@@ -202,10 +205,10 @@ stateDiagram-v2
 
 - The game lasts `GAME_MS` = 5 min. The countdown is based on an absolute deadline `deadline` (in `millis()`), and `remaining()` computes the time left.
 - **Penalty** (`penalty()`): `deadline` moves back by `PENALTY_MS` = 10 s. The screen border flashes red for 0.4 s, "−10 s" shows for 1.5 s and the `errCount` counter goes up (used by the screen page). The wrong letter is shown with "ACCESS DENIED" (puzzles 1, 2 and 4), a wrong code with "CODE REJECTED" for 1.5 s (`codeRefusedUntil`).
-- **HUD**: O2 gauge green above 50 %, orange above 20 %, red below. The time blinks under 1 minute. The code letter boxes fill up as puzzles are solved.
-- **O2 alarm**: 3 beeps at 2 kHz, repeated every `1500 + 8500 × remaining / GAME_MS` ms, so from every 10 s at the start to every 1.5 s at the end. It goes quiet during both Morse puzzles.
+- **HUD**: O₂ gauge green above 50 %, orange above 20 %, red below. The time blinks under 1 minute. The code letter boxes fill up as puzzles are solved.
+- **O₂ alarm**: 3 beeps at 2 kHz, repeated every `1500 + 8500 × remaining / GAME_MS` ms, so from every 10 s at the start to every 1.5 s at the end. It goes quiet during both Morse puzzles.
 - **Game master pause**: `Fn` pressed alone 3 times, less than `FN_GAP_MS` = 800 ms apart, during `Puzzle`, `Solved` or `Computer`. The time left is frozen in `pausedRemaining`, the sound is cut and the puzzle hidden. On resume, `deadline` and `stateStart` are shifted by the pause length.
-- **Record**: on winning, if the O2 left beats `best_o2`, it is saved and the screen shows "NEW RECORD!".
+- **Record**: on winning, if the O₂ left beats `best_o2`, it is saved and the screen shows "NEW RECORD!".
 
 ## 6. Sound
 
@@ -225,11 +228,11 @@ The M5Unified speaker mixes several virtual channels:
 
 `schedule(at, freq, dur, ch)` stores a note in a fixed 64-slot array (`notes[]`). `runNotes(now)`, called twice per loop pass, plays the notes whose time has come. A sound effect or a Morse signal is therefore a series of timed notes, with no `delay()`. `cancelChannel(ch)` cancels the pending notes of a channel and stops that channel, `stopAllSound()` does the same for all.
 
-This is the **only place** sound comes out, which lets "with a screen" mode send it to the browser instead of the speaker (section 9.5):
+This is the **only place** sound comes out, which lets multiplayer mode send it to the browser instead of the speaker (section 9.5):
 
-- `runNotes` calls `Speaker.tone()` on the Cardputer only, and `mirror::sendTone()` with a screen;
-- `cancelChannel` and `stopAllSound` call `Speaker.stop()` on the Cardputer only, and `mirror::sendStop()` with a screen;
-- `channelPlaying(ch)` replaces `Speaker.isPlaying(ch)`. With a screen it relies on `chanUntil[ch]`, the end time of the current note, since the speaker plays nothing.
+- `runNotes` calls `Speaker.tone()` on the Cardputer only, and `mirror::sendTone()` in multiplayer;
+- `cancelChannel` and `stopAllSound` call `Speaker.stop()` on the Cardputer only, and `mirror::sendStop()` in multiplayer;
+- `channelPlaying(ch)` replaces `Speaker.isPlaying(ch)`. In multiplayer it relies on `chanUntil[ch]`, the end time of the current note, since the speaker plays nothing.
 
 ### Liftoff
 
@@ -237,18 +240,19 @@ This is the **only place** sound comes out, which lets "with a screen" mode send
 
 ## 7. Puzzles
 
-The mechanisms are described here, not the answers.
+The mechanisms are described here, not the answers. The puzzle order depends on the mode (`ORDER_SOLO`, `ORDER_MULTI`, `puzzleKind()`). The letter to find is the code letter at the puzzle's position (`answer()` = `code()[puzzle]`, with `CODE_SOLO` or `CODE_MULTI`). The places stay in the same order in both modes: soldering iron safe, fuel tanks, cargo hold, on-board computer.
 
-| # | Mechanism | Code |
-|---|---|---|
-| 1 | A light blinks a letter in Morse (unit `LAMP_UNIT_MS` = 400 ms); type the letter | `startMorseLamp()`, `lampOn()` |
-| 2 | Multiple choice with 4 answers (A to D) | `drawPuzzleQuiz()` |
-| 3 | 5×5 picross in the cargo hold; row and column clues are computed from the `PICROSS[]` pattern | `buildClues()`, `lineClues()`, `picrossSolved()` |
-| 4 | Audio Morse signal, 700 Hz, unit `SOUND_UNIT_MS` = 200 ms; type the letter | `startMorseSound()` |
+| Type (`Pz`) | Mechanism | Solo | Multiplayer | Code |
+|---|---|---|---|---|
+| `Lamp` | A light blinks a letter in Morse (unit `LAMP_UNIT_MS` = 400 ms); type the letter | 1 | 1 | `startMorseLamp()`, `lampOn()` |
+| `Quiz` | Multiple choice with 4 answers (A to D); in multiplayer, answers coded with the Caesar cipher | 2 | 2 | `drawPuzzleQuiz()`, `caesar()` |
+| `Picross` | 5×5 picross; row and column clues are computed from the `PICROSS[]` pattern | 3 | 4 | `buildClues()`, `lineClues()`, `picrossSolved()` |
+| `Sound` | Audio Morse signal, 700 Hz, unit `SOUND_UNIT_MS` = 200 ms; type the letter | 4 | 3 | `startMorseSound()`, `drawPuzzleSoundMulti()` |
 
-- `TAB` shows the Morse code chart (`drawMorseHelp()`), any key closes it, `SPACE` plays the signal again ("watch again" for the light, "listen again" for the sound).
+- Cardputer only: `TAB` shows the Morse code chart (`drawMorseHelp()`), any key closes it, `SPACE` plays the signal again ("watch again" for the light, "listen again" for the sound).
+- Multiplayer: no `TAB`. `SPACE` plays the signal again; for the sound it comes out of the mission control page. What each team sees is described in section 10.
 - A wrong letter triggers `penalty()`. A right letter calls `solvePuzzle()`.
-- The picross is solved when the grid is **identical** to the pattern (`picrossSolved()`). Lit cells are orange on a dark background; the clues of a row or column turn green as soon as it matches them (`rowOk()`, `colOk()`).
+- The picross is solved when the grid is **identical** to the pattern (`picrossSolved()`). Lit cells are orange on a dark background; the clues of a row or column turn green as soon as it matches them (`rowOk()`, `colOk()`). In multiplayer the crew sees "?" instead of the numbers, which also turn green.
 
 ## 8. Cardputer ADV keyboard
 
@@ -256,7 +260,7 @@ The ADV keyboard is a TCA8418 controller on I²C, which signals its events throu
 
 `PolledKeyboardReader` replaces that reader: on every loop pass it empties the TCA8418 event queue (`getEvent()` until 0), without relying on the interrupt. It produces the same key list as the library. It is installed in `setup()` with `M5Cardputer.begin(cfg, false)` then `Keyboard.begin(std::unique_ptr<KeyboardReader>(...))`, only when the detected board is a Cardputer ADV.
 
-## 9. "With a screen" mode
+## 9. Multiplayer mode
 
 ### 9.1 How it works
 
@@ -269,12 +273,12 @@ flowchart LR
         G -->|"page state, language<br/>(setPanel, setLanguage)"| N
         N["Core 0: network task<br/>HTTP :80 + WebSocket :81<br/>mDNS explorer3.local<br/>DNS :53 (Explorer3)"]
     end
-    N -->|"web page, /sym.js (once)"| B["Browser (PC, TV)"]
+    N -->|"web page, /sym.js (once)"| B["Browser (PC, TV, phone)"]
     N -->|"compressed screen lines (binary)"| B
-    N -->|"sounds, clock, table, language (text)"| B
+    N -->|"sounds, clock, control page, language (text)"| B
 ```
 
-The screen has nothing to install: the Cardputer serves the page itself (`http://<address>/`) then pushes everything over WebSocket. The game runs alone on core 1, the network task on core 0. So the game never blocks on Wi-Fi.
+Mission control has nothing to install: the Cardputer serves the page itself (`http://<address>/`) then pushes everything over WebSocket. The game runs alone on core 1, the network task on core 0. So the game never blocks on Wi-Fi.
 
 ### 9.2 `mirror::` interface (`diffusion.h`)
 
@@ -288,7 +292,7 @@ The screen has nothing to install: the Cardputer serves the page itself (`http:/
 | `clientCount()` | Number of connected browsers (shows "Browser connected") |
 | `lockScreen()`, `unlockScreen()` | Lock (FreeRTOS mutex) around drawing; does nothing until the server has started |
 | `sendTone()`, `sendStop()`, `sendRumble()` | Sounds for the browser to play (section 9.5) |
-| `setPanel(text)` | State of the screen team's page (section 10) |
+| `setPanel(text)` | State of the mission control page (section 10) |
 | `setLanguage(lang)` | Page language (section 9.7) |
 | `setSymbols(js)` | Symbol drawings served as `/sym.js` (section 10) |
 | `AP_SSID`, `AP_PASS`, `HOST_NAME` | `Explorer3`, `Explorer3`, `explorer3.local` |
@@ -322,7 +326,7 @@ Two refusals are needed to conclude the password is wrong, because a weak signal
 - The Wi-Fi is saved to NVS **after** a successful connection.
 - `WiFi.setSleep(false)` turns Wi-Fi power saving off, which would otherwise cause stutters of 100 ms and more.
 
-**Explorer3 network.** To play without a router (or on a "guest" network that isolates devices), the Cardputer becomes an access point: `WiFi.softAP("Explorer3", "Explorer3")`, WPA2, address `192.168.4.1`. The password is 8 characters long, the WPA2 minimum. This choice is not saved (`auto` = `false`): next time, "With a screen" goes through the list again.
+**Explorer3 network.** To play without a router (or on a "guest" network that isolates devices), the Cardputer becomes an access point: `WiFi.softAP("Explorer3", "Explorer3")`, WPA2, address `192.168.4.1`. The password is 8 characters long, the WPA2 minimum. This choice is not saved (`auto` = `false`): next time, "Multiplayer" goes through the list again.
 
 **Address screen and QR codes.** A 99×99 px QR code on the left (M5GFX `canvas.qrcode()`, lowest error correction), texts on the right:
 
@@ -359,7 +363,7 @@ Colours are RGB565, high byte first, in sprite memory order. A binary message ho
 
 Everything on screen is inside an `#ecran` block, which the **TV margin** shrinks with `transform: scale(1 − 2 × margin / 100)` (section 9.8). With no margin, no transform is applied.
 
-### 9.5 Sound on the screen
+### 9.5 Sound on the page
 
 Sound is sent as commands, not audio: a few bytes per note. Each text message starts with the Cardputer time at sending:
 
@@ -369,7 +373,7 @@ Sound is sent as commands, not audio: a few bytes per note. Each text message st
 | `T,now,at,frequency,duration,channel` | Play a note at time `at` (Cardputer ms) |
 | `S,now,at,channel` | Stop a channel at time `at` (`255` = all) |
 | `R,now,at` | Start the liftoff rumble at time `at` |
-| `K,now,...` | State of the screen team's page (section 10) |
+| `K,now,...` | State of the mission control page (section 10) |
 | `L,now,fr` or `en` | Page language (section 9.7) |
 
 **Synchronisation.** For each message the page computes `performance.now() − now`. It keeps the smallest value of the last 40 messages: the measurement least delayed by the network. A note due at time `at` is played by Web Audio at `at + offset + LAT`, with `LAT` = 150 ms of margin. Wi-Fi delay jitter is absorbed and the Morse rhythm stays exact. The trade-off is that sound lags by about 0.15 s.
@@ -386,7 +390,7 @@ Browsers forbid sound before a user action. The audio context is therefore creat
 2. `http.handleClient()` and `ws.loop()`;
 3. sending pending sounds (FreeRTOS queue of 64 items, filled without waiting by the game);
 4. sending the language if it changed;
-5. sending the screen page state if it changed;
+5. sending the mission control page state if it changed;
 6. clock every 250 ms;
 7. frame every 40 ms;
 8. `vTaskDelay(1)`.
@@ -431,45 +435,53 @@ Keys combined with `Ctrl`, `Alt` or `Meta` are ignored, so browser shortcuts kee
 
 **Installing Firefox 68 on the Ouya.** The official APK is `fennec-68.11.0.multi.android-arm.apk`, on archive.mozilla.org (`pub/mobile/releases/68.11.0/android-api-16/multi/`). Install it with `adb install`, or by downloading it over plain HTTP from a PC on the network, after allowing unknown sources. See the README.
 
-## 10. Coded keypad (asymmetric play)
+## 10. Mission control page (asymmetric play)
 
-It only exists in "with a screen" mode. It replaces typing the code in letters on the on-board computer with a two-team game: the Cardputer player sees symbols, the screen team sees the decoding table.
+It only exists in multiplayer. The crew plays on the Cardputer, mission control on the web page. Each team only has part of the clues: they have to talk to each other. Before the countdown, each one has its Rules page (`St::Rules` on the Cardputer, `R` on the page), which also says not to show your screen to the other team.
 
-### Generation (`buildKeypad()`, on entering `Computer`)
+### Pages (`updatePanel()` then `mirror::setPanel()`)
+
+| Text | When | Mission control (page) | Crew (Cardputer) |
+|---|---|---|---|
+| `0` | Title, captain's log, repaired parts, pause, liftoff, end screens | Copy of the Cardputer screen | |
+| `R` | Rules, before the countdown | Its rules | Its rules |
+| `1,…` | Puzzle 1, safe (M) | Morse code chart, reminder dot = short flash, dash = long flash | The light, without the chart |
+| `2,…` | Puzzle 2, fuel tanks (A) | The clue to the Caesar shift | The question in plain text and the 4 coded answers |
+| `3,…` | Puzzle 3, cargo hold (R) | The audio signal, a speaker that lights up on each beep | The Morse code chart at all times, `SPACE` replays the signal |
+| `4,…` | Puzzle 4, on-board computer (S) | The real numbers and the crew's grid, live | The grid, with "?" instead of the numbers |
+| `C,…` | On-board computer, code | Decoding table of the coded keypad | The coded keypad |
+
+- For `1` to `4` and `C`, the text goes on with `remaining_ms,errors,data`. The page then shows "MISSION CONTROL", the title and the O₂ countdown, recomputed locally every 50 ms from `remaining_ms` and the clock so it runs smoothly. It flashes red when `errors` changes.
+- Picross data: `grid,rows,columns`, i.e. 25 `0`/`1` digits row by row, then the clues (rows separated by `/`, numbers of a row by `.`, for example `3.1/1.1.1`). The page works out which rows and columns match their clues, to turn them green.
+- Coded keypad data: `typed,table`. The table is a series of `letter` + `symbol number in hexadecimal` (`0` to `b`) pairs, sorted by letter. The page shows the 9 boxes and 4 boxes that fill up according to `typed`, without telling which symbols were typed.
+- The game sends the state on every change, and every 500 ms during the puzzles and the coded keypad. During pause, it sends `0`.
+- The page only rebuilds its content when the page or its data change, not on every countdown update.
+- **Puzzle 2.** The answers are written in plain text in `textes.h` (`P2_ANSWERS_MULTI`) and coded when drawn by `caesar()`, with `CAESAR_SHIFT` = 4. Mission control's clue gives this shift as a riddle.
+- **Puzzle 3.** The page records the time of each note on the `CH_MORSE` channel (`T` messages) and lights the speaker up during the beeps, even if sound is not enabled.
+- **Portrait.** The page sizes are in `vh`, proportional to the screen height. In portrait, the content would get wider than the screen: this happens in the iPhone captive portal window, which always stays in portrait, and no web page can rotate it. A `@media (orientation:portrait)` block therefore replaces these sizes with `vw` sizes, proportional to the width, and the Morse chart goes from 7 to 3 columns. In landscape it does not apply.
+
+### Coded keypad: generation (`buildKeypad()`, on entering `Computer`)
 
 - 9 symbols drawn at random out of 12 (`SYMBOLS[]`) and spread over keys `1` to `9` (`keySym[]`);
-- 9 letters: the 3 distinct letters of the code and 6 other random letters, spread at random over those keys (`keyLetter[]`);
+- 9 letters: the distinct letters of the code (the 4 of MARS) and other random letters, spread at random over those keys (`keyLetter[]`);
 - the 12 symbols, inspired by code page 437 Alt codes, are drawn as 12×12 pixel art (scaled ×2 on the keypad): ☺ ♥ ♦ ♣ ♠ ♂ ♀ ♪ ☼ ⌂ ▲ ‼. ☻ and ♫ were left out, too close to ☺ and ♪.
 
-### Input
+### Coded keypad: input
 
 The keypad shows up 600 ms after the last terminal line (`keypadShown()`). `typedCode` holds the keys typed (`'1'` to `'9'`). DEL erases the last one. ENTER, once 4 keys are typed, compares `keypadCode()` (the letters of those keys) with the code: if it is right, the rocket takes off; otherwise the input is cleared, "CODE REJECTED" replaces the hint for 1.5 s and `penalty()` is called.
-
-### Screen page (`updatePanel()` then `mirror::setPanel()`)
-
-| Text | Effect on the page |
-|---|---|
-| `0` | Copy of the Cardputer screen |
-| `1,remaining_ms,typed,errors,table` | Table instead of the copy |
-
-- The table is a series of `letter` + `symbol number in hexadecimal` (`0` to `b`) pairs, sorted by letter.
-- The page shows the 9 boxes, the O2 countdown, 4 boxes that fill up according to `typed` (without telling which symbols were typed) and a red warning ("Don't let the Cardputer player see this screen!"). It flashes red when `errors` changes.
-- **Portrait.** The table sizes are in `vh`, proportional to the screen height. In portrait, the grid would get wider than the screen: this happens in the iPhone captive portal window, which always stays in portrait, and no web page can rotate it. A `@media (orientation:portrait)` block therefore replaces these sizes with `vw` sizes, proportional to the width. In landscape it does not apply and the display is unchanged.
-- The countdown is recomputed locally every 100 ms from `remaining_ms` and the clock, so it runs smoothly.
-- The game sends the state on every change, and every 500 ms while the table is shown. During pause and as soon as `Computer` is left, it sends `0`.
 
 **Symbols on the page.** They are the **same drawings** as on the Cardputer, with no copy to keep up to date: at start-up, `buildSymbolsJs()` encodes them in JavaScript (`const SYM=[…]`, 36 hexadecimal digits per symbol, 3 per 12-pixel row, most significant bit = leftmost pixel) and `mirror::setSymbols()` serves them as `/sym.js`. The page loads that script, then `symbole(n)` turns each drawing into an SVG `viewBox="0 0 12 12"` with `shape-rendering="crispEdges"`, merging neighbouring pixels of a row into a single rectangle. The rendering depends on no font.
 
 ## 11. Memory and performance
 
-Figures measured on v1.8:
+Figures measured on v2.0:
 
 | Item | Size |
 |---|---|
-| Program | ~1.40 MB out of 3.3 MB (42 %), including the web page ~12 KB and the mDNS responder ~40 KB |
+| Program | ~1.41 MB out of 3.3 MB (42 %), including the web page ~19 KB and the mDNS responder ~40 KB |
 | Static RAM | ~72 KB out of 320 KB (22 %), including the liftoff noise (16 KB) and the DNS buffer (512 bytes) |
 | Screen sprite (heap) | 64,800 bytes |
-| "With a screen" mode (heap) | 12 KB send buffer, 6 KB network task stack, ~1 KB sound queue, plus the Wi-Fi, lwIP and mDNS stacks |
+| Multiplayer mode (heap) | 12 KB send buffer, 6 KB network task stack, ~1 KB sound queue, plus the Wi-Fi, lwIP and mDNS stacks |
 | Frame rate | 5 to 10 KB per full screen, much less when little moves; 25 frames/s at most |
 | Latency | Image: one network task pass plus Wi-Fi, usually under 100 ms. Sound: about 150 ms, on purpose. |
 
@@ -482,7 +494,7 @@ Without PSRAM, large allocations must be avoided: no second full-screen sprite n
 - **The Explorer3 network password is known to everyone** (it is in the README and on the screen). It only protects from accidental connections.
 - **The Wi-Fi password is stored in clear** in the Cardputer's NVS.
 - If memory runs out when the server starts (send buffer, lock, sound queue, network task), nothing is started and the Cardputer shows "Not enough memory". With current memory use, this should not happen.
-- With a screen the Cardputer is silent: if nobody clicks or presses a key to enable sound on the screen, the game is played without sound.
+- In multiplayer the Cardputer is silent: if nobody clicks or presses a key to enable sound on the page, the game is played without sound, and mission control can't hear the puzzle 3 signal.
 - `explorer3.local` does not work on the Ouya nor on old Android phones: the IP address stays on screen.
 - On the Ouya, keeping the screen awake with the invisible video (section 9.8) has not been checked on the console.
 - Wi-Fi failure reasons come from the driver: "Wrong password" may, rarely, come from a very weak signal.
@@ -496,7 +508,7 @@ Without PSRAM, large allocations must be avoided: no second full-screen sprite n
 - **Add a language**: make `Tx` 3 entries long, fill in every text, add the language to the `Lang` screen and to the page's `TX` object.
 - **Add a screen**: add a value to `St`, a `drawXxx()` function, its `case` in `render()` and, if needed, in `handleKey()` and `update()`.
 - **Add or change a coded keypad symbol**: change the 12×12 drawing in `SYMBOLS[]` (and `SYM_COUNT` when adding one). The page gets the same drawing on its own (`/sym.js`). Beyond 16 symbols, a single hexadecimal digit is not enough and the table format must change.
-- **Change the screen page**: it is entirely in the `PAGE` string of `diffusion.cpp` (HTML, CSS and JavaScript in one block), texts included (`TX` object). Follow the compatibility rules of section 9.8 so as not to lose Firefox 68 and the Ouya.
+- **Change the mission control page**: it is entirely in the `PAGE` string of `diffusion.cpp` (HTML, CSS and JavaScript in one block), texts included (`TX` object). Follow the compatibility rules of section 9.8 so as not to lose Firefox 68 and the Ouya.
 - **After an interface change**, check every screen in both languages with the simulator, and use `fit()` for variable-length text such as Wi-Fi names.
 
 ## 14. PC simulator

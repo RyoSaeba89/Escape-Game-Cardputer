@@ -6,7 +6,7 @@ Ce qui est simulé :
 
 - l'écran (fenêtre SDL, agrandie ×3) ;
 - le clavier du Cardputer, par le clavier du PC ;
-- le mode avec écran « à vide » (`sim_diffusion.cpp`) : réseaux Wi-Fi fictifs, connexion réussie au bout de 1,5 s (le réseau « Mauvais mot de passe » refuse toujours), un navigateur et un appareil Explorer3 qui se connectent tout seuls. Aucune page web n'est servie.
+- le mode multijoueur « à vide » (`sim_diffusion.cpp`) : réseaux Wi-Fi fictifs, connexion réussie au bout de 1,5 s (le réseau « Mauvais mot de passe » refuse toujours), un navigateur et un appareil Explorer3 qui se connectent tout seuls. Aucune page web n'est servie : la page du centre de contrôle ne se voit pas dans le simulateur.
 
 Pas de son, et la mémoire (langue, record, Wi-Fi) est oubliée à la fermeture.
 

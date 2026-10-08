@@ -1,16 +1,22 @@
 // Escape game "Explorer 3" pour M5Stack Cardputer ADV.
 // Le vaisseau s'est écrasé sur Mars : 4 énigmes en 5 minutes pour retrouver
-// le code de démarrage "NASA" et redécoller.
+// le code de démarrage et redécoller.
+// « Cardputer seul » : code NASA, tout sur le Cardputer.
 //   1. Morse lumineux (N)      -> coffre du fer à souder
 //   2. QCM premier rover (A)   -> réservoirs de carburant
 //   3. Picross 5x5 (S)         -> stockage des pièces détachées
-//   4. Morse sonore (A)        -> ordinateur de bord (alarme O2 coupée)
-// Puis saisie de NASA, décollage et écran de fin.
+//   4. Morse sonore (A)        -> ordinateur de bord (alarme O₂ coupée)
+// « Multijoueur » : code MARS, deux équipes. L'équipage joue sur le Cardputer,
+// le centre de contrôle sur la page web d'un PC ou d'une télé (diffusion.cpp),
+// qui reçoit aussi le son. Chaque équipe a une partie des indices.
+//   1. Morse lumineux (M) : l'équipage voit le voyant, le contrôle a l'alphabet
+//   2. QCM aux réponses chiffrées en César (A) : le contrôle a l'indice du décalage
+//   3. Morse sonore (R) : le contrôle l'entend, l'équipage a l'alphabet
+//   4. Picross (S) : l'équipage a la grille, le contrôle les chiffres
+// Puis saisie du code (clavier codé en multijoueur), décollage et écran de fin.
 // Fn appuyé 3 fois d'affilée : pause / reprise (maître du jeu).
-// Record (O2 restant) gardé en mémoire même après extinction.
+// Record (O₂ restant) gardé en mémoire même après extinction.
 // Jeu en français ou en anglais (choix au premier démarrage, textes dans textes.h).
-// Au démarrage : « Cardputer seul », ou « Avec écran » (écran et son recopiés
-// dans le navigateur d'un PC ou d'une télé, voir diffusion.cpp).
 #include <Arduino.h>
 #include <M5Cardputer.h>
 #include <Preferences.h>
@@ -37,7 +43,7 @@ constexpr uint32_t FN_GAP_MS = 800;  // délai max entre deux appuis sur Fn
 constexpr uint8_t VOLUME = 255;
 
 constexpr uint32_t LAMP_UNIT_MS = 400;   // Morse lumineux (énigme 1)
-constexpr uint32_t SOUND_UNIT_MS = 200;  // Morse sonore (énigme 4)
+constexpr uint32_t SOUND_UNIT_MS = 200;  // Morse sonore (énigme 4, 3 en multijoueur)
 constexpr uint16_t MORSE_FREQ = 700;
 
 // Canaux du haut-parleur
@@ -79,7 +85,17 @@ const char *const MORSE[26] = {
     "...",  "-",    "..-",  "...-", ".--",  "-..-", "-.--", "--..",
 };
 
-const char CODE[] = "NASA";
+const char CODE_SOLO[] = "NASA";
+const char CODE_MULTI[] = "MARS";
+
+// Énigme 2 en multijoueur : réponses chiffrées en César, décalage = nombre de
+// planètes telluriques (l'indice du centre de contrôle)
+constexpr int CAESAR_SHIFT = 4;
+
+// Types d'énigmes, dans l'ordre de chaque mode (voir puzzleKind)
+enum class Pz { Lamp, Quiz, Picross, Sound };
+constexpr Pz ORDER_SOLO[4] = {Pz::Lamp, Pz::Quiz, Pz::Picross, Pz::Sound};
+constexpr Pz ORDER_MULTI[4] = {Pz::Lamp, Pz::Quiz, Pz::Sound, Pz::Picross};
 
 // Vaisseau en pixel art (11 x 18). '.' = transparent.
 const char *const ROCKET[] = {
@@ -116,7 +132,7 @@ const char *const PICROSS[5] = {
 
 enum class St {
     Lang, Mode, WifiList, SsidEntry, Password, Connecting, Address,
-    Title, Briefing, Puzzle, Solved, Computer, Launch, Win, GameOver
+    Title, Briefing, Rules, Puzzle, Solved, Computer, Launch, Win, GameOver
 };
 
 using KeysState = std::decay<decltype(M5Cardputer.Keyboard.keysState())>::type;
@@ -176,8 +192,7 @@ int langSel = 0;
 
 const char *tr(Tx &t) {
     return t[lang];
-}
-uint32_t stateStart = 0;
+}uint32_t stateStart = 0;
 
 // Chrono
 uint32_t deadline = 0;
@@ -191,7 +206,7 @@ uint32_t penaltyPopupUntil = 0;
 char wrongLetter = 0;
 bool helpOpen = false;
 
-// Morse (énigmes 1 et 4)
+// Morse (voyant et son)
 uint32_t morseStart = 0;
 bool morsePlaying = false;
 uint32_t morseEnd = 0;
@@ -215,14 +230,33 @@ uint32_t pausedRemaining = 0;
 int fnCount = 0;
 uint32_t lastFn = 0;
 
-// Record : plus grande réserve d'O2 restante
+// Record : plus grande réserve d'O₂ restante
 Preferences prefs;
 uint32_t bestO2 = 0;
 bool newRecord = false;
 
-// Mode « avec écran » : le son part vers le navigateur au lieu du haut-parleur
-bool mirrorMode = false;
-int modeSel = 0;  // 0 Cardputer seul, 1 avec écran, 2 langue
+// Multijoueur : le centre de contrôle a sa page web, le son part vers le
+// navigateur au lieu du haut-parleur
+bool multiMode = false;
+int modeSel = 0;  // 0 Cardputer seul, 1 multijoueur, 2 langue
+
+// Texte du mode choisi : seul ou multijoueur
+const char *trm(Tx &solo, Tx &multi) {
+    return multiMode ? multi[lang] : solo[lang];
+}
+
+const char *code() {
+    return multiMode ? CODE_MULTI : CODE_SOLO;
+}
+
+Pz puzzleKind() {
+    return (multiMode ? ORDER_MULTI : ORDER_SOLO)[puzzle];
+}
+
+// Lettre à trouver dans l'énigme en cours
+char answer() {
+    return code()[puzzle];
+}
 uint32_t chanUntil[5];  // fin du son en cours sur chaque canal
 std::vector<mirror::WifiNet> nets;
 bool scanning = false;   // première passe de la recherche en cours
@@ -237,8 +271,8 @@ bool qrPage = true;       // écran d'adresse : QR de la page (sinon QR du Wi-Fi
 bool apJoined = false;    // un appareil a déjà rejoint Explorer3 (bascule automatique faite)
 String symbolsJs;         // dessins des symboles pour la page web (/sym.js)
 
-// Clavier codé de l'ordinateur de bord (mode avec écran) : les touches 1 à 9
-// portent des symboles, seule l'équipe de l'écran a la table lettre -> symbole.
+// Clavier codé de l'ordinateur de bord (multijoueur) : les touches 1 à 9
+// portent des symboles, seul le centre de contrôle a la table lettre -> symbole.
 // Inspirés des codes Alt ☺ ♥ ♦ ♣ ♠ ♂ ♀ ♪ ☼ ⌂ ▲ ‼ ; la page web reçoit ces mêmes
 // dessins (buildSymbolsJs), le rang sert de numéro de symbole dans la table.
 constexpr int SYM_COUNT = 12;
@@ -309,7 +343,7 @@ void cancelChannel(uint8_t ch) {
             n.used = false;
         }
     }
-    if (mirrorMode) {
+    if (multiMode) {
         mirror::sendStop(millis(), ch);
         chanUntil[ch] = 0;
     } else {
@@ -321,7 +355,7 @@ void stopAllSound() {
     for (auto &n : notes) {
         n.used = false;
     }
-    if (mirrorMode) {
+    if (multiMode) {
         mirror::sendStop(millis(), 255);
         memset(chanUntil, 0, sizeof(chanUntil));
     } else {
@@ -333,7 +367,7 @@ void runNotes(uint32_t now) {
     for (auto &n : notes) {
         if (n.used && (int32_t)(now - n.at) >= 0) {
             n.used = false;
-            if (mirrorMode) {
+            if (multiMode) {
                 mirror::sendTone(n.at, n.freq, n.dur, n.ch);
                 chanUntil[n.ch] = n.at + n.dur;
             } else {
@@ -344,7 +378,7 @@ void runNotes(uint32_t now) {
 }
 
 bool channelPlaying(uint8_t ch) {
-    if (mirrorMode) {
+    if (multiMode) {
         return (int32_t)(chanUntil[ch] - millis()) > 0;
     }
     return M5Cardputer.Speaker.isPlaying(ch);
@@ -438,7 +472,26 @@ void penalty() {
 
 // ---------------------------------------------------------------- dessin
 
+// « ₂ » (O₂) n'existe pas dans la police : petit 2 dessiné à la main, en indice
+const char SUB2[] = "\xE2\x82\x82";
+const char *const SUB2_PX[5] = {"###", "..#", "###", "#..", "###"};
+
 void text(const String &s, int x, int y, uint16_t col, int size = 1, textdatum_t datum = TL_DATUM) {
+    int k = s.indexOf(SUB2);
+    if (k >= 0 && size == 1 && datum == TL_DATUM) {
+        String before = s.substring(0, k);
+        text(before, x, y, col);
+        x += canvas.textWidth(before);
+        for (int r = 0; r < 5; r++) {
+            for (int c = 0; c < 3; c++) {
+                if (SUB2_PX[r][c] == '#') {
+                    canvas.drawPixel(x + 1 + c, y + 7 + r, col);
+                }
+            }
+        }
+        text(s.substring(k + 3), x + 5, y, col);
+        return;
+    }
     canvas.setTextSize(size);
     canvas.setTextDatum(datum);
     canvas.setTextColor(col);
@@ -592,7 +645,7 @@ void drawHud() {
     canvas.fillRect(0, 0, W, 15, C_PANEL);
     canvas.drawFastHLine(0, 15, W, C_BORDER);
 
-    text("O2", 3, 2, C_CYAN);
+    text("O₂", 3, 2, C_CYAN);
     int bw = 52;
     canvas.drawRect(20, 3, bw + 2, 9, C_DIM);
     int fill = (int)((uint64_t)bw * rem / GAME_MS);
@@ -616,7 +669,7 @@ void drawHud() {
     int x = W - 4 * 13 - 2;
     for (int i = 0; i < 4; i++) {
         canvas.fillRect(x + i * 13, 1, 11, 13, i < found ? C_ORANGE : C_PANEL2);
-        text(i < found ? String(CODE[i]) : String("?"), x + i * 13 + 6, 2, i < found ? C_BLACK : C_DIM, 1, TC_DATUM);
+        text(i < found ? String(code()[i]) : String("?"), x + i * 13 + 6, 2, i < found ? C_BLACK : C_DIM, 1, TC_DATUM);
     }
 }
 
@@ -742,15 +795,22 @@ void drawErrorFlash() {
     }
 }
 
+void drawMorseTable(int top, int rowH);
+
 void drawMorseHelp() {
     canvas.fillRect(0, 16, W, H - 16, C_PANEL);
     text(tr(MORSE_HELP), 4, 18, C_ORANGE);
     hint(tr(MORSE_CLOSE), W - 4, 18, C_DIM, TR_DATUM);
+    drawMorseTable(34, 14);
+}
+
+// Alphabet Morse en 4 colonnes de 7 lettres
+void drawMorseTable(int top, int rowH) {
     for (int i = 0; i < 26; i++) {
         int col = i / 7;
         int row = i % 7;
         int x = 2 + col * 60;
-        int y = 34 + row * 14;
+        int y = top + row * rowH;
         text(String((char)('A' + i)), x, y, C_TEXT);
         int sx = x + 11;
         for (const char *p = MORSE[i]; *p; p++) {
@@ -777,7 +837,7 @@ uint32_t morseDuration(const char *code, uint32_t unit) {
 
 void startMorseLamp() {
     morseStart = millis();
-    morseEnd = morseStart + morseDuration(MORSE['N' - 'A'], LAMP_UNIT_MS);
+    morseEnd = morseStart + morseDuration(MORSE[answer() - 'A'], LAMP_UNIT_MS);
     morsePlaying = true;
 }
 
@@ -789,7 +849,7 @@ bool lampOn(uint32_t now) {
         return false;
     }
     uint32_t t = now - morseStart;
-    for (const char *p = MORSE['N' - 'A']; *p; p++) {
+    for (const char *p = MORSE[answer() - 'A']; *p; p++) {
         uint32_t on = (*p == '-' ? 3 : 1) * LAMP_UNIT_MS;
         if (t < on) {
             return true;
@@ -807,7 +867,7 @@ void startMorseSound() {
     cancelChannel(CH_MORSE);
     uint32_t t = millis() + 300;
     morseStart = t;
-    for (const char *p = MORSE['A' - 'A']; *p; p++) {
+    for (const char *p = MORSE[answer() - 'A']; *p; p++) {
         uint32_t on = (*p == '-' ? 3 : 1) * SOUND_UNIT_MS;
         schedule(t, MORSE_FREQ, on, CH_MORSE);
         t += on + SOUND_UNIT_MS;
@@ -925,8 +985,8 @@ void drawMode() {
     canvas.fillScreen(C_SPACE);
     drawStars(H, true);
     shadowText("EXPLORER 3", W / 2 + 1, 4, C_ORANGE, 2, TC_DATUM);
-    const char *names[3] = {tr(MODE_SOLO), tr(MODE_SCREEN), tr(MODE_LANG)};
-    const char *infos[3] = {tr(MODE_SOLO_INFO), tr(MODE_SCREEN_INFO), tr(MODE_LANG_INFO)};
+    const char *names[3] = {tr(MODE_SOLO), tr(MODE_MULTI), tr(MODE_LANG)};
+    const char *infos[3] = {tr(MODE_SOLO_INFO), tr(MODE_MULTI_INFO), tr(MODE_LANG_INFO)};
     drawChoices(names, infos, 3, modeSel, 31, 28, 2);
     drawFooter(tr(MODE_FOOTER));
 }
@@ -1075,8 +1135,23 @@ void drawBriefing() {
     canvas.fillRoundRect(3, 3, W - 6, H - 22, 5, C_PANEL);
     canvas.drawRoundRect(3, 3, W - 6, H - 22, 5, C_BORDER);
     text(tr(BRIEF_TITLE), 10, 8, C_ORANGE);
-    int y = wrapped(tr(BRIEF_TEXT), 10, 24, W - 20, C_TEXT);
+    int y = wrapped(trm(BRIEF_TEXT, BRIEF_TEXT_MULTI), 10, 24, W - 20, C_TEXT);
     wrapped(tr(BRIEF_RULES), 10, y + 4, W - 20, C_CYAN);
+    if (blink()) {
+        hint(trm(BRIEF_START, BRIEF_NEXT), W / 2, H - 14, C_YELLOW, TC_DATUM);
+    }
+}
+
+// Multijoueur : règles de l'équipage avant le chrono (le centre de contrôle a les siennes sur sa page)
+void drawRules() {
+    canvas.fillScreen(C_SPACE);
+    drawStars(H, false);
+    canvas.fillRoundRect(3, 3, W - 6, H - 22, 5, C_PANEL);
+    canvas.drawRoundRect(3, 3, W - 6, H - 22, 5, C_BORDER);
+    text(tr(RULES_TITLE), 10, 8, C_ORANGE);
+    int y = wrapped(tr(RULES_CREW), 10, 26, W - 20, C_YELLOW);
+    y = wrapped(tr(RULES_TALK), 10, y + 6, W - 20, C_TEXT);
+    wrapped(tr(RULES_NO_LOOK), 10, y + 6, W - 20, C_RED);
     if (blink()) {
         hint(tr(BRIEF_START), W / 2, H - 14, C_YELLOW, TC_DATUM);
     }
@@ -1125,7 +1200,7 @@ void drawPuzzleMorse(uint32_t now, bool light) {
     drawHud();
     if (light) {
         text(tr(P1_TITLE), 4, 19, C_ORANGE);
-        wrapped(tr(P1_TEXT), 4, 36, 140, C_TEXT, 13);
+        wrapped(trm(P1_TEXT, P1_TEXT_MULTI), 4, 36, 140, C_TEXT, 13);
         drawLamp(186, 74, lampOn(now));
     } else {
         text(tr(P4_TITLE), 4, 19, C_ORANGE);
@@ -1138,19 +1213,64 @@ void drawPuzzleMorse(uint32_t now, bool light) {
     if (wrongShown(now)) {
         text(String(wrongLetter) + tr(DENIED), 4, 105, C_RED);
     }
-    drawFooter(tr(morsePlaying ? MORSE_PLAYING : light ? P1_FOOTER : P4_FOOTER));
+    if (multiMode) {
+        drawFooter(tr(morsePlaying ? MORSE_PLAYING_MULTI : P1_FOOTER_MULTI));
+    } else {
+        drawFooter(tr(morsePlaying ? MORSE_PLAYING : light ? P1_FOOTER : P4_FOOTER));
+    }
     if (helpOpen) {
         drawMorseHelp();
     }
+}
+
+// Multijoueur, énigme 3 : le centre de contrôle entend le signal, l'équipage a
+// l'alphabet Morse en permanence
+void drawPuzzleSoundMulti(uint32_t now) {
+    canvas.fillScreen(C_SPACE);
+    drawHud();
+    text(tr(P3_TITLE_MULTI), 4, 18, C_ORANGE);
+    drawMorseTable(33, 12);
+    if (morsePlaying && (int32_t)(now - morseEnd) >= 0) {
+        morsePlaying = false;
+    }
+    if (wrongShown(now)) {
+        drawFooter("");
+        text(String(wrongLetter) + tr(DENIED), W / 2, H - 13, C_RED, 1, TC_DATUM);
+    } else {
+        drawFooter(tr(morsePlaying ? MORSE_PLAYING_MULTI : P3_FOOTER_MULTI));
+    }
+}
+
+// Code de César : chaque lettre avancée de CAESAR_SHIFT dans l'alphabet
+String caesar(const char *s) {
+    String out;
+    for (; *s; s++) {
+        char c = *s;
+        if (c >= 'A' && c <= 'Z') {
+            c = 'A' + (c - 'A' + CAESAR_SHIFT) % 26;
+        }
+        out += c;
+    }
+    return out;
 }
 
 void drawPuzzleQuiz(uint32_t now) {
     canvas.fillScreen(C_SPACE);
     drawHud();
     text(tr(P2_TITLE), 4, 19, C_ORANGE);
-    wrapped(tr(P2_TEXT), 4, 35, W - 8, C_TEXT, 13);
-    if (wrongShown(now)) {
-        text(String(wrongLetter) + tr(DENIED), 4, 61, C_RED);
+    if (multiMode) {
+        // Question en clair, réponses chiffrées
+        text(tr(P2_TEXT_MULTI), 4, 35, C_TEXT);
+        if (wrongShown(now)) {
+            text(String(wrongLetter) + tr(DENIED), 4, 48, C_RED);
+        } else {
+            wrapped(tr(P2_CODED), 4, 48, W - 8, C_CYAN, 13);
+        }
+    } else {
+        wrapped(tr(P2_TEXT), 4, 35, W - 8, C_TEXT, 13);
+        if (wrongShown(now)) {
+            text(String(wrongLetter) + tr(DENIED), 4, 61, C_RED);
+        }
     }
     const char *opts[4] = {"Sojourner", "Spirit", "Curiosity", "Perseverance"};
     for (int i = 0; i < 4; i++) {
@@ -1161,7 +1281,11 @@ void drawPuzzleQuiz(uint32_t now) {
         canvas.drawRoundRect(x, y, 114, 21, 4, bad ? C_RED : C_BORDER);
         canvas.fillRoundRect(x + 3, y + 3, 15, 15, 3, C_ORANGE);
         text(String((char)('A' + i)), x + 11, y + 4, C_BLACK, 1, TC_DATUM);
-        text(opts[i], x + 24, y + 4, C_TEXT);
+        if (multiMode) {
+            text(caesar(tr(P2_ANSWERS_MULTI[i])), x + 24, y + 4, C_YELLOW);
+        } else {
+            text(opts[i], x + 24, y + 4, C_TEXT);
+        }
     }
     drawFooter(tr(P2_FOOTER));
 }
@@ -1174,17 +1298,19 @@ void drawPuzzlePicross() {
     const int gy = 47;
     canvas.setFont(&fonts::Font0);
     for (int i = 0; i < 5; i++) {
-        // Indices des colonnes (empilés au-dessus)
+        // Indices des colonnes (empilés au-dessus). En multijoueur, l'équipage
+        // n'a que des « ? » : les chiffres sont sur la page du centre de contrôle.
         uint16_t cc = colOk(i) ? C_GREEN : C_TEXT;
         int n = colClues[i].size();
         for (int k = 0; k < n; k++) {
-            text(String(colClues[i][k]), gx + i * cell + cell / 2, gy - 3 - (n - k) * 9, cc, 1, TC_DATUM);
+            String clue = multiMode ? String("?") : String(colClues[i][k]);
+            text(clue, gx + i * cell + cell / 2, gy - 3 - (n - k) * 9, cc, 1, TC_DATUM);
         }
         // Indices des lignes (à gauche)
         uint16_t rc = rowOk(i) ? C_GREEN : C_TEXT;
         String s;
         for (size_t k = 0; k < rowClues[i].size(); k++) {
-            s += (k ? " " : "") + String(rowClues[i][k]);
+            s += (k ? " " : "") + (multiMode ? String("?") : String(rowClues[i][k]));
         }
         text(s, gx - 5, gy + i * cell + 5, rc, 1, TR_DATUM);
     }
@@ -1202,10 +1328,10 @@ void drawPuzzlePicross() {
     canvas.drawRect(x - 1, y - 1, cell + 3, cell + 3, C_YELLOW);
     canvas.drawRect(x, y, cell + 1, cell + 1, C_YELLOW);
 
-    const int px = 130;
-    text(tr(P3_TITLE), px, 19, C_ORANGE);
-    text(tr(P3_PLACE), px, 33, C_TEXT);
-    wrapped(tr(P3_TEXT), px, 50, W - px - 4, C_DIM, 13);
+    const int px = 128;
+    text(trm(P3_TITLE, P4_TITLE_MULTI), px, 19, C_ORANGE);
+    text(trm(P3_PLACE, P4_PLACE_MULTI), px, 33, C_TEXT);
+    wrapped(trm(P3_TEXT, P4_TEXT_MULTI), px, 50, W - px - 4, C_DIM, 13);
     hint(tr(P3_MOVE), px, 104, C_CYAN);
     hint(tr(P3_LIGHT), px, 118, C_CYAN);
 }
@@ -1259,7 +1385,7 @@ void drawSolved() {
     wrapped(tr(SOLVED_ITEMS[puzzle]), 100, 50, W - 108, C_TEXT);
     text(tr(SOLVED_LETTER), 100, 88, C_DIM);
     canvas.fillRoundRect(200, 78, 28, 30, 4, C_ORANGE);
-    text(String(CODE[puzzle]), 214 + 1, 82, C_BLACK, 2, TC_DATUM);
+    text(String(answer()), 214 + 1, 82, C_BLACK, 2, TC_DATUM);
     if (blink()) {
         drawFooter(tr(SOLVED_NEXT));
     } else {
@@ -1284,9 +1410,15 @@ void buildKeypad() {
     for (int i = SYM_COUNT - 1; i > 0; i--) {
         std::swap(syms[i], syms[random(0, i + 1)]);
     }
-    // N, A, S + 6 autres lettres, réparties au hasard sur les touches
-    char letters[9] = {'N', 'A', 'S'};
-    for (int n = 3; n < 9;) {
+    // Les lettres du code (M, A, R, S) + d'autres lettres, réparties au hasard sur les touches
+    char letters[9];
+    int n = 0;
+    for (const char *c = code(); *c; c++) {
+        if (std::find(letters, letters + n, *c) == letters + n) {
+            letters[n++] = *c;
+        }
+    }
+    while (n < 9) {
         char c = 'A' + random(0, 26);
         if (std::find(letters, letters + n, c) == letters + n) {
             letters[n++] = c;
@@ -1377,13 +1509,44 @@ void drawKeypad(uint32_t now) {
     drawFooter(tr(KEYPAD_FOOTER));
 }
 
-// Page du PC : table des symboles pendant l'ordinateur de bord, sinon copie
-// de l'écran. Renvoyée à chaque changement et toutes les 500 ms (chrono).
+// Indices du picross pour la page du centre de contrôle : lignes séparées
+// par « / », chiffres d'une ligne par « . » (ex. « 3.1/1.1.1 »)
+String cluesText(const std::vector<int> *clues) {
+    String s;
+    for (int i = 0; i < 5; i++) {
+        s += i ? "/" : "";
+        for (size_t k = 0; k < clues[i].size(); k++) {
+            s += (k ? "." : "") + String(clues[i][k]);
+        }
+    }
+    return s;
+}
+
+// Page du centre de contrôle (multijoueur), voir mirror::setPanel :
+//   0 copie de l'écran du Cardputer (titre, journal de bord, parties réparées, pause, fins)
+//   R règles du centre de contrôle
+//   1 à 4 énigme en cours, C table du clavier codé : suivis du chrono et du
+//   nombre d'erreurs (la page clignote en rouge à chaque erreur), puis des
+//   données de la page. Renvoyée à chaque changement et toutes les 500 ms (chrono).
 void updatePanel(uint32_t now) {
     static String last;
     static uint32_t lastSent = 0;
-    String key = "0";
-    if (state == St::Computer && !paused) {
+    String page = "0";
+    String data;
+    if (!paused && state == St::Rules) {
+        page = "R";
+    } else if (!paused && state == St::Puzzle) {
+        page = String(puzzle + 1);
+        if (puzzleKind() == Pz::Picross) {
+            for (int r = 0; r < 5; r++) {
+                for (int c = 0; c < 5; c++) {
+                    data += grid[r][c] ? '1' : '0';
+                }
+            }
+            data += "," + cluesText(rowClues) + "," + cluesText(colClues);
+        }
+    } else if (!paused && state == St::Computer) {
+        page = "C";
         String table;
         for (char c = 'A'; c <= 'Z'; c++) {
             for (int k = 0; k < 9; k++) {
@@ -1393,27 +1556,39 @@ void updatePanel(uint32_t now) {
                 }
             }
         }
-        key = String(typedCode.length()) + "," + String(errCount) + "," + table;
+        data = String(typedCode.length()) + "," + table;
     }
-    if (key == last && (key == "0" || now - lastSent < 500)) {
+    String key = page;
+    if (page != "0" && page != "R") {
+        key += "," + String(errCount) + "," + data;
+    }
+    bool timed = page != "0" && page != "R";
+    if (key == last && (!timed || now - lastSent < 500)) {
         return;
     }
     last = key;
     lastSent = now;
-    mirror::setPanel(key == "0" ? key : "1," + String(remaining()) + "," + key);
+    if (timed) {
+        key = page + "," + String(remaining()) + "," + String(errCount) + "," + data;
+    }
+    mirror::setPanel(key);
 }
 
 void drawComputer(uint32_t now) {
     canvas.fillScreen(C_BLACK);
     drawHud();
-    if (mirrorMode && keypadShown(now)) {
+    if (multiMode && keypadShown(now)) {
         drawKeypad(now);
         return;
     }
     int n = termVisible(now);
     for (int i = 0; i < n; i++) {
         uint16_t col = (i == TERM_COUNT - 1) ? C_YELLOW : C_TERM;
-        text(tr(TERM_LINES[i]), 4, 19 + i * 13, col);
+        String line = tr(TERM_LINES[i]);
+        if (i == TERM_COUNT - 1) {
+            line += code();
+        }
+        text(line, 4, 19 + i * 13, col);
     }
     if (n == TERM_COUNT) {
         text(tr(CODE_LABEL), 4, 92, C_TERM);
@@ -1533,14 +1708,15 @@ void startPuzzle(int p) {
     wrongLetter = 0;
     morsePlaying = false;
     enter(St::Puzzle);
-    if (p == 0) {
+    Pz k = puzzleKind();
+    if (k == Pz::Lamp) {
         startMorseLamp();
         morseStart += 800;
         morseEnd += 800;
-    } else if (p == 2) {
+    } else if (k == Pz::Picross) {
         memset(grid, 0, sizeof(grid));
         curX = curY = 0;
-    } else if (p == 3) {
+    } else if (k == Pz::Sound) {
         cancelChannel(CH_O2);  // alarme oxygène coupée pour entendre le Morse
         startMorseSound();
     }
@@ -1568,7 +1744,7 @@ void solvePuzzle() {
     if (puzzle == 3) {
         typedCode = "";
         termShown = 0;
-        if (mirrorMode) {
+        if (multiMode) {
             buildKeypad();
         }
         nextO2Beep = millis() + 1500;
@@ -1586,7 +1762,7 @@ void startLaunch() {
         prefs.putUInt("best_o2", bestO2);
     }
     stopAllSound();
-    if (mirrorMode) {
+    if (multiMode) {
         mirror::sendRumble(millis());  // le PC suit la même montée/descente du volume
     } else {
         M5Cardputer.Speaker.setChannelVolume(CH_RUMBLE, 0);
@@ -1728,8 +1904,8 @@ void handleKey(const KeysState &ks) {
                     enter(St::Lang);
                     break;
                 }
-                mirrorMode = modeSel == 1;
-                if (!mirrorMode) {
+                multiMode = modeSel == 1;
+                if (!multiMode) {
                     enter(St::Title);
                     break;
                 }
@@ -1746,7 +1922,7 @@ void handleKey(const KeysState &ks) {
         case St::WifiList: {
             int count = wifiCount();
             if (hasChar(ks, '`')) {
-                mirrorMode = false;
+                multiMode = false;
                 wifiError = "";
                 enter(St::Mode);
             } else if (scanning) {
@@ -1832,23 +2008,39 @@ void handleKey(const KeysState &ks) {
         case St::Briefing:
             if (ks.enter) {
                 sfxClick();
+                if (multiMode) {
+                    enter(St::Rules);  // le chrono démarre après les règles
+                } else {
+                    startGame();
+                }
+            }
+            break;
+
+        case St::Rules:
+            if (ks.enter) {
+                sfxClick();
                 startGame();
             }
             break;
 
         case St::Puzzle: {
-            bool morse = puzzle == 0 || puzzle == 3;
-            if (morse && helpOpen) {
+            Pz k = puzzleKind();
+            bool morse = k == Pz::Lamp || k == Pz::Sound;
+            // Alphabet Morse sur TAB : seulement sur le Cardputer seul (en
+            // multijoueur, le centre de contrôle l'a pour le voyant, et l'équipage
+            // l'a en permanence pour le son)
+            bool help = morse && !multiMode;
+            if (help && helpOpen) {
                 helpOpen = false;  // n'importe quelle touche ferme l'aide
                 break;
             }
-            if (morse && ks.tab) {
+            if (help && ks.tab) {
                 helpOpen = true;
                 break;
             }
             if (morse && ks.space) {
                 if (!morsePlaying) {
-                    if (puzzle == 0) {
+                    if (k == Pz::Lamp) {
                         startMorseLamp();
                     } else {
                         startMorseSound();
@@ -1857,13 +2049,11 @@ void handleKey(const KeysState &ks) {
                 break;
             }
             char l = letterOf(ks);
-            if (puzzle == 0 && l) {
-                answerLetter(l, 'N');
-            } else if (puzzle == 1 && l >= 'A' && l <= 'D') {
-                answerLetter(l, 'A');
-            } else if (puzzle == 3 && l) {
-                answerLetter(l, 'A');
-            } else if (puzzle == 2) {
+            if (morse && l) {
+                answerLetter(l, answer());
+            } else if (k == Pz::Quiz && l >= 'A' && l <= 'D') {
+                answerLetter(l, answer());
+            } else if (k == Pz::Picross) {
                 if (hasChar(ks, ';') && curY > 0) curY--;
                 if (hasChar(ks, '.') && curY < 4) curY++;
                 if (hasChar(ks, ',') && curX > 0) curX--;
@@ -1887,7 +2077,7 @@ void handleKey(const KeysState &ks) {
             break;
 
         case St::Computer: {
-            if (mirrorMode) {
+            if (multiMode) {
                 // Clavier codé : typedCode garde les touches 1 à 9
                 if (!keypadShown(millis())) {
                     break;
@@ -1904,7 +2094,7 @@ void handleKey(const KeysState &ks) {
                 } else if (ks.del && typedCode.length() > 0) {
                     typedCode.remove(typedCode.length() - 1);
                 } else if (ks.enter && typedCode.length() == 4) {
-                    if (keypadCode() == CODE) {
+                    if (keypadCode() == code()) {
                         startLaunch();
                     } else {
                         typedCode = "";
@@ -1924,7 +2114,7 @@ void handleKey(const KeysState &ks) {
             } else if (ks.del && typedCode.length() > 0) {
                 typedCode.remove(typedCode.length() - 1);
             } else if (ks.enter && typedCode.length() == 4) {
-                if (typedCode == CODE) {
+                if (typedCode == code()) {
                     startLaunch();
                 } else {
                     typedCode = "";
@@ -2003,8 +2193,8 @@ void update(uint32_t now) {
             gameOver();
             return;
         }
-        // Alarme oxygène, de plus en plus rapide (muette pendant les énigmes 1 et 4)
-        bool mute = state == St::Puzzle && (puzzle == 0 || puzzle == 3);
+        // Alarme oxygène, de plus en plus rapide (muette pendant les énigmes de Morse)
+        bool mute = state == St::Puzzle && (puzzleKind() == Pz::Lamp || puzzleKind() == Pz::Sound);
         if (!mute && (int32_t)(now - nextO2Beep) >= 0) {
             o2Beeps(now);
             uint32_t rem = remaining();
@@ -2117,11 +2307,20 @@ void render(uint32_t now) {
         case St::Address: drawAddress(); break;
         case St::Title: drawTitle(now); break;
         case St::Briefing: drawBriefing(); break;
+        case St::Rules: drawRules(); break;
         case St::Puzzle:
-            if (puzzle == 0) drawPuzzleMorse(now, true);
-            else if (puzzle == 1) drawPuzzleQuiz(now);
-            else if (puzzle == 2) drawPuzzlePicross();
-            else drawPuzzleMorse(now, false);
+            switch (puzzleKind()) {
+                case Pz::Lamp: drawPuzzleMorse(now, true); break;
+                case Pz::Quiz: drawPuzzleQuiz(now); break;
+                case Pz::Picross: drawPuzzlePicross(); break;
+                case Pz::Sound:
+                    if (multiMode) {
+                        drawPuzzleSoundMulti(now);
+                    } else {
+                        drawPuzzleMorse(now, false);
+                    }
+                    break;
+            }
             break;
         case St::Solved: drawSolved(); break;
         case St::Computer: drawComputer(now); break;
@@ -2194,7 +2393,7 @@ void loop() {
         update(now);
     }
     runNotes(now);
-    if (mirrorMode) {
+    if (multiMode) {
         updatePanel(now);
     }
     mirror::lockScreen();

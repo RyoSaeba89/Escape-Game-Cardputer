@@ -1,4 +1,4 @@
-// Simulateur PC : mode avec écran joué « à vide ». Réseaux fictifs, connexion
+// Simulateur PC : mode multijoueur joué « à vide ». Réseaux fictifs, connexion
 // réussie au bout de 1,5 s (« Mauvais mot de passe » : refusée), un navigateur
 // et un appareil Explorer3 qui se connectent tout seuls.
 #include "../src/diffusion.h"

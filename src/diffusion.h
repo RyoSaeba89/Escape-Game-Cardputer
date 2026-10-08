@@ -1,6 +1,7 @@
-// Mode avec écran : l'écran et le son du jeu sont recopiés en direct dans le
-// navigateur d'un PC ou d'une télé (page web servie par le Cardputer), sur le
-// Wi-Fi de la box ou sur le réseau Explorer3 créé par le Cardputer.
+// Mode multijoueur : la page web du centre de contrôle, servie par le Cardputer
+// au navigateur d'un PC, d'une télé ou d'un téléphone, sur le Wi-Fi de la box ou
+// sur le réseau Explorer3 créé par le Cardputer. Elle reçoit le son du jeu, sa
+// propre page pendant les énigmes, et sinon la copie en direct de l'écran.
 #pragma once
 #include <Arduino.h>
 
@@ -61,8 +62,11 @@ void sendTone(uint32_t at, uint16_t freq, uint16_t dur, uint8_t ch);
 void sendStop(uint32_t at, uint8_t ch);  // ch = 255 : tous les canaux
 void sendRumble(uint32_t at);           // grondement du décollage
 
-// Page réservée à l'équipe de l'écran (table des symboles) : "0" = copie de l'écran,
-// "1,restant_ms,saisis,erreurs,table" = table (table = lettre + n° de symbole en hexa)
+// Page du centre de contrôle : "0" = copie de l'écran, "R" = règles,
+// "1" à "4" = énigme, "C" = table du clavier codé. Pour "1" à "4" et "C", suivi de
+// ",restant_ms,erreurs,données" : picross "grille,lignes,colonnes" (grille = 25
+// chiffres 0/1, indices « 3.1/1.1.1/… »), clavier codé "saisis,table" (table =
+// lettre + n° de symbole en hexa). Voir updatePanel() dans main.cpp.
 void setPanel(const String &text);
 
 void setLanguage(uint8_t lang);       // 0 = français, 1 = anglais (textes de la page)

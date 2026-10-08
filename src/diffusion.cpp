@@ -1,6 +1,8 @@
-// Mode avec écran : le Cardputer sert lui-même une page web. Le navigateur (PC,
-// télé) reçoit par WebSocket les lignes de l'écran qui ont changé (compressées)
-// et les sons à jouer, avec l'heure du Cardputer pour garder le rythme du Morse.
+// Mode multijoueur : le Cardputer sert lui-même une page web, celle du centre de
+// contrôle. Le navigateur (PC, télé, téléphone) reçoit par WebSocket les lignes de
+// l'écran qui ont changé (compressées), l'état de sa page (règles, énigmes, table
+// du clavier codé) et les sons à jouer, avec l'heure du Cardputer pour garder le
+// rythme du Morse.
 // Tout le réseau tourne sur le cœur 0, le jeu reste seul sur le cœur 1.
 #include "diffusion.h"
 
@@ -29,29 +31,53 @@ canvas{position:absolute;top:0;right:0;bottom:0;left:0;margin:auto;width:100vw;h
 #etat{position:absolute;left:12px;bottom:10px;font-size:16px;color:#f80}
 #marge{position:absolute;top:10px;left:0;right:0;display:none;font-size:20px;color:#ffe146;text-align:center}
 #veille,#veillec{position:absolute;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none}
-#tab{display:none;flex-direction:column;align-items:center;justify-content:center;background:#06061a;font-size:2.6vh;text-align:center}
-#tab>*+*{margin-top:2.5vh}
+#tab{display:none;flex-direction:column;align-items:center;justify-content:center;background:#06061a;font-size:3.6vh;text-align:center;padding:0 4vh}
+#tab>*+*{margin-top:2vh}
+#eq{color:#50c8ff;font-size:2.2vh;letter-spacing:.25em}
 #tab h1{margin:0;color:#ffa028;font-size:4vh;letter-spacing:.08em}
-#o2{font:bold 7vh monospace;color:#50c8ff}
+#o2{font:bold 6vh monospace;color:#50c8ff}
+#o2 sub{font-size:.55em}
+#corps{display:flex;flex-direction:column;align-items:center;max-width:135vh}
+#corps>*+*{margin-top:2.2vh}
+#corps p{margin:0}
+#corps .moi{color:#ffe146}
+#corps .av{color:#f03c32}
+#corps .dim{color:#8c96af}
+#corps.grand{font-size:4.6vh}
 #grille{display:grid;grid-template-columns:repeat(3,auto);grid-gap:1.6vh;gap:1.6vh}
 .case{display:flex;align-items:center;justify-content:center;padding:.8vh 4vh;background:#202642;border:2px solid #465a8c;border-radius:1vh}
 .case b{font:bold 7vh monospace;color:#ffe146}
 .case svg{display:block;width:7vh;height:7vh;margin-left:3vh;fill:#ebeef5}
 #saisie span{display:inline-block;width:3.5vh;height:3.5vh;margin:0 .6vh;border:2px solid #50ff78;border-radius:.5vh;vertical-align:middle}
 #saisie span.on{background:#50ff78}
-#tab p{margin-bottom:0;color:#8c96af}
-#tab p.av{color:#f03c32}
+#morse{display:grid;grid-template-columns:repeat(7,auto);grid-gap:1.4vh 3.5vh;gap:1.4vh 3.5vh}
+.m{display:flex;align-items:center;font:bold 3.6vh monospace;color:#ebeef5}
+.m i{display:inline-block;height:1.3vh;margin-left:.8vh;background:#ffe146;border-radius:.65vh}
+.m i.p{width:1.3vh}.m i.t{width:4vh}
+#pic{border-collapse:collapse}
+#pic td{width:8vh;height:8vh;padding:0;border:2px solid #465a8c;background:#1e2234}
+#pic td.on{background:#ffa028}
+#pic th{font:bold 3.6vh monospace;color:#ebeef5;padding:.6vh 1.6vh;line-height:1.15}
+#pic thead th{vertical-align:bottom}
+#pic tbody th{text-align:right}
+#pic th.ok{color:#46e164}
+#hp{width:16vh;height:12vh}
+#hp g{stroke:#505a6e}
+#hp.on g{stroke:#ffe146}
 #tab.err{animation:err .5s}
 @keyframes err{0%,100%{box-shadow:none}40%{box-shadow:inset 0 0 0 2vh #f03c32}}
 @media (orientation:portrait){
-#tab{font-size:4vw}#tab>*+*{margin-top:3vw}#tab h1{font-size:5.5vw}#o2{font-size:9vw}
+#tab{font-size:4vw;padding:0 4vw}#tab>*+*{margin-top:3vw}#eq{font-size:3.4vw}#tab h1{font-size:5.5vw}#o2{font-size:9vw}
+#corps{max-width:none}#corps>*+*{margin-top:3vw}#corps.grand{font-size:5vw}
 #grille{grid-gap:2vw;gap:2vw}.case{padding:1vw 4vw}.case b{font-size:9vw}
-.case svg{width:9vw;height:9vw;margin-left:3vw}#saisie span{width:4.5vw;height:4.5vw}}
+.case svg{width:9vw;height:9vw;margin-left:3vw}#saisie span{width:4.5vw;height:4.5vw}
+#morse{grid-template-columns:repeat(3,auto);grid-gap:2vw 6vw;gap:2vw 6vw}.m{font-size:5vw}
+.m i{height:1.8vw;margin-left:1.2vw;border-radius:.9vw}.m i.p{width:1.8vw}.m i.t{width:4.5vw}
+#pic td{width:11vw;height:11vw}#pic th{font-size:5vw;padding:1vw 2vw}#hp{width:24vw;height:18vw}}
 </style></head><body>
 <div id="ecran">
 <canvas id="c" width="240" height="135"></canvas>
-<div id="tab"><h1 id="t-h1"></h1><div id="o2"></div><div id="grille"></div>
-<div id="saisie"></div><p id="t-p"></p><p id="t-av" class="av"></p></div>
+<div id="tab"><div id="eq"></div><h1 id="titre"></h1><div id="o2"></div><div id="corps"></div></div>
 <div id="son"><span id="t-son"></span><small id="t-fs"></small><small id="t-mg"></small></div>
 <div id="etat"></div>
 </div>
@@ -65,20 +91,46 @@ const etat=document.getElementById('etat'),son=document.getElementById('son');
 // Textes de la page dans les deux langues ; le Cardputer envoie la sienne ("L,heure,fr").
 const TX={
  fr:{son:'Cliquer ou appuyer sur une touche pour activer le son',fs:'Double-clic, F ou Entrée : plein écran',
-  mg:'Flèches haut et bas : marge pour la télé',cx:'Connexion au Cardputer…',h1:'ORDINATEUR DE BORD : TABLE DE DÉCODAGE',
-  p:'Le joueur du Cardputer vous donne une lettre du code : décrivez-lui le symbole correspondant.',
-  av:'Ne montrez pas cet écran au joueur du Cardputer !',sa:'Symboles tapés',mt:'Marge télé : '},
+  mg:'Flèches haut et bas : marge pour la télé',cx:'Connexion au Cardputer…',mt:'Marge télé : ',
+  eq:'CENTRE DE CONTRÔLE',tr:'RÈGLES',r1:'Vous êtes le centre de contrôle, sur Terre.',
+  r2:"L'équipage a l'autre partie des indices : parlez-vous !",r3:"Ne montrez pas votre écran à l'équipage.",
+  r4:"Le chrono démarre quand l'équipage appuie sur ENTRÉE.",
+  t1:'ÉNIGME 1/4 : COFFRE DU FER À SOUDER',
+  p1:"Le voyant du coffre clignote une lettre en Morse. L'équipage vous décrit les flashs : trouvez la lettre et dites-la-lui !",
+  q1:'Point = flash court · Trait = flash long',
+  t2:'ÉNIGME 2/4 : RÉSERVOIRS DE CARBURANT',
+  p2:'Code de César. Décalage = nombre de planètes telluriques du système solaire.',
+  t3:'ÉNIGME 3/4 : SOUTE À PIÈCES',
+  p3:"Le verrou de la soute émet une lettre en Morse. Écoutez, puis décrivez les bips à l'équipage : il a l'alphabet Morse !",
+  q3:"Bip court = point · Bip long = trait. L'équipage peut relancer le signal.",
+  t4:'ÉNIGME 4/4 : ORDINATEUR DE BORD',
+  p4:"Lisez les chiffres à l'équipage et guidez-le. Chaque chiffre = nombre de cases allumées à la suite, dans l'ordre. Une ligne juste passe au vert.",
+  tc:'ORDINATEUR DE BORD : TABLE DE DÉCODAGE',
+  pc:"L'équipage vous donne une lettre du code : décrivez-lui le symbole correspondant.",sa:'Symboles tapés'},
  en:{son:'Click or press a key to enable sound',fs:'Double-click, F or Enter: full screen',
-  mg:'Up and down arrows: TV margin',cx:'Connecting to the Cardputer…',h1:'ON-BOARD COMPUTER: DECODING TABLE',
-  p:'The Cardputer player gives you a letter of the code: describe the matching symbol to them.',
-  av:'Don\'t let the Cardputer player see this screen!',sa:'Symbols typed',mt:'TV margin: '}};
+  mg:'Up and down arrows: TV margin',cx:'Connecting to the Cardputer…',mt:'TV margin: ',
+  eq:'MISSION CONTROL',tr:'RULES',r1:'You are mission control, on Earth.',
+  r2:'The crew has the other half of the clues: talk to each other!',r3:"Don't show your screen to the crew.",
+  r4:'The countdown starts when the crew presses ENTER.',
+  t1:'PUZZLE 1/4: SOLDERING IRON SAFE',
+  p1:"The safe's light blinks a letter in Morse code. The crew describes the flashes: find the letter and tell them!",
+  q1:'Dot = short flash · Dash = long flash',
+  t2:'PUZZLE 2/4: FUEL TANKS',
+  p2:'Caesar cipher. Shift = number of terrestrial planets in the Solar System.',
+  t3:'PUZZLE 3/4: CARGO HOLD',
+  p3:'The cargo hold lock beeps a letter in Morse code. Listen, then describe the beeps to the crew: they have the Morse code!',
+  q3:'Short beep = dot · Long beep = dash. The crew can replay the signal.',
+  t4:'PUZZLE 4/4: ON-BOARD COMPUTER',
+  p4:'Read the numbers to the crew and guide them. Each number = lit cells in a row, in order. A correct line turns green.',
+  tc:'ON-BOARD COMPUTER: DECODING TABLE',
+  pc:'The crew gives you a letter of the code: describe the matching symbol to them.',sa:'Symbols typed'}};
 let lg='';try{lg=localStorage.getItem('lang')||'';}catch(_){}
 if(!TX[lg])lg=(navigator.language||'').slice(0,2)=='fr'?'fr':'en';
-let connecte=false,saisis=0;
+let connecte=false;
 function langue(l){if(!TX[l])return;lg=l;try{localStorage.setItem('lang',l);}catch(_){}
  document.documentElement.lang=l;const t=TX[l];
- for(const k of ['son','fs','mg','h1','p','av'])document.getElementById('t-'+k).textContent=t[k];
- if(!connecte)etat.textContent=t.cx;majSaisie();}
+ for(const k of ['son','fs','mg'])document.getElementById('t-'+k).textContent=t[k];
+ if(!connecte)etat.textContent=t.cx;pageVue='';majPage();}
 for(let i=3;i<px.length;i+=4)px[i]=255;
 let dirty=true;
 function put(i,v){px[i]=(v>>8&0xF8)|(v>>13);px[i+1]=(v>>3&0xFC)|(v>>9&3);px[i+2]=(v<<3&0xF8)|(v>>2&7);}
@@ -163,8 +215,10 @@ document.addEventListener('keydown',e=>{if(e.ctrlKey||e.altKey||e.metaKey)return
  else return;
  e.preventDefault();});
 
-// Table des symboles (ordinateur de bord) : remplace la copie de l'écran.
-// Message "K,heure,1,restant_ms,saisis,erreurs,table" ou "K,heure,0".
+// Page du centre de contrôle (multijoueur) : remplace la copie de l'écran.
+// Message "K,heure,page,..." : page 0 = copie de l'écran, R = règles, 1 à 4 =
+// énigme, C = table du clavier codé ; 1 à 4 et C continuent par
+// ",restant_ms,erreurs,données" (voir updatePanel dans main.cpp).
 // Symboles en pixel art 12×12 : SYM vient de /sym.js (les dessins de main.cpp),
 // 3 chiffres hexadécimaux par ligne.
 const SYMS=typeof SYM!='undefined'?SYM:[];
@@ -172,22 +226,61 @@ function symbole(n){const h=SYMS[n];if(!h)return '';let d='';
  for(let r=0;r<12;r++){const v=parseInt(h.substr(r*3,3),16);
   for(let c=0;c<12;){if(v>>(11-c)&1){let e=c;while(e<12&&(v>>(11-e)&1))e++;d+='M'+c+' '+r+'h'+(e-c)+'v1h'+(c-e)+'z';c=e;}else c++;}}
  return '<svg viewBox="0 0 12 12" shape-rendering="crispEdges"><path d="'+d+'"/></svg>';}
-const tab=document.getElementById('tab'),o2=document.getElementById('o2'),grille=document.getElementById('grille'),saisie=document.getElementById('saisie');
-let tabOn=false,tabEnd=0,tabKey='',lastErr=-1;
-function majSaisie(){let h='';for(let i=0;i<4;i++)h+='<span'+(i<saisis?' class="on"':'')+'></span>';saisie.innerHTML=TX[lg].sa+' '+h;}
-function panel(a){tabOn=a[2]=='1';tab.style.display=tabOn?'flex':'none';if(!tabOn){lastErr=-1;return;}
- tabEnd=Number(a[1])+off+Number(a[3]);
- if(a[6]!==tabKey){tabKey=a[6];grille.innerHTML='';
-  for(let i=0;i<tabKey.length;i+=2){const d=document.createElement('div');d.className='case';
-   d.innerHTML='<b>'+tabKey[i]+'</b>'+symbole(parseInt(tabKey[i+1],16));grille.appendChild(d);}}
- saisis=Number(a[4]);majSaisie();
- const e=Number(a[5]);if(lastErr>=0&&e!==lastErr){tab.classList.remove('err');void tab.offsetWidth;tab.classList.add('err');}lastErr=e;}
-setInterval(()=>{if(!tabOn)return;const r=Math.max(0,tabEnd-performance.now()),s=Math.ceil(r/1000);
- o2.textContent='O2 '+String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');o2.style.color=r<60000?'#f03c32':'#50c8ff';},100);
+const MORSE=['.-','-...','-.-.','-..','.','..-.','--.','....','..','.---','-.-','.-..','--','-.','---','.--.','--.-','.-.','...','-','..-','...-','.--','-..-','-.--','--..'];
+const tab=document.getElementById('tab'),o2=document.getElementById('o2'),titre=document.getElementById('titre'),corps=document.getElementById('corps');
+let page='0',donnees=[],pageVue='',tabEnd=0,lastErr=-1;
+function para(txt,cl){return '<p'+(cl?' class="'+cl+'"':'')+'>'+txt+'</p>';}
+function alphabet(){let h='<div id="morse">';
+ for(let i=0;i<26;i++){h+='<div class="m">'+String.fromCharCode(65+i);
+  for(const c of MORSE[i])h+='<i class="'+(c=='.'?'p':'t')+'"></i>';h+='</div>';}
+ return h+'</div>';}
+// Indices d'une ligne du picross, comme lineClues() du Cardputer
+function indices(cases){const out=[];let n=0;for(const c of cases){if(c)n++;else if(n){out.push(n);n=0;}}
+ if(n)out.push(n);if(!out.length)out.push(0);return out.join('.');}
+function picross(g,lignes,cols){lignes=lignes.split('/');cols=cols.split('/');
+ const on=(r,c)=>g[r*5+c]=='1';let h='<table id="pic"><thead><tr><th></th>';
+ for(let c=0;c<5;c++){const col=[0,1,2,3,4].map(r=>on(r,c));
+  h+='<th'+(indices(col)==cols[c]?' class="ok"':'')+'>'+cols[c].split('.').join('<br>')+'</th>';}
+ h+='</tr></thead><tbody>';
+ for(let r=0;r<5;r++){const lig=[0,1,2,3,4].map(c=>on(r,c));
+  h+='<tr><th'+(indices(lig)==lignes[r]?' class="ok"':'')+'>'+lignes[r].split('.').join(' ')+'</th>';
+  for(let c=0;c<5;c++)h+='<td'+(on(r,c)?' class="on"':'')+'></td>';h+='</tr>';}
+ return h+'</tbody></table>';}
+const HP='<svg id="hp" viewBox="0 0 64 48"><path d="M6 17h10l14-12v38L16 31H6z" fill="#969aa0"/>'+
+ '<g fill="none" stroke-width="4" stroke-linecap="round"><path d="M38 17q5 7 0 14"/><path d="M45 11q10 13 0 26"/><path d="M52 5q15 19 0 38"/></g></svg>';
+function majPage(){const t=TX[lg],d=donnees,cle=lg+page+d.join(',');
+ if(page=='0'||cle==pageVue)return;pageVue=cle;
+ document.getElementById('eq').textContent=t.eq;
+ let h='';
+ if(page=='R'){titre.textContent=t.tr;h=para(t.r1,'moi')+para(t.r2)+para(t.r3,'av')+para(t.r4,'dim');}
+ else if(page=='1'){titre.textContent=t.t1;h=para(t.p1)+para(t.q1,'dim')+alphabet();}
+ else if(page=='2'){titre.textContent=t.t2;h=para(t.p2,'moi');}
+ else if(page=='3'){titre.textContent=t.t3;h=HP+para(t.p3)+para(t.q3,'dim');}
+ else if(page=='4'){titre.textContent=t.t4;h=picross(d[0],d[1],d[2])+para(t.p4);}
+ else if(page=='C'){titre.textContent=t.tc;h='<div id="grille">';
+  const k=d[1];for(let i=0;i<k.length;i+=2)h+='<div class="case"><b>'+k[i]+'</b>'+symbole(parseInt(k[i+1],16))+'</div>';
+  h+='</div><div id="saisie">'+t.sa+' ';for(let i=0;i<4;i++)h+='<span'+(i<Number(d[0])?' class="on"':'')+'></span>';
+  h+='</div>'+para(t.pc,'dim');}
+ corps.className=page=='R'||page=='2'?'grand':'';corps.innerHTML=h;}
+function panel(a){page=a[2];tab.style.display=page=='0'?'none':'flex';
+ const chrono=page!='0'&&page!='R';o2.style.display=chrono?'':'none';
+ if(!chrono){lastErr=-1;donnees=[];majPage();return;}
+ tabEnd=Number(a[1])+off+Number(a[3]);donnees=a.slice(5);majPage();horloge();
+ const e=Number(a[4]);if(lastErr>=0&&e!==lastErr){tab.classList.remove('err');void tab.offsetWidth;tab.classList.add('err');}lastErr=e;}
+// Énigme 3 : le haut-parleur s'allume pendant les bips du Morse (canal 2)
+let bips=[];
+function bip(at,d){const t=at+off+LAT;bips.push([t,t+d]);if(bips.length>8)bips.shift();}
+function horloge(){if(page=='0'||page=='R')return;const n=performance.now();
+ const r=Math.max(0,tabEnd-n),s=Math.ceil(r/1000);
+ o2.innerHTML='O<sub>2</sub> '+String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');o2.style.color=r<60000?'#f03c32':'#50c8ff';
+ const hp=document.getElementById('hp');if(hp)hp.setAttribute('class',bips.some(b=>n>=b[0]&&n<b[1])?'on':'');}
+setInterval(horloge,50);
 langue(lg);
 
 function msg(s){const a=s.split(',').map(Number);sync(a[1]);
- if(s[0]=='K'){panel(s.split(','));return;}if(s[0]=='L'){langue(s.split(',')[2]);return;}if(!ac)return;
+ if(s[0]=='K'){panel(s.split(','));return;}if(s[0]=='L'){langue(s.split(',')[2]);return;}
+ if(s[0]=='T'&&a[5]==2)bip(a[2],a[4]);else if(s[0]=='S'&&(a[3]==2||a[3]==255))bips=[];
+ if(!ac)return;
  if(s[0]=='T')tone(a[2],a[3],a[4],a[5]);else if(s[0]=='S')stop(a[2],a[3]);else if(s[0]=='R')rumble(a[2]);}
 function connect(){const ws=new WebSocket('ws://'+location.hostname+':81/');ws.binaryType='arraybuffer';
  ws.onopen=()=>{connecte=true;etat.textContent='';offs=[];};
@@ -221,7 +314,7 @@ int nextRow = 0;          // reprise si une image ne tient pas dans un envoi
 uint8_t *frameBuf = nullptr;
 volatile int clients = 0;
 
-// Page réservée à l'équipe de l'écran : dernier texte demandé par le jeu
+// Page du centre de contrôle : dernier texte demandé par le jeu
 // (envoyé par la tâche réseau)
 portMUX_TYPE panelLock = portMUX_INITIALIZER_UNLOCKED;
 char panelText[128] = "0";
