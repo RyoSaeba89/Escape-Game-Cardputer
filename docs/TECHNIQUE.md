@@ -4,7 +4,7 @@
 
 Ce document décrit le fonctionnement interne du jeu pour qui veut le compiler, le comprendre ou le modifier. Il ne donne pas les solutions des énigmes, mais elles sont en clair dans le code source.
 
-Version décrite : **v1.6** : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6).
+Version décrite : **v1.7** : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7).
 
 ## Sommaire
 
@@ -51,7 +51,7 @@ Configuration de `platformio.ini` (environnement `cardputer-adv`, celui par déf
 | Plateforme | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Carte | `esp32-s3-devkitc-1`, flash 8 Mo, partitions `default_8MB.csv` (application jusqu'à 3,3 Mo) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (port série par l'USB natif) |
-| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v1.6 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
+| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v1.7 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
 
 ```
 pio run                # compile
@@ -267,7 +267,7 @@ flowchart LR
         G["Cœur 1 : jeu<br/>loop() → render()"] -->|"image 240×135<br/>(sous verrou)"| N
         G -->|"notes horodatées<br/>(file FreeRTOS)"| N
         G -->|"état de la page, langue<br/>(setPanel, setLanguage)"| N
-        N["Cœur 0 : tâche réseau<br/>HTTP :80 + WebSocket :81<br/>mDNS explorer3.local"]
+        N["Cœur 0 : tâche réseau<br/>HTTP :80 + WebSocket :81<br/>mDNS explorer3.local<br/>DNS :53 (Explorer3)"]
     end
     N -->|"page web, /sym.js (une fois)"| B["Navigateur (PC, télé)"]
     N -->|"lignes d'écran compressées (binaire)"| B
@@ -334,6 +334,12 @@ Il faut deux refus pour conclure au mauvais mot de passe, car un signal faible p
 
 Avec Explorer3, l'écran passe tout seul au QR code de la page dès qu'un appareil rejoint le réseau (une seule fois, `apJoined`) ; `TAB` bascule de l'un à l'autre à tout moment.
 
+**Portail captif (Explorer3).** Explorer3 n'a pas d'accès à Internet. Un téléphone Android qui a aussi les données mobiles garde alors la 4G comme réseau principal, et son navigateur l'utilise pour toutes les adresses, `192.168.4.1` comprise : la page ne s'ouvre pas. `explorer3.local` échoue aussi, car Android ne résout pas les noms `.local` par les données mobiles, et taper `http://` devant n'y change rien. Aucune page web ne peut choisir le réseau utilisé. Le Cardputer se comporte donc comme le Wi-Fi d'un hôtel, pour que le système ouvre lui-même la page dans sa fenêtre « Se connecter au réseau », qui passe par le Wi-Fi même quand la 4G est allumée :
+
+- **DNS** (`answerDns()`, port 53, seulement en point d'accès) : à une demande d'adresse IPv4 (type A), pour n'importe quel nom, il répond `192.168.4.1`, avec une durée de vie de 10 s pour que rien ne reste en cache après la partie. Aux autres types (AAAA, HTTPS…), il fait une réponse vide. Les paquets mal formés ou de plus de 512 octets sont ignorés. Ce petit répondeur remplace la bibliothèque `DNSServer` du core Arduino, qui ne vérifie pas la longueur des noms reçus.
+- **Redirection** (`redirectToPage()`) : une requête HTTP dont l'en-tête `Host` n'est ni `192.168.4.1` ni `explorer3.local` reçoit une redirection `302` vers `http://192.168.4.1/`. C'est le cas des tests de connexion d'Android (`connectivitycheck.gstatic.com/generate_204`…), de l'iPhone (`captive.apple.com`) et de Windows (`msftconnecttest.com`) : le système conclut à un portail et affiche la page. Les tests en HTTPS échouent tout de suite, rien n'écoutant sur le port 443.
+- Sur Android, la fenêtre s'ouvre toute seule ou par la notification « Se connecter au réseau », selon le téléphone. Le reste du téléphone garde Internet par la 4G. Sur la box, rien de tout cela n'est actif.
+
 **Nom `explorer3.local`.** `startServer()` (re)lance le répondeur mDNS (`MDNS.begin("explorer3")`, service `_http._tcp`) sur le réseau en place, box ou Explorer3. Les PC, Mac, iPhone et Android récents le résolvent ; pas la Ouya (Android 4.1), d'où l'adresse IP toujours affichée.
 
 ### 9.4 Flux d'image
@@ -376,15 +382,16 @@ Les navigateurs interdisent le son avant une action de l'utilisateur. Le context
 
 `netTask` est épinglée sur le cœur 0, avec une priorité de 1 et une pile de 6 Ko. `startServer()` la crée en premier : elle attend un signal (`ulTaskNotifyTake`) pendant que les serveurs démarrent. Si la tâche ne peut pas être créée, rien n'a encore été démarré. Ensuite elle boucle sur :
 
-1. `http.handleClient()` et `ws.loop()` ;
-2. envoi des sons en attente (file FreeRTOS de 64 éléments, remplie sans attente par le jeu) ;
-3. envoi de la langue si elle a changé ;
-4. envoi de l'état de la page de l'écran s'il a changé ;
-5. horloge toutes les 250 ms ;
-6. image toutes les 40 ms ;
-7. `vTaskDelay(1)`.
+1. sur Explorer3 : démarrage ou arrêt du DNS selon le mode Wi-Fi, puis réponse à une question en attente ;
+2. `http.handleClient()` et `ws.loop()` ;
+3. envoi des sons en attente (file FreeRTOS de 64 éléments, remplie sans attente par le jeu) ;
+4. envoi de la langue si elle a changé ;
+5. envoi de l'état de la page de l'écran s'il a changé ;
+6. horloge toutes les 250 ms ;
+7. image toutes les 40 ms ;
+8. `vTaskDelay(1)`.
 
-Le serveur HTTP répond à `/` (la page) et `/sym.js` (les dessins des symboles, section 10). Côté page, une connexion perdue est retentée toutes les secondes. Un nouveau navigateur reçoit l'écran complet, la langue et l'état courant de sa page. Plusieurs navigateurs peuvent être ouverts en même temps.
+Le serveur HTTP répond à `/` (la page) et `/sym.js` (les dessins des symboles, section 10). Sur Explorer3, toute autre adresse est renvoyée vers la page (portail captif, section 9.3). Côté page, une connexion perdue est retentée toutes les secondes. Un nouveau navigateur reçoit l'écran complet, la langue et l'état courant de sa page. Plusieurs navigateurs peuvent être ouverts en même temps.
 
 **Heartbeat.** Le serveur WebSocket envoie un ping toutes les 5 s (`ws.enableHeartbeat(5000, 3000, 2)`), et les navigateurs y répondent d'eux-mêmes. Un navigateur qui ne répond pas à 2 pings de suite (3 s d'attente chacun) est déconnecté, donc au bout de 11 à 16 s. C'est le cas d'un Wi-Fi coupé ou d'une console éteinte sans fermer la page. Sans heartbeat, il resterait compté dans `clientCount()` jusqu'au délai TCP, et le Cardputer continuerait à lui envoyer des images.
 
@@ -454,12 +461,12 @@ Le clavier s'affiche 600 ms après la dernière ligne du terminal (`keypadShown(
 
 ## 11. Mémoire et performances
 
-Valeurs mesurées sur la v1.6 :
+Valeurs mesurées sur la v1.7 :
 
 | Élément | Taille |
 |---|---|
-| Programme | ~1,39 Mo sur 3,3 Mo (42 %), dont la page web ~12 Ko et le répondeur mDNS ~40 Ko |
-| RAM statique | ~71 Ko sur 320 Ko (22 %), dont le bruit du décollage (16 Ko) |
+| Programme | ~1,40 Mo sur 3,3 Mo (42 %), dont la page web ~12 Ko et le répondeur mDNS ~40 Ko |
+| RAM statique | ~72 Ko sur 320 Ko (22 %), dont le bruit du décollage (16 Ko) et le tampon du DNS (512 octets) |
 | Sprite de l'écran (tas) | 64 800 octets |
 | Mode avec écran (tas) | Tampon d'envoi 12 Ko, pile de la tâche réseau 6 Ko, file des sons ~1 Ko, plus la pile Wi-Fi, lwIP et mDNS |
 | Débit d'image | 5 à 10 Ko par écran complet, beaucoup moins quand peu de choses bougent ; 25 images/s au plus |
@@ -478,6 +485,8 @@ Sans PSRAM, il faut éviter les grosses allocations : pas de second sprite plein
 - `explorer3.local` ne fonctionne pas sur la Ouya ni sur les vieux Android : l'adresse IP reste affichée.
 - Sur la Ouya, le blocage de la mise en veille par la vidéo invisible (section 9.8) n'a pas été vérifié sur la console.
 - Les causes d'échec Wi-Fi viennent du pilote : « Mot de passe refusé » peut, rarement, venir d'un signal très faible.
+- Sur Explorer3, avec un téléphone Android qui a les données mobiles, la page marche dans la fenêtre « Se connecter au réseau » (portail captif, section 9.3), pas dans un navigateur ouvert à la main : Firefox, Brave ou le QR code de la page passent par la 4G. Dans cette fenêtre, pas de plein écran.
+- Le portail captif a été vérifié sur Android. Sur iPhone et sous Windows, le système ouvre aussi sa propre fenêtre : pas encore vérifié.
 
 ## 13. Modifier le jeu
 

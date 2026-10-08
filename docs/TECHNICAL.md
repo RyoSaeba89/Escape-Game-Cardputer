@@ -4,7 +4,7 @@
 
 This document describes how the game works inside, for anyone who wants to build, understand or change it. It does not give the puzzle solutions, but they are in plain text in the source code.
 
-Version described: **v1.6**: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6).
+Version described: **v1.7**: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7).
 
 ## Contents
 
@@ -51,7 +51,7 @@ The game is in **French or English**, chosen on first start-up (section 3). Two 
 | Platform | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Board | `esp32-s3-devkitc-1`, 8 MB flash, `default_8MB.csv` partitions (application up to 3.3 MB) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (serial port over native USB) |
-| Libraries | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions used for v1.6: 1.1.1, 0.2.25, 0.2.32 and 2.7.3) |
+| Libraries | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions used for v1.7: 1.1.1, 0.2.25, 0.2.32 and 2.7.3) |
 
 ```
 pio run                # build
@@ -267,7 +267,7 @@ flowchart LR
         G["Core 1: game<br/>loop() → render()"] -->|"240×135 image<br/>(under lock)"| N
         G -->|"timed notes<br/>(FreeRTOS queue)"| N
         G -->|"page state, language<br/>(setPanel, setLanguage)"| N
-        N["Core 0: network task<br/>HTTP :80 + WebSocket :81<br/>mDNS explorer3.local"]
+        N["Core 0: network task<br/>HTTP :80 + WebSocket :81<br/>mDNS explorer3.local<br/>DNS :53 (Explorer3)"]
     end
     N -->|"web page, /sym.js (once)"| B["Browser (PC, TV)"]
     N -->|"compressed screen lines (binary)"| B
@@ -334,6 +334,12 @@ Two refusals are needed to conclude the password is wrong, because a weak signal
 
 With Explorer3, the screen switches by itself to the page's QR code as soon as a device joins the network (only once, `apJoined`); `TAB` switches between them at any time.
 
+**Captive portal (Explorer3).** Explorer3 has no Internet access. An Android phone that also has mobile data then keeps 4G as its main network, and its browser uses it for every address, `192.168.4.1` included: the page does not open. `explorer3.local` fails too, because Android does not resolve `.local` names over mobile data, and typing `http://` in front changes nothing. No web page can choose the network it uses. The Cardputer therefore behaves like a hotel Wi-Fi, so that the system itself opens the page in its "Sign in to network" window, which goes over Wi-Fi even when 4G is on:
+
+- **DNS** (`answerDns()`, port 53, access point mode only): to an IPv4 address request (type A), for any name, it answers `192.168.4.1`, with a 10 s time to live so that nothing stays cached after the game. Other types (AAAA, HTTPS…) get an empty answer. Malformed packets and packets over 512 bytes are ignored. This small responder replaces the Arduino core's `DNSServer` library, which does not check the length of received names.
+- **Redirect** (`redirectToPage()`): an HTTP request whose `Host` header is neither `192.168.4.1` nor `explorer3.local` gets a `302` redirect to `http://192.168.4.1/`. This is the case of the connectivity checks of Android (`connectivitycheck.gstatic.com/generate_204`…), iPhone (`captive.apple.com`) and Windows (`msftconnecttest.com`): the system concludes there is a portal and shows the page. HTTPS checks fail right away, since nothing listens on port 443.
+- On Android, the window opens by itself or through the "Sign in to network" notification, depending on the phone. The rest of the phone keeps Internet over 4G. On a router, none of this is active.
+
 **`explorer3.local` name.** `startServer()` (re)starts the mDNS responder (`MDNS.begin("explorer3")`, `_http._tcp` service) on the current network, router or Explorer3. Recent PCs, Macs, iPhones and Android phones resolve it; the Ouya (Android 4.1) does not, hence the IP address always shown.
 
 ### 9.4 Image stream
@@ -376,15 +382,16 @@ Browsers forbid sound before a user action. The audio context is therefore creat
 
 `netTask` is pinned to core 0, with priority 1 and a 6 KB stack. `startServer()` creates it first: it waits for a signal (`ulTaskNotifyTake`) while the servers start. If the task cannot be created, nothing has been started yet. It then loops over:
 
-1. `http.handleClient()` and `ws.loop()`;
-2. sending pending sounds (FreeRTOS queue of 64 items, filled without waiting by the game);
-3. sending the language if it changed;
-4. sending the screen page state if it changed;
-5. clock every 250 ms;
-6. frame every 40 ms;
-7. `vTaskDelay(1)`.
+1. on Explorer3: DNS started or stopped according to the Wi-Fi mode, then a pending question answered;
+2. `http.handleClient()` and `ws.loop()`;
+3. sending pending sounds (FreeRTOS queue of 64 items, filled without waiting by the game);
+4. sending the language if it changed;
+5. sending the screen page state if it changed;
+6. clock every 250 ms;
+7. frame every 40 ms;
+8. `vTaskDelay(1)`.
 
-The HTTP server answers `/` (the page) and `/sym.js` (the symbol drawings, section 10). On the page side, a lost connection is retried every second. A new browser receives the full screen, the language and the current state of its page. Several browsers can be open at the same time.
+The HTTP server answers `/` (the page) and `/sym.js` (the symbol drawings, section 10). On Explorer3, any other address is redirected to the page (captive portal, section 9.3). On the page side, a lost connection is retried every second. A new browser receives the full screen, the language and the current state of its page. Several browsers can be open at the same time.
 
 **Heartbeat.** The WebSocket server sends a ping every 5 s (`ws.enableHeartbeat(5000, 3000, 2)`), which browsers answer on their own. A browser that misses 2 pings in a row (3 s wait each) is disconnected, so after 11 to 16 s. This covers a dropped Wi-Fi or a console switched off without closing the page. Without the heartbeat, it would stay counted in `clientCount()` until the TCP timeout, and the Cardputer would keep sending it frames.
 
@@ -454,12 +461,12 @@ The keypad shows up 600 ms after the last terminal line (`keypadShown()`). `type
 
 ## 11. Memory and performance
 
-Figures measured on v1.6:
+Figures measured on v1.7:
 
 | Item | Size |
 |---|---|
-| Program | ~1.39 MB out of 3.3 MB (42 %), including the web page ~12 KB and the mDNS responder ~40 KB |
-| Static RAM | ~71 KB out of 320 KB (22 %), including the liftoff noise (16 KB) |
+| Program | ~1.40 MB out of 3.3 MB (42 %), including the web page ~12 KB and the mDNS responder ~40 KB |
+| Static RAM | ~72 KB out of 320 KB (22 %), including the liftoff noise (16 KB) and the DNS buffer (512 bytes) |
 | Screen sprite (heap) | 64,800 bytes |
 | "With a screen" mode (heap) | 12 KB send buffer, 6 KB network task stack, ~1 KB sound queue, plus the Wi-Fi, lwIP and mDNS stacks |
 | Frame rate | 5 to 10 KB per full screen, much less when little moves; 25 frames/s at most |
@@ -478,6 +485,8 @@ Without PSRAM, large allocations must be avoided: no second full-screen sprite n
 - `explorer3.local` does not work on the Ouya nor on old Android phones: the IP address stays on screen.
 - On the Ouya, keeping the screen awake with the invisible video (section 9.8) has not been checked on the console.
 - Wi-Fi failure reasons come from the driver: "Wrong password" may, rarely, come from a very weak signal.
+- On Explorer3, with an Android phone that has mobile data, the page works in the "Sign in to network" window (captive portal, section 9.3), not in a browser opened by hand: Firefox, Brave or the page's QR code go over 4G. No full screen in that window.
+- The captive portal has been checked on Android. On iPhone and Windows, the system also opens its own window: not checked yet.
 
 ## 13. Changing the game
 

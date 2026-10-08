@@ -62,6 +62,7 @@ Au démarrage, choisir **Cardputer seul** ou **Avec écran** : l'écran du Cardp
    - **Réseau masqué ?** Choisir **Autre réseau** et taper son nom.
 2. Le Cardputer affiche un **QR code**, son adresse IP (par exemple `192.168.1.42`) et `explorer3.local`. Scanner le QR code avec un téléphone, ou ouvrir l'adresse dans le navigateur (Chrome, Edge, Firefox, Safari). Rien à installer.
    - Avec le réseau Explorer3, un premier QR code fait rejoindre le Wi-Fi ; dès qu'un appareil s'y connecte, le QR code de la page s'affiche. `TAB` passe de l'un à l'autre.
+   - Avec le réseau Explorer3, sur un téléphone, la page s'ouvre toute seule dans la fenêtre « Se connecter au réseau » (ou en touchant la notification), même avec les données mobiles allumées.
    - `explorer3.local` fonctionne sur PC, Mac et téléphone, mais pas sur la Ouya : utiliser l'adresse IP.
 3. Cliquer une fois sur la page ou appuyer sur une touche pour **activer le son** (les navigateurs l'exigent). Double-clic, `F` ou `Entrée` : plein écran.
 4. `ENTRÉE` sur le Cardputer pour lancer le jeu.
@@ -201,6 +202,7 @@ At start-up, choose **Cardputer only** or **With a screen**: the Cardputer scree
    - **Hidden network?** Choose **Other network** and type its name.
 2. The Cardputer shows a **QR code**, its IP address (for example `192.168.1.42`) and `explorer3.local`. Scan the QR code with a phone, or open the address in the browser (Chrome, Edge, Firefox, Safari). Nothing to install.
    - With the Explorer3 network, a first QR code joins the Wi-Fi; as soon as a device connects to it, the page's QR code shows up. `TAB` switches between them.
+   - With the Explorer3 network, on a phone, the page opens by itself in the "Sign in to network" window (or by tapping the notification), even with mobile data on.
    - `explorer3.local` works on PC, Mac and phones, but not on the Ouya: use the IP address there.
 3. Click the page once or press a key to **enable sound** (browsers require it). Double-click, `F` or `Enter`: full screen.
 4. `ENTER` on the Cardputer to start the game.

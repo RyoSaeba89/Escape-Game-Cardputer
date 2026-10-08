@@ -8,6 +8,7 @@
 #include <WebServer.h>
 #include <WebSocketsServer.h>
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <esp_wifi.h>
 
 #include <algorithm>
@@ -227,6 +228,83 @@ volatile uint8_t pageLang = 0;
 volatile bool langDirty = false;
 const char *symbolsJs = "const SYM=[];";
 
+// Réseau Explorer3 : portail captif. Le DNS répond l'adresse du Cardputer à
+// tous les noms, et le serveur web renvoie vers la page toute adresse qui n'est
+// pas la sienne. Les tests de connexion des téléphones (Android, iPhone) et de
+// Windows tombent sur la page : le système l'ouvre dans sa fenêtre « Se connecter
+// au réseau », qui passe par le Wi-Fi même quand les données mobiles sont allumées.
+volatile bool apMode = false;
+WiFiUDP dnsUdp;
+bool dnsRunning = false;
+uint8_t dnsBuf[512];
+constexpr uint8_t DNS_TTL_S = 10;  // court : rien ne reste en cache après la partie
+
+// Une question DNS : l'adresse du Cardputer pour une adresse IPv4 (type A),
+// une réponse vide pour les autres types. Les paquets mal formés sont ignorés.
+void answerDns() {
+    int len = dnsUdp.parsePacket();
+    if (len <= 0) {
+        return;
+    }
+    if (len > (int)sizeof(dnsBuf)) {
+        dnsUdp.flush();  // sinon le paquet resterait en attente et bloquerait les suivants
+        return;
+    }
+    dnsUdp.read(dnsBuf, len);
+    // Question seule (pas une réponse), requête standard
+    if (len < 12 || (dnsBuf[2] & 0xF8) != 0 || dnsBuf[4] != 0 || dnsBuf[5] != 1) {
+        return;
+    }
+    int p = 12;
+    while (p < len && dnsBuf[p] != 0) {
+        if (dnsBuf[p] & 0xC0) {
+            return;  // pas de nom compressé dans une question
+        }
+        p += dnsBuf[p] + 1;
+    }
+    if (p + 5 > len) {
+        return;
+    }
+    bool typeA = dnsBuf[p + 1] == 0 && dnsBuf[p + 2] == 1;
+    int n = p + 5;  // fin de la question, la suite (EDNS) n'est pas recopiée
+    dnsBuf[2] = 0x84 | (dnsBuf[2] & 0x01);  // réponse, serveur de référence, RD recopié
+    dnsBuf[3] = 0;                          // pas d'erreur
+    dnsBuf[6] = 0;
+    dnsBuf[7] = typeA ? 1 : 0;              // nombre de réponses
+    memset(dnsBuf + 8, 0, 4);
+    if (typeA) {
+        const uint8_t rr[] = {0xC0, 0x0C, 0, 1, 0, 1, 0, 0, 0, DNS_TTL_S, 0, 4};  // nom de la question, A, IN
+        memcpy(dnsBuf + n, rr, sizeof(rr));
+        n += sizeof(rr);
+        IPAddress ip = WiFi.softAPIP();
+        for (int i = 0; i < 4; i++) {
+            dnsBuf[n++] = ip[i];
+        }
+    }
+    dnsUdp.beginPacket(dnsUdp.remoteIP(), dnsUdp.remotePort());
+    dnsUdp.write(dnsBuf, n);
+    dnsUdp.endPacket();
+}
+
+// Portail captif : true si la requête a été renvoyée vers la page
+bool redirectToPage() {
+    if (!apMode) {
+        return false;
+    }
+    String host = http.hostHeader();
+    int colon = host.indexOf(':');
+    if (colon >= 0) {
+        host.remove(colon);
+    }
+    String ip = WiFi.softAPIP().toString();
+    if (host == ip || host.equalsIgnoreCase(HOST_NAME)) {
+        return false;
+    }
+    http.sendHeader("Location", "http://" + ip + "/", true);
+    http.send(302, "text/plain", "");
+    return true;
+}
+
 uint32_t hashRow(const uint16_t *p) {
     const uint32_t *w = reinterpret_cast<const uint32_t *>(p);
     uint32_t h = 2166136261u;
@@ -318,6 +396,17 @@ void netTask(void *) {
     char txt[64];
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // serveurs démarrés par startServer()
     for (;;) {
+        if (apMode != dnsRunning) {
+            dnsRunning = apMode;
+            if (dnsRunning) {
+                dnsUdp.begin(53);
+            } else {
+                dnsUdp.stop();
+            }
+        }
+        if (dnsRunning) {
+            answerDns();
+        }
         http.handleClient();
         ws.loop();
         SoundMsg m;
@@ -399,7 +488,6 @@ std::vector<WifiNet> found;
 volatile uint8_t lastReason = 0;
 volatile int disconnects = 0;
 volatile int passwordFails = 0;
-bool apMode = false;
 
 void onDisconnect(arduino_event_id_t, arduino_event_info_t info) {
     uint8_t r = info.wifi_sta_disconnected.reason;
@@ -624,9 +712,17 @@ bool startServer(const uint16_t *screen, int w, int h) {
     screenW = w;
     screenH = std::min(h, MAX_H);
     screenMutex = mutex;
-    http.on("/", [] { http.send_P(200, "text/html", PAGE); });
+    http.on("/", [] {
+        if (!redirectToPage()) {
+            http.send_P(200, "text/html", PAGE);
+        }
+    });
     http.on("/sym.js", [] { http.send(200, "application/javascript", symbolsJs); });
-    http.onNotFound([] { http.send(404, "text/plain", "404"); });
+    http.onNotFound([] {
+        if (!redirectToPage()) {
+            http.send(404, "text/plain", "404");
+        }
+    });
     http.begin();
     ws.begin();
     ws.onEvent(onWsEvent);
