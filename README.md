@@ -57,7 +57,7 @@ Au premier démarrage, le Cardputer demande la langue (français ou anglais). El
 
 ## Mode « Multijoueur » : deux équipes
 
-Au démarrage, choisir **Cardputer seul** ou **Multijoueur**. En multijoueur, deux équipes jouent ensemble et le code de démarrage est **ARES** :
+Au démarrage, choisir **Cardputer seul** ou **Multijoueur**. En multijoueur, deux équipes jouent ensemble, avec un code de démarrage propre à ce mode :
 
 - l'**équipage**, sur Mars, joue sur le Cardputer ;
 - le **centre de contrôle**, sur Terre, suit la partie sur la page web d'un PC, d'une télé ou d'un téléphone. **Le son sort de cet écran** (le Cardputer reste muet).
@@ -219,7 +219,7 @@ On first start-up, the Cardputer asks for the language (French or English). It i
 
 ### "Multiplayer" mode: two teams
 
-At start-up, choose **Cardputer only** or **Multiplayer**. In multiplayer, two teams play together and the start-up code is **ARES**:
+At start-up, choose **Cardputer only** or **Multiplayer**. In multiplayer, two teams play together, with a start-up code of its own:
 
 - the **crew**, on Mars, plays on the Cardputer;
 - **mission control**, on Earth, follows the game on the web page of a PC, TV or phone. **The sound comes out of that screen** (the Cardputer stays silent).
