@@ -1503,6 +1503,8 @@ void drawSolved() {
 }
 
 constexpr int WIN_INFO_SPEED = 45;  // défilement du bandeau de fin, en pixels par seconde
+constexpr int WIN_BAND_Y = 103;     // bandeau : lignes 103 à 117 de l'écran
+constexpr int WIN_BAND_H = 15;
 
 constexpr uint32_t TERM_STEP = 600;  // une ligne du terminal (TERM_LINES, textes.h) toutes les 600 ms
 
@@ -1702,6 +1704,17 @@ void updatePanel(uint32_t now) {
     mirror::setPanel(key);
 }
 
+// Bandeau de l'écran de fin : la page le fait défiler elle-même, plus fluide
+// qu'une copie de l'écran qui change à chaque image
+void updateBanner() {
+    static bool shown = false;
+    bool want = state == St::Win;
+    if (want != shown) {
+        shown = want;
+        mirror::setBanner(want ? String(tr(WIN_INFO_MULTI)) : String(), WIN_BAND_Y, WIN_BAND_H);
+    }
+}
+
 void drawComputer(uint32_t now) {
     canvas.fillScreen(C_BLACK);
     drawHud();
@@ -1805,14 +1818,15 @@ void drawWin(uint32_t now) {
     } else {
         shadowText(tr(WIN_RECORD) + fmtTime(bestO2), 8, 90, C_DIM, 1, TL_DATUM);
     }
-    // Bandeau qui défile : la signification du code (NASA ou ARES)
-    canvas.fillRect(0, 103, W, 15, C_PANEL);
-    canvas.drawFastHLine(0, 103, W, C_BORDER);
-    canvas.drawFastHLine(0, 117, W, C_BORDER);
+    // Bandeau qui défile : la signification du code. En multijoueur, la page le
+    // fait défiler elle-même (mirror::setBanner, voir updatePanel)
+    canvas.fillRect(0, WIN_BAND_Y, W, WIN_BAND_H, C_PANEL);
+    canvas.drawFastHLine(0, WIN_BAND_Y, W, C_BORDER);
+    canvas.drawFastHLine(0, WIN_BAND_Y + WIN_BAND_H - 1, W, C_BORDER);
     String info = trm(WIN_INFO_SOLO, WIN_INFO_MULTI);
     int len = canvas.textWidth(info) + W / 2;
     int x = W - (int)((uint64_t)(now - stateStart) * WIN_INFO_SPEED / 1000 % (W + len));
-    text(info, x, 105, C_TEXT);
+    text(info, x, WIN_BAND_Y + 2, C_TEXT);
     if (blink()) {
         hint(tr(WIN_AGAIN), W - 4, 121, C_YELLOW, TR_DATUM, true);
     }
@@ -2585,6 +2599,7 @@ void loop() {
     runNotes(now);
     if (multiMode) {
         updatePanel(now);
+        updateBanner();
     }
     mirror::lockScreen();
     render(now);

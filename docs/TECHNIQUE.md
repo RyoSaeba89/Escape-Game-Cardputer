@@ -4,7 +4,7 @@
 
 Ce document décrit le fonctionnement interne du jeu pour qui veut le compiler, le comprendre ou le modifier. Il ne donne pas les solutions des énigmes, mais elles sont en clair dans le code source.
 
-Version décrite : **v2.2** : en multijoueur, nouveau code de démarrage ; le picross passe en énigme 2 et le labyrinthe en énigme 4 (grille 4×5 dont le chemin dessine une lettre) ; un bandeau défile sur l'écran de fin pour expliquer le code (v2.2). Versions précédentes : en multijoueur, l'énigme 2 devient un labyrinthe des planètes (v2.1) ; le mode « Avec écran » devient **Multijoueur**, un jeu à deux équipes (code propre au multijoueur, page du centre de contrôle à chaque énigme, page Règles) (v2.0). Avant : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
+Version décrite : **v2.2.1** : en multijoueur, le bandeau de l'écran de fin défile sur la page elle-même, pour rester fluide sur un téléphone (v2.2.1) ; en multijoueur, nouveau code de démarrage ; le picross passe en énigme 2 et le labyrinthe en énigme 4 (grille 4×5 dont le chemin dessine une lettre) ; un bandeau défile sur l'écran de fin pour expliquer le code (v2.2). Versions précédentes : en multijoueur, l'énigme 2 devient un labyrinthe des planètes (v2.1) ; le mode « Avec écran » devient **Multijoueur**, un jeu à deux équipes (code propre au multijoueur, page du centre de contrôle à chaque énigme, page Règles) (v2.0). Avant : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
 
 ## Sommaire
 
@@ -195,7 +195,7 @@ stateDiagram-v2
 | `Solved` | Partie du vaisseau réparée, lettre gravée dessus | |
 | `Computer` | Ordinateur de bord, saisie du code | 5 lignes de texte apparaissent toutes les 600 ms, puis la saisie |
 | `Launch` | Animation du décollage (6,5 s) | Chrono arrêté, record enregistré |
-| `Win` / `GameOver` | Écrans de fin | ENTRÉE revient au titre, le mode choisi est gardé. Sur `Win`, un bandeau fait défiler la signification du code (`WIN_INFO_SOLO`, `WIN_INFO_MULTI`, `WIN_INFO_SPEED` = 45 px/s) |
+| `Win` / `GameOver` | Écrans de fin | ENTRÉE revient au titre, le mode choisi est gardé. Sur `Win`, un bandeau fait défiler la signification du code (`WIN_INFO_SOLO`, `WIN_INFO_MULTI`, `WIN_INFO_SPEED` = 45 px/s) ; en multijoueur, la page le fait défiler elle-même (section 9.4) |
 
 « retour » = `ESC` (touche `` ` `` du Cardputer, testée par `` hasChar(ks, '`') ``).
 
@@ -294,6 +294,7 @@ Le centre de contrôle n'a rien à installer : le Cardputer sert lui-même la pa
 | `lockScreen()`, `unlockScreen()` | Verrou (mutex FreeRTOS) autour du dessin ; ne fait rien tant que le serveur n'est pas démarré |
 | `sendTone()`, `sendStop()`, `sendRumble()` | Sons à jouer par le navigateur (section 9.5) |
 | `setPanel(text)` | État de la page du centre de contrôle (section 10) |
+| `setBanner(text, y, h)` | Bandeau de l'écran de fin, que la page fait défiler elle-même (section 9.4) |
 | `setLanguage(lang)` | Langue de la page (section 9.7) |
 | `setSymbols(js)` | Dessins des symboles servis en `/sym.js` (section 10) |
 | `AP_SSID`, `AP_PASS`, `HOST_NAME` | `Explorer3`, `Explorer3`, `explorer3.local` |
@@ -364,6 +365,8 @@ Les couleurs sont en RGB565, poids fort d'abord, dans l'ordre de la mémoire du 
 
 Tout ce qui s'affiche est dans un bloc `#ecran`, que la **marge télé** réduit avec `transform: scale(1 − 2 × marge / 100)` (section 9.8). Sans marge, aucune transformation n'est appliquée.
 
+**Bandeau de l'écran de fin.** Le texte qui défile sur l'écran de victoire change 15 lignes à chaque image, et les lignes de texte se compressent mal. Sur un téléphone en Wi-Fi, le flux prenait du retard et le texte sautait. En multijoueur, `updateBanner()` envoie donc le texte une seule fois (`mirror::setBanner()`, message `B`), et la tâche réseau n'envoie plus les lignes `WIN_BAND_Y` à `WIN_BAND_Y + WIN_BAND_H − 1` tant qu'il est affiché. La page pose par-dessus le canvas un bloc `#band` aux mêmes couleurs et à la même place (calculée à partir de `offsetLeft`, `offsetTop`, `offsetWidth` et `offsetHeight` du canvas, donc aussi en portrait et avec la marge télé), et fait défiler le texte elle-même à chaque `requestAnimationFrame`, à 45 pixels du Cardputer par seconde. Le texte est dans la police sans empattement du navigateur, à la résolution de l'écran, pour rester lisible. En quittant l'écran de fin, un texte vide fait disparaître le bloc et les lignes sont de nouveau envoyées. Le Cardputer garde son propre bandeau.
+
 ### 9.5 Son sur la page
 
 Le son est envoyé sous forme de commandes, pas d'audio : quelques octets par note. Chaque message texte commence par l'heure du Cardputer au moment de l'envoi :
@@ -376,6 +379,7 @@ Le son est envoyé sous forme de commandes, pas d'audio : quelques octets par no
 | `R,maintenant,à` | Lancer le grondement du décollage à l'heure `à` |
 | `K,maintenant,...` | État de la page du centre de contrôle (section 10) |
 | `L,maintenant,fr` ou `en` | Langue de la page (section 9.7) |
+| `B,maintenant,y,h,texte` | Bandeau de l'écran de fin sur les lignes `y` à `y + h − 1` (section 9.4) ; texte vide : plus de bandeau |
 
 **Synchronisation.** Pour chaque message, la page calcule `performance.now() − maintenant`. Elle garde la plus petite valeur des 40 derniers messages : c'est la mesure la moins retardée par le réseau. Une note prévue à l'heure `à` est jouée par Web Audio à `à + décalage + LAT`, avec `LAT` = 150 ms de marge. Les écarts de délai du Wi-Fi sont absorbés et le rythme du Morse reste exact. En contrepartie, le son est en retard d'environ 0,15 s.
 

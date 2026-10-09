@@ -69,6 +69,11 @@ void sendRumble(uint32_t at);           // grondement du décollage
 // lettre + n° de symbole en hexa). Voir updatePanel() dans main.cpp.
 void setPanel(const String &text);
 
+// Bandeau qui défile sur l'écran de fin : la page le dessine et le fait défiler
+// elle-même, et les lignes y à y + h - 1 ne passent plus dans la copie de l'écran.
+// Texte vide : plus de bandeau, ces lignes sont de nouveau envoyées.
+void setBanner(const String &text, int y, int h);
+
 void setLanguage(uint8_t lang);       // 0 = français, 1 = anglais (textes de la page)
 void setSymbols(const char *js);      // dessins des symboles (/sym.js), gardé tel quel
 

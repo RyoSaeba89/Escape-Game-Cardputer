@@ -4,7 +4,7 @@
 
 This document describes how the game works inside, for anyone who wants to build, understand or change it. It does not give the puzzle solutions, but they are in plain text in the source code.
 
-Version described: **v2.2**: in multiplayer, new start-up code; the picross moves to puzzle 2 and the maze to puzzle 4 (4×5 grid whose path draws a letter); a banner scrolls on the end screen to explain the code (v2.2). Earlier versions: in multiplayer, puzzle 2 becomes a planet maze (v2.1); "With a screen" mode becomes **Multiplayer**, a two-team game (a code of its own, a mission control page for each puzzle, a Rules page) (v2.0). Before that: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7); coded keypad table fitted to portrait, for the iPhone captive portal window (v1.8).
+Version described: **v2.2.1**: in multiplayer, the end screen banner scrolls on the page itself, to stay smooth on a phone (v2.2.1); in multiplayer, new start-up code; the picross moves to puzzle 2 and the maze to puzzle 4 (4×5 grid whose path draws a letter); a banner scrolls on the end screen to explain the code (v2.2). Earlier versions: in multiplayer, puzzle 2 becomes a planet maze (v2.1); "With a screen" mode becomes **Multiplayer**, a two-team game (a code of its own, a mission control page for each puzzle, a Rules page) (v2.0). Before that: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7); coded keypad table fitted to portrait, for the iPhone captive portal window (v1.8).
 
 ## Contents
 
@@ -195,7 +195,7 @@ stateDiagram-v2
 | `Solved` | Ship part repaired, letter engraved on it | |
 | `Computer` | On-board computer, code input | 5 lines of text appear every 600 ms, then the input |
 | `Launch` | Liftoff animation (6.5 s) | Countdown stopped, record saved |
-| `Win` / `GameOver` | End screens | ENTER goes back to the title, the chosen mode is kept. On `Win`, a banner scrolls the meaning of the code (`WIN_INFO_SOLO`, `WIN_INFO_MULTI`, `WIN_INFO_SPEED` = 45 px/s) |
+| `Win` / `GameOver` | End screens | ENTER goes back to the title, the chosen mode is kept. On `Win`, a banner scrolls the meaning of the code (`WIN_INFO_SOLO`, `WIN_INFO_MULTI`, `WIN_INFO_SPEED` = 45 px/s); in multiplayer, the page scrolls it itself (section 9.4) |
 
 "back" = `ESC` (the Cardputer `` ` `` key, checked with `` hasChar(ks, '`') ``).
 
@@ -294,6 +294,7 @@ Mission control has nothing to install: the Cardputer serves the page itself (`h
 | `lockScreen()`, `unlockScreen()` | Lock (FreeRTOS mutex) around drawing; does nothing until the server has started |
 | `sendTone()`, `sendStop()`, `sendRumble()` | Sounds for the browser to play (section 9.5) |
 | `setPanel(text)` | State of the mission control page (section 10) |
+| `setBanner(text, y, h)` | End screen banner, scrolled by the page itself (section 9.4) |
 | `setLanguage(lang)` | Page language (section 9.7) |
 | `setSymbols(js)` | Symbol drawings served as `/sym.js` (section 10) |
 | `AP_SSID`, `AP_PASS`, `HOST_NAME` | `Explorer3`, `Explorer3`, `explorer3.local` |
@@ -364,6 +365,8 @@ Colours are RGB565, high byte first, in sprite memory order. A binary message ho
 
 Everything on screen is inside an `#ecran` block, which the **TV margin** shrinks with `transform: scale(1 − 2 × margin / 100)` (section 9.8). With no margin, no transform is applied.
 
+**End screen banner.** The text scrolling on the win screen changes 15 lines on every frame, and text lines compress poorly. On a phone over Wi-Fi, the stream fell behind and the text jumped. In multiplayer, `updateBanner()` therefore sends the text once (`mirror::setBanner()`, `B` message), and the network task stops sending lines `WIN_BAND_Y` to `WIN_BAND_Y + WIN_BAND_H − 1` while it is shown. The page lays a `#band` block over the canvas, with the same colours and at the same place (worked out from the canvas `offsetLeft`, `offsetTop`, `offsetWidth` and `offsetHeight`, so it also works in portrait and with the TV margin), and scrolls the text itself on each `requestAnimationFrame`, at 45 Cardputer pixels per second. The text uses the browser's sans-serif font, at screen resolution, to stay readable. On leaving the end screen, an empty text hides the block and the lines are sent again. The Cardputer keeps its own banner.
+
 ### 9.5 Sound on the page
 
 Sound is sent as commands, not audio: a few bytes per note. Each text message starts with the Cardputer time at sending:
@@ -376,6 +379,7 @@ Sound is sent as commands, not audio: a few bytes per note. Each text message st
 | `R,now,at` | Start the liftoff rumble at time `at` |
 | `K,now,...` | State of the mission control page (section 10) |
 | `L,now,fr` or `en` | Page language (section 9.7) |
+| `B,now,y,h,text` | End screen banner over lines `y` to `y + h − 1` (section 9.4); empty text: no banner |
 
 **Synchronisation.** For each message the page computes `performance.now() − now`. It keeps the smallest value of the last 40 messages: the measurement least delayed by the network. A note due at time `at` is played by Web Audio at `at + offset + LAT`, with `LAT` = 150 ms of margin. Wi-Fi delay jitter is absorbed and the Morse rhythm stays exact. The trade-off is that sound lags by about 0.15 s.
 

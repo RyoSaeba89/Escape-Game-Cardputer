@@ -89,6 +89,7 @@ void sendTone(uint32_t, uint16_t, uint16_t, uint8_t) {}
 void sendStop(uint32_t, uint8_t) {}
 void sendRumble(uint32_t) {}
 void setPanel(const String &) {}
+void setBanner(const String &, int, int) {}
 void setLanguage(uint8_t) {}
 void setSymbols(const char *) {}
 

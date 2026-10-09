@@ -30,6 +30,8 @@ canvas{position:absolute;top:0;right:0;bottom:0;left:0;margin:auto;width:100vw;h
 #son small{margin-top:12px;font-size:16px;color:#aaa}
 #etat{position:absolute;left:12px;bottom:10px;font-size:16px;color:#f80}
 #marge{position:absolute;top:10px;left:0;right:0;display:none;font-size:20px;color:#ffe146;text-align:center}
+#band{position:absolute;display:none;overflow:hidden;background:#101429;border:solid #42598c;border-width:1px 0;box-sizing:border-box}
+#bandt{position:absolute;left:0;top:0;white-space:nowrap;color:#efeff7;font-family:sans-serif;will-change:transform}
 #veille,#veillec{position:absolute;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none}
 #tab{display:none;flex-direction:column;align-items:center;justify-content:center;background:#06061a;font-size:3.6vh;text-align:center;padding:0 4vh}
 #tab>*+*{margin-top:2vh}
@@ -87,6 +89,7 @@ canvas{position:absolute;top:0;right:0;bottom:0;left:0;margin:auto;width:100vw;h
 </style></head><body>
 <div id="ecran">
 <canvas id="c" width="240" height="135"></canvas>
+<div id="band"><span id="bandt"></span></div>
 <div id="tab"><div id="eq"></div><h1 id="titre"></h1><div id="o2"></div><div id="corps"></div></div>
 <div id="son"><span id="t-son"></span><small id="t-fs"></small><small id="t-mg"></small></div>
 <div id="etat"></div>
@@ -156,7 +159,23 @@ function rows(buf){const b=new Uint8Array(buf);let p=0;
   if(m==0){for(;x<240;x++,p+=2)put(o+x*4,b[p]<<8|b[p+1]);}
   else{while(x<240){const n=b[p],v=b[p+1]<<8|b[p+2];p+=3;for(let k=0;k<n;k++,x++)put(o+x*4,v);}}}
  dirty=true;}
-(function draw(){if(dirty){g.putImageData(img,0,0);dirty=false;}requestAnimationFrame(draw);})();
+// Bandeau de l'écran de fin ("B,heure,y,h,texte") : posé sur les lignes y à
+// y+h-1 de la copie de l'écran (le Cardputer ne les envoie plus) et défilé ici,
+// à la vitesse du Cardputer (45 px/s de son écran), pour rester fluide.
+const band=document.getElementById('band'),bandt=document.getElementById('bandt');
+let bandY=0,bandH=0,bandT0=0,bandL=0,bandW=0,bandHt=0;
+function banniere(s){const a=s.split(','),t=a.slice(4).join(',');
+ bandY=Number(a[2]);bandH=Number(a[3]);bandt.textContent=t;bandW=0;bandT0=performance.now();
+ band.style.display=t?'block':'none';}
+function placerBande(){const k=cv.offsetHeight/135,w=cv.offsetWidth,h=Math.round(bandH*k);
+ if(w!=bandW||h!=bandHt){bandW=w;bandHt=h;const b=Math.max(1,Math.round(k));
+  band.style.left=cv.offsetLeft+'px';band.style.top=Math.round(cv.offsetTop+bandY*k)+'px';
+  band.style.width=w+'px';band.style.height=h+'px';band.style.borderWidth=b+'px 0';
+  bandt.style.fontSize=Math.round(h*.68)+'px';bandt.style.lineHeight=(h-2*b)+'px';bandL=bandt.offsetWidth+w/2;}
+ const x=w-((performance.now()-bandT0)*45*k/1000)%(w+bandL);
+ bandt.style.transform='translateX('+x.toFixed(1)+'px)';}
+(function draw(){if(dirty){g.putImageData(img,0,0);dirty=false;}
+ if(band.style.display=='block')placerBande();requestAnimationFrame(draw);})();
 
 // Son : chaque message donne l'heure du Cardputer, la plus petite différence
 // avec l'horloge du PC sert de référence ; les sons sont joués avec LAT ms de marge.
@@ -314,7 +333,7 @@ setInterval(horloge,50);
 langue(lg);
 
 function msg(s){const a=s.split(',').map(Number);sync(a[1]);
- if(s[0]=='K'){panel(s.split(','));return;}if(s[0]=='L'){langue(s.split(',')[2]);return;}
+ if(s[0]=='K'){panel(s.split(','));return;}if(s[0]=='B'){banniere(s);return;}if(s[0]=='L'){langue(s.split(',')[2]);return;}
  if(s[0]=='T'&&a[5]==2)bip(a[2],a[4]);else if(s[0]=='S'&&(a[3]==2||a[3]==255))bips=[];
  if(!ac)return;
  if(s[0]=='T')tone(a[2],a[3],a[4],a[5]);else if(s[0]=='S')stop(a[2],a[3]);else if(s[0]=='R')rumble(a[2]);}
@@ -355,6 +374,16 @@ volatile int clients = 0;
 portMUX_TYPE panelLock = portMUX_INITIALIZER_UNLOCKED;
 char panelText[128] = "0";
 volatile bool panelDirty = false;
+
+// Bandeau de l'écran de fin : dernier texte demandé par le jeu (envoyé par la
+// tâche réseau). Ses lignes sont retirées de la copie de l'écran (bandY, bandH :
+// lus et écrits seulement par la tâche réseau).
+char bannerText[600] = "";
+int bannerY = 0;
+int bannerH = 0;
+volatile bool bannerDirty = false;
+int bandY = 0;
+int bandH = 0;
 
 // Langue de la page ("L,heure,fr") et dessins des symboles (/sym.js)
 volatile uint8_t pageLang = 0;
@@ -493,6 +522,9 @@ void sendFrame() {
     xSemaphoreTake(screenMutex, portMAX_DELAY);
     for (int i = 0; i < screenH; i++) {
         int y = (nextRow + i) % screenH;
+        if (y >= bandY && y < bandY + bandH) {
+            continue;  // bandeau dessiné par la page
+        }
         uint32_t h = hashRow(screenBuf + y * screenW);
         if (h == rowHash[y]) {
             continue;
@@ -517,6 +549,7 @@ void onWsEvent(uint8_t, WStype_t type, uint8_t *, size_t) {
         memset(rowHash, 0, sizeof(rowHash));  // nouveau navigateur : écran complet
         panelDirty = true;
         langDirty = true;
+        bannerDirty = true;
     }
     if (type == WStype_CONNECTED || type == WStype_DISCONNECTED) {
         clients = ws.connectedClients();
@@ -574,6 +607,28 @@ void netTask(void *) {
             if (clients) {
                 char out[sizeof(panelText) + 16];
                 snprintf(out, sizeof(out), "K,%lu,%s", (unsigned long)now, copy);
+                ws.broadcastTXT(out);
+            }
+        }
+        if (bannerDirty) {
+            static char copy[sizeof(bannerText)];
+            static char out[sizeof(bannerText) + 32];
+            portENTER_CRITICAL(&panelLock);
+            memcpy(copy, bannerText, sizeof(copy));  // pas de printf sous verrou
+            int y = bannerY;
+            int h = bannerH;
+            bannerDirty = false;
+            portEXIT_CRITICAL(&panelLock);
+            bool on = copy[0] != 0;
+            snprintf(out, sizeof(out), "B,%lu,%d,%d,%s", (unsigned long)now, y, h, copy);
+            if (!on) {
+                for (int i = bandY; i < bandY + bandH && i < MAX_H; i++) {
+                    rowHash[i] = 0;  // lignes du bandeau de nouveau envoyées
+                }
+            }
+            bandY = on ? y : 0;
+            bandH = on ? h : 0;
+            if (clients) {
                 ws.broadcastTXT(out);
             }
         }
@@ -903,6 +958,16 @@ void setPanel(const String &text) {
     strncpy(panelText, text.c_str(), sizeof(panelText) - 1);  // pas de printf sous verrou
     panelText[sizeof(panelText) - 1] = 0;
     panelDirty = true;
+    portEXIT_CRITICAL(&panelLock);
+}
+
+void setBanner(const String &text, int y, int h) {
+    portENTER_CRITICAL(&panelLock);
+    strncpy(bannerText, text.c_str(), sizeof(bannerText) - 1);
+    bannerText[sizeof(bannerText) - 1] = 0;
+    bannerY = y;
+    bannerH = h;
+    bannerDirty = true;
     portEXIT_CRITICAL(&panelLock);
 }
 
