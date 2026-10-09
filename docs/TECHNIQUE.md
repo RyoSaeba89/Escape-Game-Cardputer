@@ -4,7 +4,7 @@
 
 Ce document décrit le fonctionnement interne du jeu pour qui veut le compiler, le comprendre ou le modifier. Il ne donne pas les solutions des énigmes, mais elles sont en clair dans le code source.
 
-Version décrite : **v2.2.1** : en multijoueur, le bandeau de l'écran de fin défile sur la page elle-même, pour rester fluide sur un téléphone (v2.2.1) ; en multijoueur, nouveau code de démarrage ; le picross passe en énigme 2 et le labyrinthe en énigme 4 (grille 4×5 dont le chemin dessine une lettre) ; un bandeau défile sur l'écran de fin pour expliquer le code (v2.2). Versions précédentes : en multijoueur, l'énigme 2 devient un labyrinthe des planètes (v2.1) ; le mode « Avec écran » devient **Multijoueur**, un jeu à deux équipes (code propre au multijoueur, page du centre de contrôle à chaque énigme, page Règles) (v2.0). Avant : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
+Version décrite : **v2.2.2** : en multijoueur, le centre de contrôle voit le curseur de l'équipage sur le picross ; textes revus (v2.2.2) ; en multijoueur, le bandeau de l'écran de fin défile sur la page elle-même, pour rester fluide sur un téléphone (v2.2.1) ; en multijoueur, nouveau code de démarrage ; le picross passe en énigme 2 et le labyrinthe en énigme 4 (grille 4×5 dont le chemin dessine une lettre) ; un bandeau défile sur l'écran de fin pour expliquer le code (v2.2). Versions précédentes : en multijoueur, l'énigme 2 devient un labyrinthe des planètes (v2.1) ; le mode « Avec écran » devient **Multijoueur**, un jeu à deux équipes (code propre au multijoueur, page du centre de contrôle à chaque énigme, page Règles) (v2.0). Avant : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
 
 ## Sommaire
 
@@ -240,7 +240,7 @@ C'est le **seul endroit** où le son sort, ce qui permet au mode multijoueur de 
 
 ## 7. Énigmes
 
-Les mécanismes sont décrits ici, pas les réponses. L'ordre des énigmes dépend du mode (`ORDER_SOLO`, `ORDER_MULTI`, `puzzleKind()`). La lettre à trouver est celle du code à la place de l'énigme (`answer()` = `code()[puzzle]`, avec `CODE_SOLO` ou `CODE_MULTI`). Les lieux restent dans le même ordre dans les deux modes : coffre du fer à souder, réservoirs de carburant, soute à pièces, ordinateur de bord.
+Les mécanismes sont décrits ici, pas les réponses. L'ordre des énigmes dépend du mode (`ORDER_SOLO`, `ORDER_MULTI`, `puzzleKind()`). La lettre à trouver est celle du code à la place de l'énigme (`answer()` = `code()[puzzle]`, avec `CODE_SOLO` ou `CODE_MULTI`). Les lieux restent dans le même ordre dans les deux modes : coffre du fer à souder, réservoirs de carburant, soute des pièces, ordinateur de bord.
 
 | Type (`Pz`) | Mécanisme | Seul | Multijoueur | Code |
 |---|---|---|---|---|
@@ -451,13 +451,13 @@ Elle n'existe qu'en multijoueur. L'équipage joue sur le Cardputer, le centre de
 | `0` | Titre, journal de bord, parties réparées, pause, décollage, fins | Copie de l'écran du Cardputer | |
 | `R` | Règles, avant le chrono | Ses règles | Ses règles |
 | `1,…` | Énigme 1, coffre | Alphabet Morse, rappel point = flash court, trait = flash long | Le voyant, sans alphabet |
-| `2,…` | Énigme 2, réservoirs | Les vrais chiffres et la grille de l'équipage en direct | La grille, avec des « ? » à la place des chiffres |
+| `2,…` | Énigme 2, réservoirs | Les vrais chiffres et la grille de l'équipage en direct, curseur compris | La grille, avec des « ? » à la place des chiffres |
 | `3,…` | Énigme 3, soute | Le signal sonore, un haut-parleur qui s'allume à chaque bip | L'alphabet Morse en permanence, `ESPACE` relance le signal |
 | `4,…` | Énigme 4, ordinateur de bord | Le labyrinthe complet : planètes, entrée, sortie, personnage et trace | La grille vide, le personnage, sa trace et la sortie |
 | `C,…` | Ordinateur de bord, code | Table de décodage du clavier codé | Le clavier codé |
 
 - Pour `1` à `4` et `C`, le texte continue par `restant_ms,erreurs,données`. La page affiche alors « CENTRE DE CONTRÔLE », le titre et le chrono O₂, recalculé localement toutes les 50 ms à partir de `restant_ms` et de l'horloge pour défiler sans à-coups. Elle clignote en rouge quand `erreurs` change.
-- Données du picross : `grille,lignes,colonnes`, soit 25 chiffres `0`/`1` ligne par ligne, puis les indices (lignes séparées par `/`, chiffres d'une ligne par `.`, par exemple `3.1/1.1.1`). La page recalcule quelles lignes et colonnes respectent leurs indices, pour les passer en vert.
+- Données du picross : `grille,lignes,colonnes,curseur`, soit 25 chiffres `0`/`1` ligne par ligne, puis les indices (lignes séparées par `/`, chiffres d'une ligne par `.`, par exemple `3.1/1.1.1`), puis la case du curseur de l'équipage (0 à 24, ligne par ligne). La page recalcule quelles lignes et colonnes respectent leurs indices, pour les passer en vert, et encadre la case du curseur en jaune comme sur le Cardputer (`td.cur`) ; chaque déplacement du curseur renvoie l'état. Sans le 4ᵉ champ (jeu v2.2.1), pas de curseur.
 - Données du clavier codé : `saisis,table`. La table est une suite de paires `lettre` + `numéro de symbole en hexadécimal` (`0` à `b`), triée par lettre. La page affiche les 9 cases et 4 cases qui se remplissent selon `saisis`, sans dire quels symboles ont été tapés.
 - Le jeu renvoie l'état à chaque changement, et toutes les 500 ms pendant les énigmes et le clavier codé. Pendant la pause, il envoie `0`.
 - La page ne reconstruit son contenu que si la page ou ses données changent, pas à chaque envoi du chrono.

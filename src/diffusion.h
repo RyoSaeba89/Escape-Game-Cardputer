@@ -64,8 +64,8 @@ void sendRumble(uint32_t at);           // grondement du décollage
 
 // Page du centre de contrôle : "0" = copie de l'écran, "R" = règles,
 // "1" à "4" = énigme, "C" = table du clavier codé. Pour "1" à "4" et "C", suivi de
-// ",restant_ms,erreurs,données" : picross "grille,lignes,colonnes" (grille = 25
-// chiffres 0/1, indices « 3.1/1.1.1/… »), clavier codé "saisis,table" (table =
+// ",restant_ms,erreurs,données" : picross "grille,lignes,colonnes,curseur" (grille =
+// 25 chiffres 0/1, indices « 3.1/1.1.1/… », curseur = case 0 à 24), clavier codé "saisis,table" (table =
 // lettre + n° de symbole en hexa). Voir updatePanel() dans main.cpp.
 void setPanel(const String &text);
 

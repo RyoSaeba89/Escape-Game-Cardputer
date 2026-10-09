@@ -63,6 +63,7 @@ canvas{position:absolute;top:0;right:0;bottom:0;left:0;margin:auto;width:100vw;h
 #pic thead th{vertical-align:bottom}
 #pic tbody th{text-align:right}
 #pic th.ok{color:#46e164}
+#pic td.cur{box-shadow:inset 0 0 0 1vh #ffe146}
 #laby{border-collapse:collapse}
 #laby td{position:relative;width:22vh;height:9vh;padding:0;border:2px solid #465a8c;background:#1e2234;font-size:2.8vh;text-align:center;vertical-align:middle;white-space:nowrap}
 #laby td.tr{background:#8c460f}
@@ -85,7 +86,7 @@ canvas{position:absolute;top:0;right:0;bottom:0;left:0;margin:auto;width:100vw;h
 #morse{grid-template-columns:repeat(3,auto);grid-gap:2vw 6vw;gap:2vw 6vw}.m{font-size:5vw}
 .m i{height:1.8vw;margin-left:1.2vw;border-radius:.9vw}.m i.p{width:1.8vw}.m i.t{width:4.5vw}
 #laby td{width:21vw;height:14vw;font-size:3.4vw}#laby .pl{width:5.5vw;height:5.5vw}#laby .as{left:1vw;top:1.5vw;width:5vw;height:7vw}#laby .ae{width:5vw;height:7vw}
-#pic td{width:11vw;height:11vw}#pic th{font-size:5vw;padding:1vw 2vw}#hp{width:24vw;height:18vw}}
+#pic td{width:11vw;height:11vw}#pic td.cur{box-shadow:inset 0 0 0 1.4vw #ffe146}#pic th{font-size:5vw;padding:1vw 2vw}#hp{width:24vw;height:18vw}}
 </style></head><body>
 <div id="ecran">
 <canvas id="c" width="240" height="135"></canvas>
@@ -109,11 +110,11 @@ const TX={
   r2:"L'équipage a l'autre partie des indices : parlez-vous !",r3:"Ne montrez pas votre écran à l'équipage.",
   r4:"Le chrono démarre quand l'équipage appuie sur ENTRÉE.",
   t1:'ÉNIGME 1/4 : COFFRE DU FER À SOUDER',
-  p1:"Le voyant du coffre clignote une lettre en Morse. L'équipage vous décrit les flashs : trouvez la lettre et dites-la-lui !",
+  p1:"Une lettre en Morse clignote sur le cadenas du coffre. L'équipage vous décrit les flashs : trouvez la lettre et dites-la-lui !",
   q1:'Point = flash court · Trait = flash long',
   t2:'ÉNIGME 2/4 : RÉSERVOIRS DE CARBURANT',
-  p2:"Lisez les chiffres à l'équipage et guidez-le. Chaque chiffre = nombre de cases allumées à la suite, dans l'ordre. Une ligne juste passe au vert.",
-  t3:'ÉNIGME 3/4 : SOUTE À PIÈCES',
+  p2:"La porte des réservoirs est verrouillée. Lisez les chiffres à l'équipage et guidez-le. Chaque chiffre = nombre de lumières à la suite, dans l'ordre. Une ligne juste passe au vert.",
+  t3:'ÉNIGME 3/4 : SOUTE DES PIÈCES',
   p3:"Le verrou de la soute émet une lettre en Morse. Écoutez, puis décrivez les bips à l'équipage : il a l'alphabet Morse !",
   q3:"Bip court = point · Bip long = trait. L'équipage peut relancer le signal.",
   t4:'ÉNIGME 4/4 : ORDINATEUR DE BORD',
@@ -129,12 +130,12 @@ const TX={
   r2:'The crew has the other half of the clues: talk to each other!',r3:"Don't show your screen to the crew.",
   r4:'The countdown starts when the crew presses ENTER.',
   t1:'PUZZLE 1/4: SOLDERING IRON SAFE',
-  p1:"The safe's light blinks a letter in Morse code. The crew describes the flashes: find the letter and tell them!",
+  p1:"A Morse letter is blinking on the safe's padlock. The crew describes the flashes: find the letter and tell them!",
   q1:'Dot = short flash · Dash = long flash',
   t2:'PUZZLE 2/4: FUEL TANKS',
-  p2:'Read the numbers to the crew and guide them. Each number = lit cells in a row, in order. A correct line turns green.',
-  t3:'PUZZLE 3/4: CARGO HOLD',
-  p3:'The cargo hold lock beeps a letter in Morse code. Listen, then describe the beeps to the crew: they have the Morse code!',
+  p2:'The fuel tank door is locked. Read the numbers to the crew and guide them. Each number = lights in a row, in order. A correct line turns green.',
+  t3:'PUZZLE 3/4: PARTS HOLD',
+  p3:'The parts hold lock beeps a letter in Morse code. Listen, then describe the beeps to the crew: they have the Morse code!',
   q3:'Short beep = dot · Long beep = dash. The crew can replay the signal.',
   t4:'PUZZLE 4/4: ON-BOARD COMPUTER',
   p4:'Guide the crew to the exit: they must step on the 8 planets in order, one cell at a time.',
@@ -272,14 +273,15 @@ function alphabet(){let h='<div id="morse">';
 // Indices d'une ligne du picross, comme lineClues() du Cardputer
 function indices(cases){const out=[];let n=0;for(const c of cases){if(c)n++;else if(n){out.push(n);n=0;}}
  if(n)out.push(n);if(!out.length)out.push(0);return out.join('.');}
-function picross(g,lignes,cols){lignes=lignes.split('/');cols=cols.split('/');
+// Case du curseur de l'équipage : cur (0 à 24), cadre jaune comme sur le Cardputer
+function picross(g,lignes,cols,cur){lignes=lignes.split('/');cols=cols.split('/');cur=Number(cur);
  const on=(r,c)=>g[r*5+c]=='1';let h='<table id="pic"><thead><tr><th></th>';
  for(let c=0;c<5;c++){const col=[0,1,2,3,4].map(r=>on(r,c));
   h+='<th'+(indices(col)==cols[c]?' class="ok"':'')+'>'+cols[c].split('.').join('<br>')+'</th>';}
  h+='</tr></thead><tbody>';
  for(let r=0;r<5;r++){const lig=[0,1,2,3,4].map(c=>on(r,c));
   h+='<tr><th'+(indices(lig)==lignes[r]?' class="ok"':'')+'>'+lignes[r].split('.').join(' ')+'</th>';
-  for(let c=0;c<5;c++)h+='<td'+(on(r,c)?' class="on"':'')+'></td>';h+='</tr>';}
+  for(let c=0;c<5;c++){const cl=(on(r,c)?'on ':'')+(r*5+c===cur?'cur':'');h+='<td'+(cl?' class="'+cl.trim()+'"':'')+'></td>';}h+='</tr>';}
  return h+'</tbody></table>';}
 // Labyrinthe (énigme 4, 4 colonnes x 5 lignes) : planètes en petits dessins SVG, personnage = ASTRO
 // de /sym.js (le même dessin que sur le Cardputer)
@@ -309,7 +311,7 @@ function majPage(){const t=TX[lg],d=donnees,cle=lg+page+d.join(',');
  let h='';
  if(page=='R'){titre.textContent=t.tr;h=para(t.r1,'moi')+para(t.r2)+para(t.r3,'av')+para(t.r4,'dim');}
  else if(page=='1'){titre.textContent=t.t1;h=para(t.p1)+para(t.q1,'dim')+alphabet();}
- else if(page=='2'){titre.textContent=t.t2;h=picross(d[0],d[1],d[2])+para(t.p2);}
+ else if(page=='2'){titre.textContent=t.t2;h=picross(d[0],d[1],d[2],d[3])+para(t.p2);}
  else if(page=='3'){titre.textContent=t.t3;h=HP+para(t.p3)+para(t.q3,'dim');}
  else if(page=='4'){titre.textContent=t.t4;h=labyrinthe(d[0],d[1],d[2],d[3])+para(t.p4)+para(t.h4,'moi')+para(t.e4,'dim');}
  else if(page=='C'){titre.textContent=t.tc;h='<div id="grille">';

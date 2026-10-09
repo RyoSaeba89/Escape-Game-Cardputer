@@ -1673,7 +1673,8 @@ void updatePanel(uint32_t now) {
                     data += grid[r][c] ? '1' : '0';
                 }
             }
-            data += "," + cluesText(rowClues) + "," + cluesText(colClues);
+            // grille,lignes,colonnes,curseur (case 0 à 24, comme le labyrinthe)
+            data += "," + cluesText(rowClues) + "," + cluesText(colClues) + "," + String(curY * 5 + curX);
         }
     } else if (!paused && state == St::Computer) {
         page = "C";

@@ -99,34 +99,34 @@ constexpr Tx RULES_NO_LOOK = {"Ne regardez pas l'écran du centre de contrôle."
 constexpr Tx DENIED = {" : ACCÈS REFUSÉ", ": ACCESS DENIED"};  // après la lettre tapée
 
 constexpr Tx P1_TITLE = {"ÉNIGME 1/4 : COFFRE DU FER À SOUDER", "PUZZLE 1/4: SOLDERING IRON SAFE"};
-constexpr Tx P1_TEXT = {"Le coffre est verrouillé. Son voyant clignote une lettre en Morse : tapez-la !",
-                        "The safe is locked. Its light blinks a letter in Morse code: type it!"};
+constexpr Tx P1_TEXT = {"Le coffre a un cadenas. Son voyant clignote. C'est une lettre en Morse : tapez-la !",
+                        "The safe has a padlock. Its light is blinking. It's a letter in Morse code: type it!"};
 constexpr Tx P1_FOOTER = {"ESPACE : revoir|TAB : alphabet Morse", "SPACE: watch again|TAB: Morse code"};
 constexpr Tx P1_TEXT_MULTI = {
-    "Le coffre est verrouillé. Décrivez les flashs du voyant au centre de contrôle : il a l'alphabet Morse !",
-    "The safe is locked. Describe the light's flashes to mission control: they have the Morse code!"};
+    "Le coffre a un cadenas. Décrivez les flashs du voyant au centre de contrôle : il a l'alphabet Morse !",
+    "The safe has a padlock. Describe the light's flashes to mission control: they have the Morse code!"};
 constexpr Tx P1_FOOTER_MULTI = {"ESPACE : revoir", "SPACE: watch again"};
 
 constexpr Tx P2_TITLE = {"ÉNIGME 2/4 : RÉSERVOIRS DE CARBURANT", "PUZZLE 2/4: FUEL TANKS"};
-constexpr Tx P2_TEXT = {"Verrou des réservoirs : quel est le premier rover à avoir roulé sur Mars ?",
-                        "Fuel tank lock: which rover was the first to drive on Mars?"};
+constexpr Tx P2_TEXT = {"La porte est verrouillée : quel est le premier rover à avoir roulé sur Mars ?",
+                        "The door is locked: which rover was the first to drive on Mars?"};
 constexpr Tx P2_FOOTER = {"A B C D : répondre", "A B C D: answer"};
 // Multijoueur : picross sur le verrou des réservoirs (énigme 2)
 constexpr Tx P2_TITLE_MULTI = {"ÉNIGME 2/4", "PUZZLE 2/4"};
 constexpr Tx P2_PLACE_MULTI = {"Réservoirs", "Fuel tanks"};
-constexpr Tx P2_TEXT_MULTI = {"Le centre de contrôle a les chiffres : demandez-les !",
-                              "Mission control has the numbers: ask them!"};
+constexpr Tx P2_TEXT_MULTI = {"Porte verrouillée ! Le centre de contrôle a les chiffres.",
+                              "Door locked! Mission control has the numbers."};
 
 constexpr Tx P3_TITLE = {"ÉNIGME 3/4", "PUZZLE 3/4"};
-constexpr Tx P3_PLACE = {"Soute à pièces", "Cargo hold"};
-constexpr Tx P3_TEXT = {"Chaque chiffre = cases allumées à la suite, dans l'ordre.",
-                        "Each number = lit cells in a row, in order."};
+constexpr Tx P3_PLACE = {"Soute des pièces", "Parts hold"};
+constexpr Tx P3_TEXT = {"Il fait noir ! Chiffre = lumières à la suite, dans l'ordre.",
+                        "It's dark! Number = lights in a row, in order."};
 constexpr Tx P3_MOVE = {K_UP K_DOWN K_LEFT K_RIGHT " : bouger", K_UP K_DOWN K_LEFT K_RIGHT ": move"};
 constexpr Tx P3_LIGHT = {"ENTRÉE : allumer", "ENTER: light up"};
 
 // Multijoueur : Morse sonore dans la soute (énigme 3), labyrinthe des planètes sur
 // l'ordinateur de bord (énigme 4, titre P4_TITLE) : l'équipage ne voit pas leurs noms
-constexpr Tx P3_TITLE_MULTI = {"ÉNIGME 3/4 : SOUTE À PIÈCES", "PUZZLE 3/4: CARGO HOLD"};
+constexpr Tx P3_TITLE_MULTI = {"ÉNIGME 3/4 : SOUTE DES PIÈCES", "PUZZLE 3/4: PARTS HOLD"};
 constexpr Tx P3_FOOTER_MULTI = {"ESPACE : réécouter (centre de contrôle)", "SPACE: replay (for mission control)"};
 constexpr Tx P4_TEXT_MAZE = {"Labyrinthe ! Le centre de contrôle vous guide case par case jusqu'à la sortie.",
                              "Maze! Mission control guides you cell by cell to the exit."};
@@ -147,8 +147,8 @@ constexpr Tx MORSE_CLOSE = {"Une touche : fermer", "Any key: close"};
 // ---------------------------------------------------------------- partie réparée
 constexpr Tx SOLVED_TITLES[3] = {
     {"COFFRE DÉVERROUILLÉ", "SAFE UNLOCKED"},
-    {"RÉSERVOIR OUVERT !", "FUEL TANK OPEN!"},
-    {"SOUTE OUVERTE !", "CARGO HOLD OPEN!"},
+    {"PORTE OUVERTE !", "DOOR OPEN!"},
+    {"SOUTE OUVERTE !", "PARTS HOLD OPEN!"},
 };
 constexpr Tx SOLVED_ITEMS[3] = {
     {"Fer à souder récupéré", "Soldering iron recovered"},

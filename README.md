@@ -25,7 +25,7 @@ Un mini escape game de 5 minutes pour le **M5Stack Cardputer ADV**, en français
 |---|------|---------------|
 | 1 | Coffre du fer à souder | Un voyant clignote en **code Morse** |
 | 2 | Réservoirs de carburant | Une question de **culture spatiale** (QCM) |
-| 3 | Soute à pièces | Un **picross** (nonogramme) 5×5 |
+| 3 | Soute des pièces | Un **picross** (nonogramme) 5×5 |
 | 4 | Ordinateur de bord | Un signal **Morse sonore** (l'alarme se tait pour qu'on l'entende) |
 
 En multijoueur, les énigmes se jouent à deux équipes : voir [plus bas](#mode--multijoueur---deux-équipes).
@@ -70,7 +70,7 @@ Chaque équipe n'a qu'une partie des indices : il faut se parler ! Placer l'écr
 |---|------|----------------------|----------------------------|
 | 1 | Coffre du fer à souder | Un voyant clignote en **Morse** | L'alphabet Morse |
 | 2 | Réservoirs de carburant | Un **picross** sans les chiffres (« ? ») | Les chiffres et la grille de l'équipage en direct |
-| 3 | Soute à pièces | L'alphabet Morse | Un signal **Morse sonore** |
+| 3 | Soute des pièces | L'alphabet Morse | Un signal **Morse sonore** |
 | 4 | Ordinateur de bord | Un **labyrinthe** : le personnage, sa trace et la sortie, sans les planètes | Le labyrinthe complet : il faut passer par les planètes dans l'ordre |
 | Code | Ordinateur de bord | Un **clavier codé** à symboles | La table de décodage |
 
@@ -187,7 +187,7 @@ A 5-minute mini escape game for the **M5Stack Cardputer ADV**, in English or Fre
 |---|-------|-------------|
 | 1 | Soldering iron safe | A light blinking in **Morse code** |
 | 2 | Fuel tanks | A **space trivia** question (multiple choice) |
-| 3 | Cargo hold | A 5×5 **picross** (nonogram) |
+| 3 | Parts hold | A 5×5 **picross** (nonogram) |
 | 4 | On-board computer | An **audio Morse** signal (the alarm goes quiet so you can hear it) |
 
 In multiplayer, the puzzles are played by two teams: see [below](#multiplayer-mode-two-teams).
@@ -232,7 +232,7 @@ Each team only has part of the clues: talk to each other! Place the screen so th
 |---|-------|------------------|--------------------------|
 | 1 | Soldering iron safe | A light blinking in **Morse code** | The Morse code chart |
 | 2 | Fuel tanks | A **picross** without the numbers ("?") | The numbers and the crew's grid, live |
-| 3 | Cargo hold | The Morse code chart | An **audio Morse** signal |
+| 3 | Parts hold | The Morse code chart | An **audio Morse** signal |
 | 4 | On-board computer | A **maze**: the character, its trail and the exit, without the planets | The full maze: the planets must be crossed in order |
 | Code | On-board computer | A **coded keypad** with symbols | The decoding table |
 

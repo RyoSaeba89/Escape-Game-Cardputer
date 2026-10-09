@@ -4,7 +4,7 @@
 
 This document describes how the game works inside, for anyone who wants to build, understand or change it. It does not give the puzzle solutions, but they are in plain text in the source code.
 
-Version described: **v2.2.1**: in multiplayer, the end screen banner scrolls on the page itself, to stay smooth on a phone (v2.2.1); in multiplayer, new start-up code; the picross moves to puzzle 2 and the maze to puzzle 4 (4×5 grid whose path draws a letter); a banner scrolls on the end screen to explain the code (v2.2). Earlier versions: in multiplayer, puzzle 2 becomes a planet maze (v2.1); "With a screen" mode becomes **Multiplayer**, a two-team game (a code of its own, a mission control page for each puzzle, a Rules page) (v2.0). Before that: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7); coded keypad table fitted to portrait, for the iPhone captive portal window (v1.8).
+Version described: **v2.2.2**: in multiplayer, mission control sees the crew's cursor on the picross; texts revised (v2.2.2); in multiplayer, the end screen banner scrolls on the page itself, to stay smooth on a phone (v2.2.1); in multiplayer, new start-up code; the picross moves to puzzle 2 and the maze to puzzle 4 (4×5 grid whose path draws a letter); a banner scrolls on the end screen to explain the code (v2.2). Earlier versions: in multiplayer, puzzle 2 becomes a planet maze (v2.1); "With a screen" mode becomes **Multiplayer**, a two-team game (a code of its own, a mission control page for each puzzle, a Rules page) (v2.0). Before that: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7); coded keypad table fitted to portrait, for the iPhone captive portal window (v1.8).
 
 ## Contents
 
@@ -240,7 +240,7 @@ This is the **only place** sound comes out, which lets multiplayer mode send it 
 
 ## 7. Puzzles
 
-The mechanisms are described here, not the answers. The puzzle order depends on the mode (`ORDER_SOLO`, `ORDER_MULTI`, `puzzleKind()`). The letter to find is the code letter at the puzzle's position (`answer()` = `code()[puzzle]`, with `CODE_SOLO` or `CODE_MULTI`). The places stay in the same order in both modes: soldering iron safe, fuel tanks, cargo hold, on-board computer.
+The mechanisms are described here, not the answers. The puzzle order depends on the mode (`ORDER_SOLO`, `ORDER_MULTI`, `puzzleKind()`). The letter to find is the code letter at the puzzle's position (`answer()` = `code()[puzzle]`, with `CODE_SOLO` or `CODE_MULTI`). The places stay in the same order in both modes: soldering iron safe, fuel tanks, parts hold, on-board computer.
 
 | Type (`Pz`) | Mechanism | Solo | Multiplayer | Code |
 |---|---|---|---|---|
@@ -451,13 +451,13 @@ It only exists in multiplayer. The crew plays on the Cardputer, mission control 
 | `0` | Title, captain's log, repaired parts, pause, liftoff, end screens | Copy of the Cardputer screen | |
 | `R` | Rules, before the countdown | Its rules | Its rules |
 | `1,…` | Puzzle 1, safe | Morse code chart, reminder dot = short flash, dash = long flash | The light, without the chart |
-| `2,…` | Puzzle 2, fuel tanks | The real numbers and the crew's grid, live | The grid, with "?" instead of the numbers |
-| `3,…` | Puzzle 3, cargo hold | The audio signal, a speaker that lights up on each beep | The Morse code chart at all times, `SPACE` replays the signal |
+| `2,…` | Puzzle 2, fuel tanks | The real numbers and the crew's grid, live, cursor included | The grid, with "?" instead of the numbers |
+| `3,…` | Puzzle 3, parts hold | The audio signal, a speaker that lights up on each beep | The Morse code chart at all times, `SPACE` replays the signal |
 | `4,…` | Puzzle 4, on-board computer | The full maze: planets, entrance, exit, character and trail | The empty grid, the character, its trail and the exit |
 | `C,…` | On-board computer, code | Decoding table of the coded keypad | The coded keypad |
 
 - For `1` to `4` and `C`, the text goes on with `remaining_ms,errors,data`. The page then shows "MISSION CONTROL", the title and the O₂ countdown, recomputed locally every 50 ms from `remaining_ms` and the clock so it runs smoothly. It flashes red when `errors` changes.
-- Picross data: `grid,rows,columns`, i.e. 25 `0`/`1` digits row by row, then the clues (rows separated by `/`, numbers of a row by `.`, for example `3.1/1.1.1`). The page works out which rows and columns match their clues, to turn them green.
+- Picross data: `grid,rows,columns,cursor`, i.e. 25 `0`/`1` digits row by row, then the clues (rows separated by `/`, numbers of a row by `.`, for example `3.1/1.1.1`), then the cell of the crew's cursor (0 to 24, row by row). The page works out which rows and columns match their clues, to turn them green, and frames the cursor cell in yellow as on the Cardputer (`td.cur`); every cursor move resends the state. Without the 4th field (game v2.2.1), no cursor.
 - Coded keypad data: `typed,table`. The table is a series of `letter` + `symbol number in hexadecimal` (`0` to `b`) pairs, sorted by letter. The page shows the 9 boxes and 4 boxes that fill up according to `typed`, without telling which symbols were typed.
 - The game sends the state on every change, and every 500 ms during the puzzles and the coded keypad. During pause, it sends `0`.
 - The page only rebuilds its content when the page or its data change, not on every countdown update.
