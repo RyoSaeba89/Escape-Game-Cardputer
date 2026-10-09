@@ -15,7 +15,7 @@ Un mini escape game de 5 minutes pour le **M5Stack Cardputer ADV**, en français
 - **4 énigmes** à résoudre dans l'ordre. Chacune ouvre une partie du vaisseau et révèle une lettre du **code de démarrage** (4 lettres).
 - **5 minutes d'oxygène.** Une jauge et un compte à rebours restent affichés en haut de l'écran, et une alarme « bip bip bip » accélère à mesure que l'oxygène baisse.
 - **Chaque mauvaise réponse coûte 10 secondes** (« ACCÈS REFUSÉ »).
-- Une fois le code retrouvé, on le tape sur l'ordinateur de bord pour lancer le **décollage** (animation et son), suivi d'un écran de fin en pixel art.
+- Une fois le code retrouvé, on le tape sur l'ordinateur de bord pour lancer le **décollage** (animation et son), suivi d'un écran de fin en pixel art, où un bandeau explique ce que veut dire le code.
 - Si l'oxygène tombe à zéro, la partie est perdue (écran « Oxygène épuisé »). On peut retenter immédiatement.
 - Le **record** (oxygène restant à l'arrivée) reste en mémoire même après extinction.
 
@@ -57,7 +57,7 @@ Au premier démarrage, le Cardputer demande la langue (français ou anglais). El
 
 ## Mode « Multijoueur » : deux équipes
 
-Au démarrage, choisir **Cardputer seul** ou **Multijoueur**. En multijoueur, deux équipes jouent ensemble et le code de démarrage est **MARS** :
+Au démarrage, choisir **Cardputer seul** ou **Multijoueur**. En multijoueur, deux équipes jouent ensemble et le code de démarrage est **ARES** :
 
 - l'**équipage**, sur Mars, joue sur le Cardputer ;
 - le **centre de contrôle**, sur Terre, suit la partie sur la page web d'un PC, d'une télé ou d'un téléphone. **Le son sort de cet écran** (le Cardputer reste muet).
@@ -69,9 +69,9 @@ Chaque équipe n'a qu'une partie des indices : il faut se parler ! Placer l'écr
 | # | Lieu | Équipage (Cardputer) | Centre de contrôle (écran) |
 |---|------|----------------------|----------------------------|
 | 1 | Coffre du fer à souder | Un voyant clignote en **Morse** | L'alphabet Morse |
-| 2 | Réservoirs de carburant | Un **labyrinthe** : le personnage, sa trace et la sortie, sans les planètes | Le labyrinthe complet : il faut passer par les planètes dans l'ordre |
+| 2 | Réservoirs de carburant | Un **picross** sans les chiffres (« ? ») | Les chiffres et la grille de l'équipage en direct |
 | 3 | Soute à pièces | L'alphabet Morse | Un signal **Morse sonore** |
-| 4 | Ordinateur de bord | Un **picross** sans les chiffres (« ? ») | Les chiffres et la grille de l'équipage en direct |
+| 4 | Ordinateur de bord | Un **labyrinthe** : le personnage, sa trace et la sortie, sans les planètes | Le labyrinthe complet : il faut passer par les planètes dans l'ordre |
 | Code | Ordinateur de bord | Un **clavier codé** à symboles | La table de décodage |
 
 - Avant le chrono, une page **Règles** s'affiche pour chaque équipe. `ENTRÉE` sur le Cardputer démarre le chrono.
@@ -177,7 +177,7 @@ A 5-minute mini escape game for the **M5Stack Cardputer ADV**, in English or Fre
 - **4 puzzles**, solved in order. Each one opens part of the ship and reveals one letter of the 4-letter **start-up code**.
 - **5 minutes of oxygen.** A gauge and a countdown stay at the top of the screen, and a "beep beep beep" alarm gets faster as the oxygen runs low.
 - **Each wrong answer costs 10 seconds** ("ACCESS DENIED").
-- Once the code is found, type it on the on-board computer to launch the **liftoff** (animation and sound), followed by a pixel art end screen.
+- Once the code is found, type it on the on-board computer to launch the **liftoff** (animation and sound), followed by a pixel art end screen, where a banner explains what the code means.
 - If the oxygen reaches zero, the game is lost ("Out of oxygen" screen). You can try again right away.
 - The **record** (oxygen left at the end) is kept in memory, even after power off.
 
@@ -219,7 +219,7 @@ On first start-up, the Cardputer asks for the language (French or English). It i
 
 ### "Multiplayer" mode: two teams
 
-At start-up, choose **Cardputer only** or **Multiplayer**. In multiplayer, two teams play together and the start-up code is **MARS**:
+At start-up, choose **Cardputer only** or **Multiplayer**. In multiplayer, two teams play together and the start-up code is **ARES**:
 
 - the **crew**, on Mars, plays on the Cardputer;
 - **mission control**, on Earth, follows the game on the web page of a PC, TV or phone. **The sound comes out of that screen** (the Cardputer stays silent).
@@ -231,9 +231,9 @@ Each team only has part of the clues: talk to each other! Place the screen so th
 | # | Place | Crew (Cardputer) | Mission control (screen) |
 |---|-------|------------------|--------------------------|
 | 1 | Soldering iron safe | A light blinking in **Morse code** | The Morse code chart |
-| 2 | Fuel tanks | A **maze**: the character, its trail and the exit, without the planets | The full maze: the planets must be crossed in order |
+| 2 | Fuel tanks | A **picross** without the numbers ("?") | The numbers and the crew's grid, live |
 | 3 | Cargo hold | The Morse code chart | An **audio Morse** signal |
-| 4 | On-board computer | A **picross** without the numbers ("?") | The numbers and the crew's grid, live |
+| 4 | On-board computer | A **maze**: the character, its trail and the exit, without the planets | The full maze: the planets must be crossed in order |
 | Code | On-board computer | A **coded keypad** with symbols | The decoding table |
 
 - Before the countdown, a **Rules** page is shown to each team. `ENTER` on the Cardputer starts the countdown.

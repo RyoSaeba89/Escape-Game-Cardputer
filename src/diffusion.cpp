@@ -62,13 +62,13 @@ canvas{position:absolute;top:0;right:0;bottom:0;left:0;margin:auto;width:100vw;h
 #pic tbody th{text-align:right}
 #pic th.ok{color:#46e164}
 #laby{border-collapse:collapse}
-#laby td{position:relative;width:22vh;height:11vh;padding:0;border:2px solid #465a8c;background:#1e2234;font-size:2.8vh;text-align:center;vertical-align:middle;white-space:nowrap}
+#laby td{position:relative;width:22vh;height:9vh;padding:0;border:2px solid #465a8c;background:#1e2234;font-size:2.8vh;text-align:center;vertical-align:middle;white-space:nowrap}
 #laby td.tr{background:#8c460f}
 #laby td.bad{background:#8c1919}
 #laby td.sx{color:#46e164}
 #laby td.es{color:#8c96af}
 #laby .pl{display:block;width:4.5vh;height:4.5vh;margin:0 auto .4vh}
-#laby .as{position:absolute;left:1.2vh;top:1.5vh;width:6vh;height:8vh}
+#laby .as{position:absolute;left:1.2vh;top:.5vh;width:6vh;height:8vh}
 #laby .ae{display:block;width:4.5vh;height:6vh;margin:0 auto .4vh}
 #hp{width:16vh;height:12vh}
 #hp g{stroke:#505a6e}
@@ -82,7 +82,7 @@ canvas{position:absolute;top:0;right:0;bottom:0;left:0;margin:auto;width:100vw;h
 .case svg{width:9vw;height:9vw;margin-left:3vw}#saisie span{width:4.5vw;height:4.5vw}
 #morse{grid-template-columns:repeat(3,auto);grid-gap:2vw 6vw;gap:2vw 6vw}.m{font-size:5vw}
 .m i{height:1.8vw;margin-left:1.2vw;border-radius:.9vw}.m i.p{width:1.8vw}.m i.t{width:4.5vw}
-#laby td{width:21vw;height:15vw;font-size:3.4vw}#laby .pl{width:5.5vw;height:5.5vw}#laby .as{left:1vw;top:2vw;width:5vw;height:7vw}#laby .ae{width:5vw;height:7vw}
+#laby td{width:21vw;height:14vw;font-size:3.4vw}#laby .pl{width:5.5vw;height:5.5vw}#laby .as{left:1vw;top:1.5vw;width:5vw;height:7vw}#laby .ae{width:5vw;height:7vw}
 #pic td{width:11vw;height:11vw}#pic th{font-size:5vw;padding:1vw 2vw}#hp{width:24vw;height:18vw}}
 </style></head><body>
 <div id="ecran">
@@ -109,15 +109,15 @@ const TX={
   p1:"Le voyant du coffre clignote une lettre en Morse. L'équipage vous décrit les flashs : trouvez la lettre et dites-la-lui !",
   q1:'Point = flash court · Trait = flash long',
   t2:'ÉNIGME 2/4 : RÉSERVOIRS DE CARBURANT',
-  p2:"Guidez l'équipage jusqu'à la sortie : il doit passer par les 8 planètes dans l'ordre, une case à la fois.",
-  h2:'Indice : de la planète la plus proche du Soleil à la plus lointaine.',
-  e2:"Mauvaise case : −10 s et retour à l'entrée.",ent:'ENTRÉE',sor:'SORTIE',
-  pl:['Mercure','Vénus','Terre','Mars','Jupiter','Saturne','Uranus','Neptune'],
+  p2:"Lisez les chiffres à l'équipage et guidez-le. Chaque chiffre = nombre de cases allumées à la suite, dans l'ordre. Une ligne juste passe au vert.",
   t3:'ÉNIGME 3/4 : SOUTE À PIÈCES',
   p3:"Le verrou de la soute émet une lettre en Morse. Écoutez, puis décrivez les bips à l'équipage : il a l'alphabet Morse !",
   q3:"Bip court = point · Bip long = trait. L'équipage peut relancer le signal.",
   t4:'ÉNIGME 4/4 : ORDINATEUR DE BORD',
-  p4:"Lisez les chiffres à l'équipage et guidez-le. Chaque chiffre = nombre de cases allumées à la suite, dans l'ordre. Une ligne juste passe au vert.",
+  p4:"Guidez l'équipage jusqu'à la sortie : il doit passer par les 8 planètes dans l'ordre, une case à la fois.",
+  h4:'Indice : de la planète la plus proche du Soleil à la plus lointaine.',
+  e4:"Mauvaise case : −10 s et retour à l'entrée.",ent:'ENTRÉE',sor:'SORTIE',
+  pl:['Mercure','Vénus','Terre','Mars','Jupiter','Saturne','Uranus','Neptune'],
   tc:'ORDINATEUR DE BORD : TABLE DE DÉCODAGE',
   pc:"L'équipage vous donne une lettre du code : décrivez-lui le symbole correspondant.",sa:'Symboles tapés'},
  en:{son:'Click or press a key to enable sound',fs:'Double-click, F or Enter: full screen',
@@ -129,15 +129,15 @@ const TX={
   p1:"The safe's light blinks a letter in Morse code. The crew describes the flashes: find the letter and tell them!",
   q1:'Dot = short flash · Dash = long flash',
   t2:'PUZZLE 2/4: FUEL TANKS',
-  p2:'Guide the crew to the exit: they must step on the 8 planets in order, one cell at a time.',
-  h2:'Hint: from the planet closest to the Sun to the farthest one.',
-  e2:'Wrong cell: −10 s and back to the entrance.',ent:'ENTRANCE',sor:'EXIT',
-  pl:['Mercury','Venus','Earth','Mars','Jupiter','Saturn','Uranus','Neptune'],
+  p2:'Read the numbers to the crew and guide them. Each number = lit cells in a row, in order. A correct line turns green.',
   t3:'PUZZLE 3/4: CARGO HOLD',
   p3:'The cargo hold lock beeps a letter in Morse code. Listen, then describe the beeps to the crew: they have the Morse code!',
   q3:'Short beep = dot · Long beep = dash. The crew can replay the signal.',
   t4:'PUZZLE 4/4: ON-BOARD COMPUTER',
-  p4:'Read the numbers to the crew and guide them. Each number = lit cells in a row, in order. A correct line turns green.',
+  p4:'Guide the crew to the exit: they must step on the 8 planets in order, one cell at a time.',
+  h4:'Hint: from the planet closest to the Sun to the farthest one.',
+  e4:'Wrong cell: −10 s and back to the entrance.',ent:'ENTRANCE',sor:'EXIT',
+  pl:['Mercury','Venus','Earth','Mars','Jupiter','Saturn','Uranus','Neptune'],
   tc:'ON-BOARD COMPUTER: DECODING TABLE',
   pc:'The crew gives you a letter of the code: describe the matching symbol to them.',sa:'Symbols typed'}};
 let lg='';try{lg=localStorage.getItem('lang')||'';}catch(_){}
@@ -262,7 +262,7 @@ function picross(g,lignes,cols){lignes=lignes.split('/');cols=cols.split('/');
   h+='<tr><th'+(indices(lig)==lignes[r]?' class="ok"':'')+'>'+lignes[r].split('.').join(' ')+'</th>';
   for(let c=0;c<5;c++)h+='<td'+(on(r,c)?' class="on"':'')+'></td>';h+='</tr>';}
  return h+'</tbody></table>';}
-// Labyrinthe (énigme 2) : planètes en petits dessins SVG, personnage = ASTRO
+// Labyrinthe (énigme 4, 4 colonnes x 5 lignes) : planètes en petits dessins SVG, personnage = ASTRO
 // de /sym.js (le même dessin que sur le Cardputer)
 const PCOUL=['#a0a0a8','#e8c878','#3c78dc','#d2502d','#d8a878','#e6cc8c','#8cdce6','#3c5ad2'];
 function planete(k){let h='<svg class="pl" viewBox="0 0 20 20"><circle cx="10" cy="10" r="'+(k==5?5.5:7)+'" fill="'+PCOUL[k]+'"/>';
@@ -276,7 +276,7 @@ function astro(cl){const A=typeof ASTRO!='undefined'?ASTRO:[];let h='<svg class=
  return h+'</svg>';}
 const TRAPPE='<svg class="pl" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" rx="2" fill="#145a28" stroke="#46e164" stroke-width="1.5"/><path d="M7 5v10l7-5z" fill="#46e164"/></svg>';
 function labyrinthe(g,pos,trace,bad){const t=TX[lg];pos=Number(pos);bad=Number(bad);let h='<table id="laby">';
- for(let r=0;r<4;r++){h+='<tr>';
+ for(let r=0;r<5;r++){h+='<tr>';
   for(let c=0;c<4;c++){const i=r*4+c,v=g[i];let cl=i==bad?'bad':trace[i]=='1'?'tr':'',x;
    if(v=='E'){cl+=' es';x=(i==pos?astro('ae'):'')+t.ent;}else if(v=='X'){cl+=' sx';x=TRAPPE+t.sor;}else{const k=Number(v)-1;x=planete(k)+t.pl[k];}
    h+='<td class="'+cl+'">'+(i==pos&&v!='E'?astro('as'):'')+x+'</td>';}
@@ -290,9 +290,9 @@ function majPage(){const t=TX[lg],d=donnees,cle=lg+page+d.join(',');
  let h='';
  if(page=='R'){titre.textContent=t.tr;h=para(t.r1,'moi')+para(t.r2)+para(t.r3,'av')+para(t.r4,'dim');}
  else if(page=='1'){titre.textContent=t.t1;h=para(t.p1)+para(t.q1,'dim')+alphabet();}
- else if(page=='2'){titre.textContent=t.t2;h=labyrinthe(d[0],d[1],d[2],d[3])+para(t.p2)+para(t.h2,'moi')+para(t.e2,'dim');}
+ else if(page=='2'){titre.textContent=t.t2;h=picross(d[0],d[1],d[2])+para(t.p2);}
  else if(page=='3'){titre.textContent=t.t3;h=HP+para(t.p3)+para(t.q3,'dim');}
- else if(page=='4'){titre.textContent=t.t4;h=picross(d[0],d[1],d[2])+para(t.p4);}
+ else if(page=='4'){titre.textContent=t.t4;h=labyrinthe(d[0],d[1],d[2],d[3])+para(t.p4)+para(t.h4,'moi')+para(t.e4,'dim');}
  else if(page=='C'){titre.textContent=t.tc;h='<div id="grille">';
   const k=d[1];for(let i=0;i<k.length;i+=2)h+='<div class="case"><b>'+k[i]+'</b>'+symbole(parseInt(k[i+1],16))+'</div>';
   h+='</div><div id="saisie">'+t.sa+' ';for(let i=0;i<4;i++)h+='<span'+(i<Number(d[0])?' class="on"':'')+'></span>';

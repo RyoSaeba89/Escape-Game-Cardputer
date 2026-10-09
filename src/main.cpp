@@ -6,14 +6,15 @@
 //   2. QCM premier rover (A)   -> réservoirs de carburant
 //   3. Picross 5x5 (S)         -> stockage des pièces détachées
 //   4. Morse sonore (A)        -> ordinateur de bord (alarme O₂ coupée)
-// « Multijoueur » : code MARS, deux équipes. L'équipage joue sur le Cardputer,
+// « Multijoueur » : code ARES, deux équipes. L'équipage joue sur le Cardputer,
 // le centre de contrôle sur la page web d'un PC ou d'une télé (diffusion.cpp),
 // qui reçoit aussi le son. Chaque équipe a une partie des indices.
-//   1. Morse lumineux (M) : l'équipage voit le voyant, le contrôle a l'alphabet
-//   2. Labyrinthe des planètes (A) : l'équipage déplace le personnage sans voir
-//      les planètes, le contrôle les voit et doit connaître leur ordre
-//   3. Morse sonore (R) : le contrôle l'entend, l'équipage a l'alphabet
-//   4. Picross (S) : l'équipage a la grille, le contrôle les chiffres
+//   1. Morse lumineux (A) : l'équipage voit le voyant, le contrôle a l'alphabet
+//   2. Picross (R) : l'équipage a la grille, le contrôle les chiffres
+//   3. Morse sonore (E) : le contrôle l'entend, l'équipage a l'alphabet
+//   4. Labyrinthe des planètes (S) : l'équipage déplace le personnage sans voir
+//      les planètes, le contrôle les voit et doit connaître leur ordre ; le
+//      chemin dessine un S
 // Puis saisie du code (clavier codé en multijoueur), décollage et écran de fin.
 // Fn appuyé 3 fois d'affilée : pause / reprise (maître du jeu).
 // Record (O₂ restant) gardé en mémoire même après extinction.
@@ -87,24 +88,28 @@ const char *const MORSE[26] = {
 };
 
 const char CODE_SOLO[] = "NASA";
-const char CODE_MULTI[] = "MARS";
+const char CODE_MULTI[] = "ARES";
 
 // Types d'énigmes, dans l'ordre de chaque mode (voir puzzleKind)
 enum class Pz { Lamp, Quiz, Maze, Picross, Sound };
 constexpr Pz ORDER_SOLO[4] = {Pz::Lamp, Pz::Quiz, Pz::Picross, Pz::Sound};
-constexpr Pz ORDER_MULTI[4] = {Pz::Lamp, Pz::Maze, Pz::Sound, Pz::Picross};
+constexpr Pz ORDER_MULTI[4] = {Pz::Lamp, Pz::Picross, Pz::Sound, Pz::Maze};
 
-// Labyrinthe des planètes (énigme 2 en multijoueur). 'E' entrée, 'X' sortie,
+// Labyrinthe des planètes (énigme 4 en multijoueur). 'E' entrée, 'X' sortie,
 // '1' à '8' Mercure à Neptune. Un seul chemin : de l'entrée, passer par les
 // 8 planètes dans l'ordre (pas haut, bas, gauche, droite), puis la sortie.
-// L'entrée et la sortie touchent chacune plusieurs planètes : ni le premier ni
-// le dernier pas ne se devinent sans les noms.
-constexpr int MAZE_N = 4;
-const char MAZE[MAZE_N][MAZE_N + 1] = {
-    "1211",
-    "E38X",
-    "4474",
-    "3563",
+// Le chemin dessine un S (dernière lettre de ARES) dans les 3 colonnes de gauche.
+// L'entrée et la sortie touchent chacune 3 planètes : ni le premier ni le
+// dernier pas ne se devinent sans les noms. Aucune planète voisine d'une case
+// du chemin n'est la suivante dans l'ordre : pas de fausse piste.
+constexpr int MAZE_W = 4;
+constexpr int MAZE_H = 5;
+const char MAZE[MAZE_H][MAZE_W + 1] = {
+    "21E2",
+    "3534",
+    "4568",
+    "3776",
+    "1X84",
 };
 
 // Personnage du labyrinthe (astronaute 9 x 12), aussi envoyé à la page web.
@@ -150,13 +155,20 @@ const char *const ROCKET[] = {
 constexpr int ROCKET_W = 11;
 constexpr int ROCKET_H = 18;
 
-// Picross : la lettre S
-const char *const PICROSS[5] = {
+// Picross : la lettre S en solo (3e lettre de NASA), R en multijoueur (2e de ARES)
+const char *const PICROSS_SOLO[5] = {
     "#####",
     "#....",
     "#####",
     "....#",
     "#####",
+};
+const char *const PICROSS_MULTI[5] = {
+    "####.",
+    "#...#",
+    "####.",
+    "#..#.",
+    "#...#",
 };
 
 enum class St {
@@ -251,10 +263,13 @@ std::vector<int> colClues[5];
 int mazeR = 0;
 int mazeC = 0;
 int mazeStep = 0;
-bool mazeTrail[MAZE_N][MAZE_N];
+bool mazeTrail[MAZE_H][MAZE_W];
 int mazeWrongR = -1;  // dernière mauvaise case, en rouge jusqu'à mazeWrongUntil
 int mazeWrongC = -1;
 uint32_t mazeWrongUntil = 0;
+bool mazeDone = false;  // sortie atteinte : le S complet reste affiché MAZE_SHOW_MS
+uint32_t mazeDoneAt = 0;
+constexpr uint32_t MAZE_SHOW_MS = 1500;
 
 // Ordinateur de bord
 String typedCode;
@@ -916,6 +931,10 @@ void startMorseSound() {
 
 // ---------------------------------------------------------------- picross
 
+const char *const *picrossArt() {
+    return multiMode ? PICROSS_MULTI : PICROSS_SOLO;
+}
+
 std::vector<int> lineClues(const bool cells[5]) {
     std::vector<int> out;
     int run = 0;
@@ -937,12 +956,13 @@ std::vector<int> lineClues(const bool cells[5]) {
 }
 
 void buildClues() {
+    const char *const *art = picrossArt();
     for (int i = 0; i < 5; i++) {
         bool row[5];
         bool col[5];
         for (int j = 0; j < 5; j++) {
-            row[j] = PICROSS[i][j] == '#';
-            col[j] = PICROSS[j][i] == '#';
+            row[j] = art[i][j] == '#';
+            col[j] = art[j][i] == '#';
         }
         rowClues[i] = lineClues(row);
         colClues[i] = lineClues(col);
@@ -962,9 +982,10 @@ bool colOk(int c) {
 }
 
 bool picrossSolved() {
+    const char *const *art = picrossArt();
     for (int r = 0; r < 5; r++) {
         for (int c = 0; c < 5; c++) {
-            if (grid[r][c] != (PICROSS[r][c] == '#')) {
+            if (grid[r][c] != (art[r][c] == '#')) {
                 return false;
             }
         }
@@ -1327,18 +1348,18 @@ bool mazeWrongShown(uint32_t now) {
     return (int32_t)(mazeWrongUntil - now) > 0;
 }
 
-// Multijoueur, énigme 2 : l'équipage voit la grille vide, le personnage, sa
+// Multijoueur, énigme 4 : l'équipage voit la grille vide, le personnage, sa
 // trace et la sortie ; les planètes ne sont que sur la page du centre de contrôle
 void drawPuzzleMaze(uint32_t now) {
     canvas.fillScreen(C_SPACE);
     drawHud();
-    text(tr(P2_TITLE), 4, 19, C_ORANGE);
-    const int cell = 21;
+    text(tr(P4_TITLE), 4, 19, C_ORANGE);
+    const int cell = 17;
     const int gx = 4;
     const int gy = 34;
     bool wrong = mazeWrongShown(now);
-    for (int r = 0; r < MAZE_N; r++) {
-        for (int c = 0; c < MAZE_N; c++) {
+    for (int r = 0; r < MAZE_H; r++) {
+        for (int c = 0; c < MAZE_W; c++) {
             int x = gx + c * cell;
             int y = gy + r * cell;
             uint16_t bg = mazeTrail[r][c] ? rgb(140, 70, 15) : rgb(30, 34, 52);
@@ -1347,26 +1368,26 @@ void drawPuzzleMaze(uint32_t now) {
             }
             canvas.fillRect(x, y, cell, cell, bg);
             canvas.drawRect(x, y, cell + 1, cell + 1, C_BORDER);
-            if (MAZE[r][c] == 'X') {  // sortie : trappe verte et flèche
-                canvas.fillRoundRect(x + 3, y + 3, cell - 5, cell - 5, 2, rgb(20, 90, 40));
-                canvas.drawRoundRect(x + 3, y + 3, cell - 5, cell - 5, 2, C_GREEN);
-                canvas.fillTriangle(x + 8, y + 6, x + 8, y + 16, x + 14, y + 11, C_GREEN);
+            if (MAZE[r][c] == 'X' && !mazeTrail[r][c]) {  // sortie : trappe verte et flèche
+                canvas.fillRoundRect(x + 2, y + 2, cell - 3, cell - 3, 2, rgb(20, 90, 40));
+                canvas.drawRoundRect(x + 2, y + 2, cell - 3, cell - 3, 2, C_GREEN);
+                canvas.fillTriangle(x + 6, y + 4, x + 6, y + 13, x + 11, y + 8, C_GREEN);
             }
         }
     }
-    drawAstro(gx + mazeC * cell + 6, gy + mazeR * cell + 5);
-    const int px = gx + MAZE_N * cell + 8;
-    wrapped(tr(P2_TEXT_MAZE), px, 36, W - px - 4, C_TEXT, 13);
+    drawAstro(gx + mazeC * cell + 4, gy + mazeR * cell + 3);
+    const int px = gx + MAZE_W * cell + 8;
+    wrapped(tr(P4_TEXT_MAZE), px, 36, W - px - 4, C_TEXT, 13);
     if (wrong) {
-        wrapped(tr(P2_WRONG_MAZE), px, 92, W - px - 4, C_RED, 13);
+        wrapped(tr(P4_WRONG_MAZE), px, 92, W - px - 4, C_RED, 13);
     }
-    drawFooter(tr(P2_FOOTER_MAZE));
+    drawFooter(tr(P4_FOOTER_MAZE));
 }
 
 // Personnage sur l'entrée, trace effacée
 void mazeReset() {
-    for (int r = 0; r < MAZE_N; r++) {
-        for (int c = 0; c < MAZE_N; c++) {
+    for (int r = 0; r < MAZE_H; r++) {
+        for (int c = 0; c < MAZE_W; c++) {
             mazeTrail[r][c] = false;
             if (MAZE[r][c] == 'E') {
                 mazeR = r;
@@ -1375,6 +1396,7 @@ void mazeReset() {
         }
     }
     mazeStep = 0;
+    mazeDone = false;
 }
 
 void drawPuzzlePicross() {
@@ -1416,9 +1438,9 @@ void drawPuzzlePicross() {
     canvas.drawRect(x, y, cell + 1, cell + 1, C_YELLOW);
 
     const int px = 128;
-    text(trm(P3_TITLE, P4_TITLE_MULTI), px, 19, C_ORANGE);
-    text(trm(P3_PLACE, P4_PLACE_MULTI), px, 33, C_TEXT);
-    wrapped(trm(P3_TEXT, P4_TEXT_MULTI), px, 50, W - px - 4, C_DIM, 13);
+    text(trm(P3_TITLE, P2_TITLE_MULTI), px, 19, C_ORANGE);
+    text(trm(P3_PLACE, P2_PLACE_MULTI), px, 33, C_TEXT);
+    wrapped(trm(P3_TEXT, P2_TEXT_MULTI), px, 50, W - px - 4, C_DIM, 13);
     hint(tr(P3_MOVE), px, 104, C_CYAN);
     hint(tr(P3_LIGHT), px, 118, C_CYAN);
 }
@@ -1480,6 +1502,8 @@ void drawSolved() {
     }
 }
 
+constexpr int WIN_INFO_SPEED = 45;  // défilement du bandeau de fin, en pixels par seconde
+
 constexpr uint32_t TERM_STEP = 600;  // une ligne du terminal (TERM_LINES, textes.h) toutes les 600 ms
 
 int termVisible(uint32_t now) {
@@ -1497,7 +1521,7 @@ void buildKeypad() {
     for (int i = SYM_COUNT - 1; i > 0; i--) {
         std::swap(syms[i], syms[random(0, i + 1)]);
     }
-    // Les lettres du code (M, A, R, S) + d'autres lettres, réparties au hasard sur les touches
+    // Les lettres du code (A, R, E, S) + d'autres lettres, réparties au hasard sur les touches
     char letters[9];
     int n = 0;
     for (const char *c = code(); *c; c++) {
@@ -1633,14 +1657,14 @@ void updatePanel(uint32_t now) {
         if (puzzleKind() == Pz::Maze) {
             // grille,position,trace,mauvaise case (-1 : aucune)
             String trail;
-            for (int r = 0; r < MAZE_N; r++) {
+            for (int r = 0; r < MAZE_H; r++) {
                 data += MAZE[r];
-                for (int c = 0; c < MAZE_N; c++) {
+                for (int c = 0; c < MAZE_W; c++) {
                     trail += mazeTrail[r][c] ? '1' : '0';
                 }
             }
-            int bad = mazeWrongShown(now) ? mazeWrongR * MAZE_N + mazeWrongC : -1;
-            data += "," + String(mazeR * MAZE_N + mazeC) + "," + trail + "," + String(bad);
+            int bad = mazeWrongShown(now) ? mazeWrongR * MAZE_W + mazeWrongC : -1;
+            data += "," + String(mazeR * MAZE_W + mazeC) + "," + trail + "," + String(bad);
         } else if (puzzleKind() == Pz::Picross) {
             for (int r = 0; r < 5; r++) {
                 for (int c = 0; c < 5; c++) {
@@ -1781,8 +1805,16 @@ void drawWin(uint32_t now) {
     } else {
         shadowText(tr(WIN_RECORD) + fmtTime(bestO2), 8, 90, C_DIM, 1, TL_DATUM);
     }
+    // Bandeau qui défile : la signification du code (NASA ou ARES)
+    canvas.fillRect(0, 103, W, 15, C_PANEL);
+    canvas.drawFastHLine(0, 103, W, C_BORDER);
+    canvas.drawFastHLine(0, 117, W, C_BORDER);
+    String info = trm(WIN_INFO_SOLO, WIN_INFO_MULTI);
+    int len = canvas.textWidth(info) + W / 2;
+    int x = W - (int)((uint64_t)(now - stateStart) * WIN_INFO_SPEED / 1000 % (W + len));
+    text(info, x, 105, C_TEXT);
     if (blink()) {
-        hint(tr(WIN_AGAIN), W - 4, 120, C_YELLOW, TR_DATUM, true);
+        hint(tr(WIN_AGAIN), W - 4, 121, C_YELLOW, TR_DATUM, true);
     }
 }
 
@@ -1818,6 +1850,7 @@ void startPuzzle(int p) {
         morseStart += 800;
         morseEnd += 800;
     } else if (k == Pz::Picross) {
+        buildClues();  // dessin différent selon le mode
         memset(grid, 0, sizeof(grid));
         curX = curY = 0;
     } else if (k == Pz::Maze) {
@@ -1842,8 +1875,10 @@ void stopTimer() {
     timerRunning = false;
 }
 
-void solvePuzzle() {
-    sfxSuccess();
+void solvePuzzle(bool sound = true) {
+    if (sound) {
+        sfxSuccess();
+    }
     wrongLetter = 0;
     helpOpen = false;
     cancelChannel(CH_MORSE);
@@ -1919,7 +1954,7 @@ bool hasChar(const KeysState &ks, char ch) {
 void mazeMove(int dr, int dc) {
     int r = mazeR + dr;
     int c = mazeC + dc;
-    if (r < 0 || r >= MAZE_N || c < 0 || c >= MAZE_N) {
+    if (r < 0 || r >= MAZE_H || c < 0 || c >= MAZE_W) {
         return;
     }
     char next = mazeStep < 8 ? '1' + mazeStep : 'X';
@@ -1934,7 +1969,16 @@ void mazeMove(int dr, int dc) {
     mazeR = r;
     mazeC = c;
     if (next == 'X') {
-        solvePuzzle();
+        for (int rr = 0; rr < MAZE_H; rr++) {
+            for (int cc = 0; cc < MAZE_W; cc++) {
+                if (MAZE[rr][cc] == 'E' || MAZE[rr][cc] == 'X') {
+                    mazeTrail[rr][cc] = true;
+                }
+            }
+        }
+        mazeDone = true;
+        mazeDoneAt = millis();
+        sfxSuccess();
         return;
     }
     mazeTrail[r][c] = true;
@@ -2189,7 +2233,7 @@ void handleKey(const KeysState &ks) {
                 answerLetter(l, answer());
             } else if (k == Pz::Quiz && l >= 'A' && l <= 'D') {
                 answerLetter(l, answer());
-            } else if (k == Pz::Maze) {
+            } else if (k == Pz::Maze && !mazeDone) {
                 if (hasChar(ks, ';')) mazeMove(-1, 0);
                 else if (hasChar(ks, '.')) mazeMove(1, 0);
                 else if (hasChar(ks, ',')) mazeMove(0, -1);
@@ -2345,6 +2389,10 @@ void update(uint32_t now) {
         }
     }
 
+    if (state == St::Puzzle && puzzleKind() == Pz::Maze && mazeDone && now - mazeDoneAt >= MAZE_SHOW_MS) {
+        solvePuzzle(false);  // le son de réussite est parti à l'arrivée sur la sortie
+    }
+
     if (state == St::Computer) {
         int n = termVisible(now);
         if (n != termShown) {
@@ -2407,6 +2455,7 @@ void togglePause() {
         paused = false;
         deadline = now + pausedRemaining;
         stateStart += now - pausedAt;  // l'ordinateur de bord reprend où il en était
+        mazeDoneAt += now - pausedAt;
         nextO2Beep = now + 1500;
         errFlashUntil = 0;
         penaltyPopupUntil = 0;
@@ -2499,7 +2548,6 @@ void setup() {
         s.b = random(60, 200);
     }
     buildNoise();
-    buildClues();
     randomSeed(esp_random());
     prefs.begin("explorer3", false);
     bestO2 = prefs.getUInt("best_o2", 0);

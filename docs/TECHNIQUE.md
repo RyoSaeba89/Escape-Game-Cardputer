@@ -4,7 +4,7 @@
 
 Ce document décrit le fonctionnement interne du jeu pour qui veut le compiler, le comprendre ou le modifier. Il ne donne pas les solutions des énigmes, mais elles sont en clair dans le code source.
 
-Version décrite : **v2.1** : en multijoueur, l'énigme 2 devient un labyrinthe des planètes (v2.1) ; le mode « Avec écran » devient **Multijoueur**, un jeu à deux équipes (code MARS, page du centre de contrôle à chaque énigme, page Règles) (v2.0). Versions précédentes : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
+Version décrite : **v2.2** : en multijoueur, le code devient ARES, le picross passe en énigme 2 (un R) et le labyrinthe en énigme 4 (grille 4×5 dont le chemin dessine un S) ; un bandeau défile sur l'écran de fin pour expliquer le code, NASA ou ARES (v2.2). Versions précédentes : en multijoueur, l'énigme 2 devient un labyrinthe des planètes (v2.1) ; le mode « Avec écran » devient **Multijoueur**, un jeu à deux équipes (code MARS, page du centre de contrôle à chaque énigme, page Règles) (v2.0). Avant : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
 
 ## Sommaire
 
@@ -38,7 +38,7 @@ Le jeu dure 5 minutes : 4 énigmes à résoudre dans l'ordre, chacune donne une 
 Le jeu est en **français ou en anglais**, au choix au premier démarrage (section 3). Deux modes sont proposés ensuite :
 
 - **Cardputer seul** : tout se passe sur le Cardputer. Code **NASA**.
-- **Multijoueur** : un jeu à deux équipes, code **MARS**. L'**équipage** joue sur le Cardputer, le **centre de contrôle** sur la page web d'un PC, d'une télé ou d'un téléphone. Le Cardputer se connecte au Wi-Fi de la box (ou crée le sien, Explorer3) et sert lui-même cette page. Le son sort de la page. Pendant les énigmes et sur l'ordinateur de bord, la page montre au centre de contrôle la partie des indices que l'équipage n'a pas (section 10) ; le reste du temps, elle recopie l'écran du Cardputer.
+- **Multijoueur** : un jeu à deux équipes, code **ARES**. L'**équipage** joue sur le Cardputer, le **centre de contrôle** sur la page web d'un PC, d'une télé ou d'un téléphone. Le Cardputer se connecte au Wi-Fi de la box (ou crée le sien, Explorer3) et sert lui-même cette page. Le son sort de la page. Pendant les énigmes et sur l'ordinateur de bord, la page montre au centre de contrôle la partie des indices que l'équipage n'a pas (section 10) ; le reste du temps, elle recopie l'écran du Cardputer.
 
 ## 2. Compiler et installer
 
@@ -51,7 +51,7 @@ Configuration de `platformio.ini` (environnement `cardputer-adv`, celui par déf
 | Plateforme | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Carte | `esp32-s3-devkitc-1`, flash 8 Mo, partitions `default_8MB.csv` (application jusqu'à 3,3 Mo) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (port série par l'USB natif) |
-| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v2.1 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
+| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v2.2 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
 
 ```
 pio run                # compile
@@ -195,7 +195,7 @@ stateDiagram-v2
 | `Solved` | Partie du vaisseau réparée, lettre gravée dessus | |
 | `Computer` | Ordinateur de bord, saisie du code | 5 lignes de texte apparaissent toutes les 600 ms, puis la saisie |
 | `Launch` | Animation du décollage (6,5 s) | Chrono arrêté, record enregistré |
-| `Win` / `GameOver` | Écrans de fin | ENTRÉE revient au titre, le mode choisi est gardé |
+| `Win` / `GameOver` | Écrans de fin | ENTRÉE revient au titre, le mode choisi est gardé. Sur `Win`, un bandeau fait défiler la signification du code (`WIN_INFO_SOLO`, `WIN_INFO_MULTI`, `WIN_INFO_SPEED` = 45 px/s) |
 
 « retour » = `ESC` (touche `` ` `` du Cardputer, testée par `` hasChar(ks, '`') ``).
 
@@ -246,8 +246,8 @@ Les mécanismes sont décrits ici, pas les réponses. L'ordre des énigmes dépe
 |---|---|---|---|---|
 | `Lamp` | Un voyant clignote une lettre en Morse (unité `LAMP_UNIT_MS` = 400 ms) ; on tape la lettre | 1 | 1 | `startMorseLamp()`, `lampOn()` |
 | `Quiz` | QCM à 4 réponses (A à D) | 2 | | `drawPuzzleQuiz()` |
-| `Maze` | Labyrinthe des planètes : grille 4×4 `MAZE[]`, aller de l'entrée à la sortie en passant par les 8 planètes dans l'ordre | | 2 | `drawPuzzleMaze()`, `mazeMove()`, `mazeReset()` |
-| `Picross` | Picross 5×5 ; les indices des lignes et colonnes sont calculés à partir du motif `PICROSS[]` | 3 | 4 | `buildClues()`, `lineClues()`, `picrossSolved()` |
+| `Maze` | Labyrinthe des planètes : grille 4×5 `MAZE[]`, aller de l'entrée à la sortie en passant par les 8 planètes dans l'ordre ; le chemin dessine un S | | 4 | `drawPuzzleMaze()`, `mazeMove()`, `mazeReset()` |
+| `Picross` | Picross 5×5 ; les indices des lignes et colonnes sont calculés à partir du motif, `PICROSS_SOLO[]` (S) ou `PICROSS_MULTI[]` (R), au début de l'énigme | 3 | 2 | `buildClues()`, `lineClues()`, `picrossSolved()` |
 | `Sound` | Signal Morse sonore, 700 Hz, unité `SOUND_UNIT_MS` = 200 ms ; on tape la lettre | 4 | 3 | `startMorseSound()`, `drawPuzzleSoundMulti()` |
 
 - Cardputer seul : `TAB` affiche l'alphabet Morse (`drawMorseHelp()`), n'importe quelle touche le ferme, `ESPACE` relance le signal (« revoir » pour le voyant, « réécouter » pour le son).
@@ -446,10 +446,10 @@ Elle n'existe qu'en multijoueur. L'équipage joue sur le Cardputer, le centre de
 |---|---|---|---|
 | `0` | Titre, journal de bord, parties réparées, pause, décollage, fins | Copie de l'écran du Cardputer | |
 | `R` | Règles, avant le chrono | Ses règles | Ses règles |
-| `1,…` | Énigme 1, coffre (M) | Alphabet Morse, rappel point = flash court, trait = flash long | Le voyant, sans alphabet |
-| `2,…` | Énigme 2, réservoirs (A) | Le labyrinthe complet : planètes, entrée, sortie, personnage et trace | La grille vide, le personnage, sa trace et la sortie |
-| `3,…` | Énigme 3, soute (R) | Le signal sonore, un haut-parleur qui s'allume à chaque bip | L'alphabet Morse en permanence, `ESPACE` relance le signal |
-| `4,…` | Énigme 4, ordinateur de bord (S) | Les vrais chiffres et la grille de l'équipage en direct | La grille, avec des « ? » à la place des chiffres |
+| `1,…` | Énigme 1, coffre (A) | Alphabet Morse, rappel point = flash court, trait = flash long | Le voyant, sans alphabet |
+| `2,…` | Énigme 2, réservoirs (R) | Les vrais chiffres et la grille de l'équipage en direct | La grille, avec des « ? » à la place des chiffres |
+| `3,…` | Énigme 3, soute (E) | Le signal sonore, un haut-parleur qui s'allume à chaque bip | L'alphabet Morse en permanence, `ESPACE` relance le signal |
+| `4,…` | Énigme 4, ordinateur de bord (S) | Le labyrinthe complet : planètes, entrée, sortie, personnage et trace | La grille vide, le personnage, sa trace et la sortie |
 | `C,…` | Ordinateur de bord, code | Table de décodage du clavier codé | Le clavier codé |
 
 - Pour `1` à `4` et `C`, le texte continue par `restant_ms,erreurs,données`. La page affiche alors « CENTRE DE CONTRÔLE », le titre et le chrono O₂, recalculé localement toutes les 50 ms à partir de `restant_ms` et de l'horloge pour défiler sans à-coups. Elle clignote en rouge quand `erreurs` change.
@@ -457,14 +457,14 @@ Elle n'existe qu'en multijoueur. L'équipage joue sur le Cardputer, le centre de
 - Données du clavier codé : `saisis,table`. La table est une suite de paires `lettre` + `numéro de symbole en hexadécimal` (`0` à `b`), triée par lettre. La page affiche les 9 cases et 4 cases qui se remplissent selon `saisis`, sans dire quels symboles ont été tapés.
 - Le jeu renvoie l'état à chaque changement, et toutes les 500 ms pendant les énigmes et le clavier codé. Pendant la pause, il envoie `0`.
 - La page ne reconstruit son contenu que si la page ou ses données changent, pas à chaque envoi du chrono.
-- **Énigme 2, labyrinthe.** La grille est fixe (`MAZE[]` : `E` entrée, `X` sortie, `1` à `8` de Mercure à Neptune) et n'a qu'une solution. L'entrée et la sortie sont des cases de la grille qui touchent chacune 3 planètes : ni le premier ni le dernier pas ne se devinent. Une flèche avance d'une case (`mazeMove()`) ; une flèche vers le bord ne fait rien. Toute autre case que la planète suivante (puis la sortie après Neptune), entrée et cases déjà parcourues comprises, coûte −10 s, ramène le personnage à l'entrée et efface la trace ; la mauvaise case reste en rouge 1,5 s sur les deux écrans. Données envoyées : `grille,position,trace,mauvaise_case` (16 caractères de `MAZE`, numéro de case 0 à 15, 16 chiffres `0`/`1`, `-1` si aucune). Le personnage (`ASTRO[]`, astronaute 9×12) est le même dessin sur la page, servi avec les symboles dans `/sym.js`. Les planètes de la page sont de petits SVG (rond coloré, anneaux pour Saturne).
+- **Énigme 4, labyrinthe.** La grille est fixe (`MAZE[]`, 4 colonnes × 5 lignes : `E` entrée, `X` sortie, `1` à `8` de Mercure à Neptune) et n'a qu'une solution : aucune planète voisine du chemin n'est la suivante dans l'ordre. Le chemin dessine un S, dernière lettre de ARES. L'entrée et la sortie sont des cases de la grille qui touchent chacune 3 planètes : ni le premier ni le dernier pas ne se devinent. Une flèche avance d'une case (`mazeMove()`) ; une flèche vers le bord ne fait rien. Toute autre case que la planète suivante (puis la sortie après Neptune), entrée et cases déjà parcourues comprises, coûte −10 s, ramène le personnage à l'entrée et efface la trace ; la mauvaise case reste en rouge 1,5 s sur les deux écrans. À l'arrivée sur la sortie, l'entrée et la sortie se colorent aussi et le S complet reste affiché 1,5 s (`MAZE_SHOW_MS`, flèches ignorées) avant l'ordinateur de bord. Données envoyées : `grille,position,trace,mauvaise_case` (20 caractères de `MAZE`, numéro de case 0 à 19, 20 chiffres `0`/`1`, `-1` si aucune). Le personnage (`ASTRO[]`, astronaute 9×12) est le même dessin sur la page, servi avec les symboles dans `/sym.js`. Les planètes de la page sont de petits SVG (rond coloré, anneaux pour Saturne).
 - **Énigme 3.** La page note l'heure de chaque note du canal `CH_MORSE` (messages `T`) et allume le haut-parleur pendant les bips, même si le son n'est pas activé.
 - **Portrait.** Les tailles de la page sont en `vh`, proportionnelles à la hauteur de l'écran. En portrait, le contenu deviendrait plus large que l'écran : c'est le cas dans la fenêtre du portail captif de l'iPhone, qui reste toujours en portrait, et aucune page web ne peut la faire pivoter. Un bloc `@media (orientation:portrait)` remplace donc ces tailles par des tailles en `vw`, proportionnelles à la largeur, et l'alphabet Morse passe de 7 à 3 colonnes. En paysage, il ne s'applique pas.
 
 ### Clavier codé : génération (`buildKeypad()`, à l'entrée dans `Computer`)
 
 - 9 symboles tirés au hasard parmi 12 (`SYMBOLS[]`) et répartis sur les touches `1` à `9` (`keySym[]`) ;
-- 9 lettres : les lettres distinctes du code (les 4 de MARS) et d'autres lettres tirées au hasard, réparties au hasard sur ces touches (`keyLetter[]`) ;
+- 9 lettres : les lettres distinctes du code (les 4 de ARES) et d'autres lettres tirées au hasard, réparties au hasard sur ces touches (`keyLetter[]`) ;
 - les 12 symboles, inspirés des codes Alt de la page de code 437, sont dessinés en pixel art 12×12 (agrandis ×2 sur le clavier) : ☺ ♥ ♦ ♣ ♠ ♂ ♀ ♪ ☼ ⌂ ▲ ‼. ☻ et ♫ ont été écartés, trop proches de ☺ et ♪.
 
 ### Clavier codé : saisie
@@ -475,7 +475,7 @@ Le clavier s'affiche 600 ms après la dernière ligne du terminal (`keypadShown(
 
 ## 11. Mémoire et performances
 
-Valeurs mesurées sur la v2.1 :
+Valeurs mesurées sur la v2.2 :
 
 | Élément | Taille |
 |---|---|

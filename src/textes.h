@@ -111,12 +111,11 @@ constexpr Tx P2_TITLE = {"ÉNIGME 2/4 : RÉSERVOIRS DE CARBURANT", "PUZZLE 2/4: 
 constexpr Tx P2_TEXT = {"Verrou des réservoirs : quel est le premier rover à avoir roulé sur Mars ?",
                         "Fuel tank lock: which rover was the first to drive on Mars?"};
 constexpr Tx P2_FOOTER = {"A B C D : répondre", "A B C D: answer"};
-// Multijoueur : labyrinthe des planètes, l'équipage ne voit pas leurs noms
-constexpr Tx P2_TEXT_MAZE = {"Labyrinthe ! Le centre de contrôle vous guide case par case jusqu'à la sortie.",
-                             "Maze! Mission control guides you cell by cell to the exit."};
-constexpr Tx P2_FOOTER_MAZE = {K_UP K_DOWN K_LEFT K_RIGHT " : avancer d'une case",
-                               K_UP K_DOWN K_LEFT K_RIGHT ": move one cell"};
-constexpr Tx P2_WRONG_MAZE = {"MAUVAISE CASE : retour à l'entrée", "WRONG CELL: back to the entrance"};
+// Multijoueur : picross sur le verrou des réservoirs (énigme 2)
+constexpr Tx P2_TITLE_MULTI = {"ÉNIGME 2/4", "PUZZLE 2/4"};
+constexpr Tx P2_PLACE_MULTI = {"Réservoirs", "Fuel tanks"};
+constexpr Tx P2_TEXT_MULTI = {"Le centre de contrôle a les chiffres : demandez-les !",
+                              "Mission control has the numbers: ask them!"};
 
 constexpr Tx P3_TITLE = {"ÉNIGME 3/4", "PUZZLE 3/4"};
 constexpr Tx P3_PLACE = {"Soute à pièces", "Cargo hold"};
@@ -125,13 +124,15 @@ constexpr Tx P3_TEXT = {"Chaque chiffre = cases allumées à la suite, dans l'or
 constexpr Tx P3_MOVE = {K_UP K_DOWN K_LEFT K_RIGHT " : bouger", K_UP K_DOWN K_LEFT K_RIGHT ": move"};
 constexpr Tx P3_LIGHT = {"ENTRÉE : allumer", "ENTER: light up"};
 
-// Multijoueur : Morse sonore dans la soute (énigme 3), picross sur l'ordinateur de bord (énigme 4)
+// Multijoueur : Morse sonore dans la soute (énigme 3), labyrinthe des planètes sur
+// l'ordinateur de bord (énigme 4, titre P4_TITLE) : l'équipage ne voit pas leurs noms
 constexpr Tx P3_TITLE_MULTI = {"ÉNIGME 3/4 : SOUTE À PIÈCES", "PUZZLE 3/4: CARGO HOLD"};
 constexpr Tx P3_FOOTER_MULTI = {"ESPACE : réécouter (centre de contrôle)", "SPACE: replay (for mission control)"};
-constexpr Tx P4_TITLE_MULTI = {"ÉNIGME 4/4", "PUZZLE 4/4"};
-constexpr Tx P4_PLACE_MULTI = {"Ordinateur de bord", "On-board computer"};
-constexpr Tx P4_TEXT_MULTI = {"Le centre de contrôle a les chiffres : demandez-les !",
-                              "Mission control has the numbers: ask them!"};
+constexpr Tx P4_TEXT_MAZE = {"Labyrinthe ! Le centre de contrôle vous guide case par case jusqu'à la sortie.",
+                             "Maze! Mission control guides you cell by cell to the exit."};
+constexpr Tx P4_FOOTER_MAZE = {K_UP K_DOWN K_LEFT K_RIGHT " : avancer d'une case",
+                               K_UP K_DOWN K_LEFT K_RIGHT ": move one cell"};
+constexpr Tx P4_WRONG_MAZE = {"MAUVAISE CASE : retour à l'entrée", "WRONG CELL: back to the entrance"};
 
 constexpr Tx P4_TITLE = {"ÉNIGME 4/4 : ORDINATEUR DE BORD", "PUZZLE 4/4: ON-BOARD COMPUTER"};
 constexpr Tx P4_TEXT = {"L'ordinateur de bord émet en Morse la dernière lettre du code. Écoutez et tapez-la !",
@@ -186,6 +187,18 @@ constexpr Tx WIN_O2 = {"O₂ restant : ", "O₂ left: "};
 constexpr Tx WIN_NEW_RECORD = {"NOUVEAU RECORD !", "NEW RECORD!"};
 constexpr Tx WIN_RECORD = {"Record : ", "Record: "};
 constexpr Tx WIN_AGAIN = {"ENTRÉE : rejouer", "ENTER: play again"};
+// Bandeau qui défile sur l'écran de fin : la signification du code
+constexpr Tx WIN_INFO_SOLO = {
+    "NASA : National Aeronautics and Space Administration (Administration nationale de l'aéronautique et "
+    "de l'espace), l'agence spatiale des États-Unis, créée en 1958.",
+    "NASA: National Aeronautics and Space Administration, the United States space agency, founded in 1958."};
+constexpr Tx WIN_INFO_MULTI = {
+    "ARES : Arès est le dieu grec de la guerre ; les Romains l'appelaient Mars, d'où le nom de la planète rouge. "
+    "Ares, c'est aussi le nom de deux fusées de la NASA (Ares I et Ares V) qui devaient ramener des astronautes "
+    "sur la Lune, puis les emmener vers Mars. Le projet a été abandonné en 2010.",
+    "ARES: Ares is the Greek god of war; the Romans called him Mars, which gave the red planet its name. "
+    "Ares was also the name of two NASA rockets (Ares I and Ares V) meant to take astronauts back to the Moon, "
+    "then on to Mars. The project was cancelled in 2010."};
 
 constexpr Tx LOST_TITLE = {"OXYGÈNE ÉPUISÉ", "OUT OF OXYGEN"};
 constexpr Tx LOST_TEXT1 = {"Mission échouée...", "Mission failed..."};

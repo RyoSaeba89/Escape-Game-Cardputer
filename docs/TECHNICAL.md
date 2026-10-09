@@ -4,7 +4,7 @@
 
 This document describes how the game works inside, for anyone who wants to build, understand or change it. It does not give the puzzle solutions, but they are in plain text in the source code.
 
-Version described: **v2.1**: in multiplayer, puzzle 2 becomes a planet maze (v2.1); "With a screen" mode becomes **Multiplayer**, a two-team game (code MARS, a mission control page for each puzzle, a Rules page) (v2.0). Earlier versions: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7); coded keypad table fitted to portrait, for the iPhone captive portal window (v1.8).
+Version described: **v2.2**: in multiplayer, the code becomes ARES, the picross moves to puzzle 2 (an R) and the maze to puzzle 4 (4×5 grid whose path draws an S); a banner scrolls on the end screen to explain the code, NASA or ARES (v2.2). Earlier versions: in multiplayer, puzzle 2 becomes a planet maze (v2.1); "With a screen" mode becomes **Multiplayer**, a two-team game (code MARS, a mission control page for each puzzle, a Rules page) (v2.0). Before that: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7); coded keypad table fitted to portrait, for the iPhone captive portal window (v1.8).
 
 ## Contents
 
@@ -38,7 +38,7 @@ The game lasts 5 minutes: 4 puzzles solved in order, each one gives one letter o
 The game is in **French or English**, chosen on first start-up (section 3). Two modes are then offered:
 
 - **Cardputer only**: everything happens on the Cardputer. Code **NASA**.
-- **Multiplayer**: a two-team game, code **MARS**. The **crew** plays on the Cardputer, **mission control** on the web page of a PC, TV or phone. The Cardputer joins the router's Wi-Fi (or creates its own, Explorer3) and serves that page itself. The sound comes out of the page. During the puzzles and on the on-board computer, the page shows mission control the part of the clues the crew doesn't have (section 10); the rest of the time, it mirrors the Cardputer screen.
+- **Multiplayer**: a two-team game, code **ARES**. The **crew** plays on the Cardputer, **mission control** on the web page of a PC, TV or phone. The Cardputer joins the router's Wi-Fi (or creates its own, Explorer3) and serves that page itself. The sound comes out of the page. During the puzzles and on the on-board computer, the page shows mission control the part of the clues the crew doesn't have (section 10); the rest of the time, it mirrors the Cardputer screen.
 
 ## 2. Building and installing
 
@@ -51,7 +51,7 @@ The game is in **French or English**, chosen on first start-up (section 3). Two 
 | Platform | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Board | `esp32-s3-devkitc-1`, 8 MB flash, `default_8MB.csv` partitions (application up to 3.3 MB) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (serial port over native USB) |
-| Libraries | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions used for v2.1: 1.1.1, 0.2.25, 0.2.32 and 2.7.3) |
+| Libraries | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions used for v2.2: 1.1.1, 0.2.25, 0.2.32 and 2.7.3) |
 
 ```
 pio run                # build
@@ -195,7 +195,7 @@ stateDiagram-v2
 | `Solved` | Ship part repaired, letter engraved on it | |
 | `Computer` | On-board computer, code input | 5 lines of text appear every 600 ms, then the input |
 | `Launch` | Liftoff animation (6.5 s) | Countdown stopped, record saved |
-| `Win` / `GameOver` | End screens | ENTER goes back to the title, the chosen mode is kept |
+| `Win` / `GameOver` | End screens | ENTER goes back to the title, the chosen mode is kept. On `Win`, a banner scrolls the meaning of the code (`WIN_INFO_SOLO`, `WIN_INFO_MULTI`, `WIN_INFO_SPEED` = 45 px/s) |
 
 "back" = `ESC` (the Cardputer `` ` `` key, checked with `` hasChar(ks, '`') ``).
 
@@ -246,8 +246,8 @@ The mechanisms are described here, not the answers. The puzzle order depends on 
 |---|---|---|---|---|
 | `Lamp` | A light blinks a letter in Morse (unit `LAMP_UNIT_MS` = 400 ms); type the letter | 1 | 1 | `startMorseLamp()`, `lampOn()` |
 | `Quiz` | Multiple choice with 4 answers (A to D) | 2 | | `drawPuzzleQuiz()` |
-| `Maze` | Planet maze: 4×4 `MAZE[]` grid, go from the entrance to the exit through the 8 planets in order | | 2 | `drawPuzzleMaze()`, `mazeMove()`, `mazeReset()` |
-| `Picross` | 5×5 picross; row and column clues are computed from the `PICROSS[]` pattern | 3 | 4 | `buildClues()`, `lineClues()`, `picrossSolved()` |
+| `Maze` | Planet maze: 4×5 `MAZE[]` grid, go from the entrance to the exit through the 8 planets in order; the path draws an S | | 4 | `drawPuzzleMaze()`, `mazeMove()`, `mazeReset()` |
+| `Picross` | 5×5 picross; row and column clues are computed from the pattern, `PICROSS_SOLO[]` (S) or `PICROSS_MULTI[]` (R), when the puzzle starts | 3 | 2 | `buildClues()`, `lineClues()`, `picrossSolved()` |
 | `Sound` | Audio Morse signal, 700 Hz, unit `SOUND_UNIT_MS` = 200 ms; type the letter | 4 | 3 | `startMorseSound()`, `drawPuzzleSoundMulti()` |
 
 - Cardputer only: `TAB` shows the Morse code chart (`drawMorseHelp()`), any key closes it, `SPACE` plays the signal again ("watch again" for the light, "listen again" for the sound).
@@ -446,10 +446,10 @@ It only exists in multiplayer. The crew plays on the Cardputer, mission control 
 |---|---|---|---|
 | `0` | Title, captain's log, repaired parts, pause, liftoff, end screens | Copy of the Cardputer screen | |
 | `R` | Rules, before the countdown | Its rules | Its rules |
-| `1,…` | Puzzle 1, safe (M) | Morse code chart, reminder dot = short flash, dash = long flash | The light, without the chart |
-| `2,…` | Puzzle 2, fuel tanks (A) | The full maze: planets, entrance, exit, character and trail | The empty grid, the character, its trail and the exit |
-| `3,…` | Puzzle 3, cargo hold (R) | The audio signal, a speaker that lights up on each beep | The Morse code chart at all times, `SPACE` replays the signal |
-| `4,…` | Puzzle 4, on-board computer (S) | The real numbers and the crew's grid, live | The grid, with "?" instead of the numbers |
+| `1,…` | Puzzle 1, safe (A) | Morse code chart, reminder dot = short flash, dash = long flash | The light, without the chart |
+| `2,…` | Puzzle 2, fuel tanks (R) | The real numbers and the crew's grid, live | The grid, with "?" instead of the numbers |
+| `3,…` | Puzzle 3, cargo hold (E) | The audio signal, a speaker that lights up on each beep | The Morse code chart at all times, `SPACE` replays the signal |
+| `4,…` | Puzzle 4, on-board computer (S) | The full maze: planets, entrance, exit, character and trail | The empty grid, the character, its trail and the exit |
 | `C,…` | On-board computer, code | Decoding table of the coded keypad | The coded keypad |
 
 - For `1` to `4` and `C`, the text goes on with `remaining_ms,errors,data`. The page then shows "MISSION CONTROL", the title and the O₂ countdown, recomputed locally every 50 ms from `remaining_ms` and the clock so it runs smoothly. It flashes red when `errors` changes.
@@ -457,14 +457,14 @@ It only exists in multiplayer. The crew plays on the Cardputer, mission control 
 - Coded keypad data: `typed,table`. The table is a series of `letter` + `symbol number in hexadecimal` (`0` to `b`) pairs, sorted by letter. The page shows the 9 boxes and 4 boxes that fill up according to `typed`, without telling which symbols were typed.
 - The game sends the state on every change, and every 500 ms during the puzzles and the coded keypad. During pause, it sends `0`.
 - The page only rebuilds its content when the page or its data change, not on every countdown update.
-- **Puzzle 2, maze.** The grid is fixed (`MAZE[]`: `E` entrance, `X` exit, `1` to `8` Mercury to Neptune) and has a single solution. The entrance and the exit are grid cells that each touch 3 planets: neither the first nor the last step can be guessed. An arrow moves one cell (`mazeMove()`); an arrow towards the edge does nothing. Any cell other than the next planet (then the exit after Neptune), including the entrance and cells already walked, costs −10 s, sends the character back to the entrance and clears the trail; the wrong cell stays red for 1.5 s on both screens. Data sent: `grid,position,trail,wrong_cell` (16 `MAZE` characters, cell number 0 to 15, 16 `0`/`1` digits, `-1` if none). The character (`ASTRO[]`, 9×12 astronaut) is the same drawing on the page, served with the symbols in `/sym.js`. The page's planets are small SVGs (coloured disc, rings for Saturn).
+- **Puzzle 4, maze.** The grid is fixed (`MAZE[]`, 4 columns × 5 rows: `E` entrance, `X` exit, `1` to `8` Mercury to Neptune) and has a single solution: no planet next to the path is the next one in order. The path draws an S, the last letter of ARES. The entrance and the exit are grid cells that each touch 3 planets: neither the first nor the last step can be guessed. An arrow moves one cell (`mazeMove()`); an arrow towards the edge does nothing. Any cell other than the next planet (then the exit after Neptune), including the entrance and cells already walked, costs −10 s, sends the character back to the entrance and clears the trail; the wrong cell stays red for 1.5 s on both screens. On reaching the exit, the entrance and the exit are coloured too and the full S stays on screen for 1.5 s (`MAZE_SHOW_MS`, arrows ignored) before the on-board computer. Data sent: `grid,position,trail,wrong_cell` (20 `MAZE` characters, cell number 0 to 19, 20 `0`/`1` digits, `-1` if none). The character (`ASTRO[]`, 9×12 astronaut) is the same drawing on the page, served with the symbols in `/sym.js`. The page's planets are small SVGs (coloured disc, rings for Saturn).
 - **Puzzle 3.** The page records the time of each note on the `CH_MORSE` channel (`T` messages) and lights the speaker up during the beeps, even if sound is not enabled.
 - **Portrait.** The page sizes are in `vh`, proportional to the screen height. In portrait, the content would get wider than the screen: this happens in the iPhone captive portal window, which always stays in portrait, and no web page can rotate it. A `@media (orientation:portrait)` block therefore replaces these sizes with `vw` sizes, proportional to the width, and the Morse chart goes from 7 to 3 columns. In landscape it does not apply.
 
 ### Coded keypad: generation (`buildKeypad()`, on entering `Computer`)
 
 - 9 symbols drawn at random out of 12 (`SYMBOLS[]`) and spread over keys `1` to `9` (`keySym[]`);
-- 9 letters: the distinct letters of the code (the 4 of MARS) and other random letters, spread at random over those keys (`keyLetter[]`);
+- 9 letters: the distinct letters of the code (the 4 of ARES) and other random letters, spread at random over those keys (`keyLetter[]`);
 - the 12 symbols, inspired by code page 437 Alt codes, are drawn as 12×12 pixel art (scaled ×2 on the keypad): ☺ ♥ ♦ ♣ ♠ ♂ ♀ ♪ ☼ ⌂ ▲ ‼. ☻ and ♫ were left out, too close to ☺ and ♪.
 
 ### Coded keypad: input
@@ -475,7 +475,7 @@ The keypad shows up 600 ms after the last terminal line (`keypadShown()`). `type
 
 ## 11. Memory and performance
 
-Figures measured on v2.1:
+Figures measured on v2.2:
 
 | Item | Size |
 |---|---|
