@@ -66,13 +66,19 @@ void sendRumble(uint32_t at);           // grondement du décollage
 // "1" à "4" = énigme, "C" = table du clavier codé. Pour "1" à "4" et "C", suivi de
 // ",restant_ms,erreurs,données" : picross "grille,lignes,colonnes,curseur" (grille =
 // 25 chiffres 0/1, indices « 3.1/1.1.1/… », curseur = case 0 à 24), clavier codé "saisis,table" (table =
-// lettre + n° de symbole en hexa). Voir updatePanel() dans main.cpp.
+// lettre + n° de symbole en hexa), labyrinthe "grille,position,trace,mauvaise case".
+// Voir updatePanel() dans main.cpp.
 void setPanel(const String &text);
 
 // Bandeau qui défile sur l'écran de fin : la page le dessine et le fait défiler
 // elle-même, et les lignes y à y + h - 1 ne passent plus dans la copie de l'écran.
 // Texte vide : plus de bandeau, ces lignes sont de nouveau envoyées.
 void setBanner(const String &text, int y, int h);
+
+// Thème du labyrinthe (énigme 4) : noms et dessins des cases, indice (texte de
+// mazeThemeText() dans main.cpp). Envoyé une fois, et de nouveau à chaque
+// navigateur qui arrive. Texte vide : les planètes.
+void setMazeTheme(const String &text);
 
 void setLanguage(uint8_t lang);       // 0 = français, 1 = anglais (textes de la page)
 void setSymbols(const char *js);      // dessins des symboles (/sym.js), gardé tel quel

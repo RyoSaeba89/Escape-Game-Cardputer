@@ -3,6 +3,9 @@
 // et un appareil Explorer3 qui se connectent tout seuls.
 #include "../src/diffusion.h"
 
+#include <cstdio>
+#include <cstdlib>
+
 namespace mirror {
 namespace {
 uint32_t scanAt = 0;
@@ -90,6 +93,16 @@ void sendStop(uint32_t, uint8_t) {}
 void sendRumble(uint32_t) {}
 void setPanel(const String &) {}
 void setBanner(const String &, int, int) {}
+// Variable EXPLORER3_THEME : fichier où écrire le message M (thème du labyrinthe),
+// pour essayer la page web sans Cardputer
+void setMazeTheme(const String &text) {
+    if (const char *path = getenv("EXPLORER3_THEME")) {
+        if (FILE *f = fopen(path, "wb")) {
+            fprintf(f, text.length() ? "M,0,%s" : "M,0", text.c_str());
+            fclose(f);
+        }
+    }
+}
 void setLanguage(uint8_t) {}
 void setSymbols(const char *) {}
 

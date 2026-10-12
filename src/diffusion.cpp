@@ -115,11 +115,12 @@ const TX={
   t2:'ÉNIGME 2/4 : RÉSERVOIRS DE CARBURANT',
   p2:"La porte des réservoirs est verrouillée. Lisez les chiffres à l'équipage et guidez-le. Chaque chiffre = nombre de lumières à la suite, dans l'ordre. Une ligne juste passe au vert.",
   t3:'ÉNIGME 3/4 : SOUTE DES PIÈCES',
-  p3:"Le verrou de la soute émet une lettre en Morse. Écoutez, puis décrivez les bips à l'équipage : il a l'alphabet Morse !",
-  q3:"Bip court = point · Bip long = trait. L'équipage peut relancer le signal.",
+  p3:"Le verrou de la soute émet une lettre en Morse. Écoutez, puis décrivez les sons à l'équipage : il a l'alphabet Morse !",
+  q3:"Son court = point · Son long = trait. L'équipage peut relancer le signal.",
   t4:'ÉNIGME 4/4 : ORDINATEUR DE BORD',
   p4:"Guidez l'équipage jusqu'à la sortie : il doit passer par les 8 planètes dans l'ordre, une case à la fois.",
   h4:'Indice : de la planète la plus proche du Soleil à la plus lointaine.',
+  p4t:"Guidez l'équipage jusqu'à la sortie : il doit passer par les 8 images dans l'ordre, une case à la fois.",
   e4:"Mauvaise case : −10 s et retour à l'entrée.",ent:'ENTRÉE',sor:'SORTIE',
   pl:['Mercure','Vénus','Terre','Mars','Jupiter','Saturne','Uranus','Neptune'],
   tc:'ORDINATEUR DE BORD : TABLE DE DÉCODAGE',
@@ -140,6 +141,7 @@ const TX={
   t4:'PUZZLE 4/4: ON-BOARD COMPUTER',
   p4:'Guide the crew to the exit: they must step on the 8 planets in order, one cell at a time.',
   h4:'Hint: from the planet closest to the Sun to the farthest one.',
+  p4t:'Guide the crew to the exit: they must go through the 8 pictures in order, one cell at a time.',
   e4:'Wrong cell: −10 s and back to the entrance.',ent:'ENTRANCE',sor:'EXIT',
   pl:['Mercury','Venus','Earth','Mars','Jupiter','Saturn','Uranus','Neptune'],
   tc:'ON-BOARD COMPUTER: DECODING TABLE',
@@ -283,7 +285,8 @@ function picross(g,lignes,cols,cur){lignes=lignes.split('/');cols=cols.split('/'
   h+='<tr><th'+(indices(lig)==lignes[r]?' class="ok"':'')+'>'+lignes[r].split('.').join(' ')+'</th>';
   for(let c=0;c<5;c++){const cl=(on(r,c)?'on ':'')+(r*5+c===cur?'cur':'');h+='<td'+(cl?' class="'+cl.trim()+'"':'')+'></td>';}h+='</tr>';}
  return h+'</tbody></table>';}
-// Labyrinthe (énigme 4, 4 colonnes x 5 lignes) : planètes en petits dessins SVG, personnage = ASTRO
+// Labyrinthe (énigme 4, 4 colonnes x 5 lignes) : planètes en petits dessins SVG (ou thème du mot,
+// message M), personnage = ASTRO
 // de /sym.js (le même dessin que sur le Cardputer)
 const PCOUL=['#a0a0a8','#e8c878','#3c78dc','#d2502d','#d8a878','#e6cc8c','#8cdce6','#3c5ad2'];
 function planete(k){let h='<svg class="pl" viewBox="0 0 20 20"><circle cx="10" cy="10" r="'+(k==5?5.5:7)+'" fill="'+PCOUL[k]+'"/>';
@@ -295,11 +298,26 @@ const ACOUL={W:'#fff',B:'#2858dc',C:'#50c8ff',G:'#969aa0',D:'#50505a',O:'#ffa028
 function astro(cl){const A=typeof ASTRO!='undefined'?ASTRO:[];let h='<svg class="'+cl+'" viewBox="0 0 9 12" shape-rendering="crispEdges">';
  for(let r=0;r<A.length;r++)for(let c=0;c<A[r].length;c++){const k=ACOUL[A[r][c]];if(k)h+='<rect x="'+c+'" y="'+r+'" width="1" height="1" fill="'+k+'"/>';}
  return h+'</svg>';}
+// Labyrinthe à thème ("M,heure,palette,dessins,rangs,8 noms,indice", voir
+// mazeThemeText() dans main.cpp ; "M,heure" seul : les planètes). Dessins
+// 16×16, un chiffre hexadécimal par pixel (0 transparent, sinon couleur de la palette).
+let THEME=null;
+function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function dessin(pal,d){const p={};
+ for(let y=0;y<16;y++)for(let x=0;x<16;){const c=d[y*16+x];let e=x+1;while(e<16&&d[y*16+e]==c)e++;
+  if(c!='0')p[c]=(p[c]||'')+'M'+x+' '+y+'h'+(e-x)+'v1h'+(x-e)+'z';x=e;}
+ let h='<svg class="pl" viewBox="0 0 16 16" shape-rendering="crispEdges">';
+ for(const c in p){const i=parseInt(c,16)-1;h+='<path fill="#'+pal.substr(i*6,6)+'" d="'+p[c]+'"/>';}
+ return h+'</svg>';}
+function theme(s){const a=s.split(',');THEME=null;
+ if(a.length>=14){const d=[];for(let i=0;i+256<=a[3].length;i+=256)d.push(dessin(a[2],a[3].substr(i,256)));
+  THEME={svg:a[4].split('').map(c=>d[parseInt(c,16)]||''),noms:a.slice(5,13).map(esc),indice:esc(a.slice(13).join(','))};}
+ pageVue='';majPage();}
 const TRAPPE='<svg class="pl" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" rx="2" fill="#145a28" stroke="#46e164" stroke-width="1.5"/><path d="M7 5v10l7-5z" fill="#46e164"/></svg>';
 function labyrinthe(g,pos,trace,bad){const t=TX[lg];pos=Number(pos);bad=Number(bad);let h='<table id="laby">';
  for(let r=0;r<5;r++){h+='<tr>';
   for(let c=0;c<4;c++){const i=r*4+c,v=g[i];let cl=i==bad?'bad':trace[i]=='1'?'tr':'',x;
-   if(v=='E'){cl+=' es';x=(i==pos?astro('ae'):'')+t.ent;}else if(v=='X'){cl+=' sx';x=TRAPPE+t.sor;}else{const k=Number(v)-1;x=planete(k)+t.pl[k];}
+   if(v=='E'){cl+=' es';x=(i==pos?astro('ae'):'')+t.ent;}else if(v=='X'){cl+=' sx';x=TRAPPE+t.sor;}else{const k=Number(v)-1;x=THEME?THEME.svg[k]+THEME.noms[k]:planete(k)+t.pl[k];}
    h+='<td class="'+cl+'">'+(i==pos&&v!='E'?astro('as'):'')+x+'</td>';}
   h+='</tr>';}
  return h+'</table>';}
@@ -313,7 +331,7 @@ function majPage(){const t=TX[lg],d=donnees,cle=lg+page+d.join(',');
  else if(page=='1'){titre.textContent=t.t1;h=para(t.p1)+para(t.q1,'dim')+alphabet();}
  else if(page=='2'){titre.textContent=t.t2;h=picross(d[0],d[1],d[2],d[3])+para(t.p2);}
  else if(page=='3'){titre.textContent=t.t3;h=HP+para(t.p3)+para(t.q3,'dim');}
- else if(page=='4'){titre.textContent=t.t4;h=labyrinthe(d[0],d[1],d[2],d[3])+para(t.p4)+para(t.h4,'moi')+para(t.e4,'dim');}
+ else if(page=='4'){titre.textContent=t.t4;h=labyrinthe(d[0],d[1],d[2],d[3])+para(THEME?t.p4t:t.p4)+para(THEME?THEME.indice:t.h4,'moi')+para(t.e4,'dim');}
  else if(page=='C'){titre.textContent=t.tc;h='<div id="grille">';
   const k=d[1];for(let i=0;i<k.length;i+=2)h+='<div class="case"><b>'+k[i]+'</b>'+symbole(parseInt(k[i+1],16))+'</div>';
   h+='</div><div id="saisie">'+t.sa+' ';for(let i=0;i<4;i++)h+='<span'+(i<Number(d[0])?' class="on"':'')+'></span>';
@@ -335,7 +353,7 @@ setInterval(horloge,50);
 langue(lg);
 
 function msg(s){const a=s.split(',').map(Number);sync(a[1]);
- if(s[0]=='K'){panel(s.split(','));return;}if(s[0]=='B'){banniere(s);return;}if(s[0]=='L'){langue(s.split(',')[2]);return;}
+ if(s[0]=='K'){panel(s.split(','));return;}if(s[0]=='B'){banniere(s);return;}if(s[0]=='M'){theme(s);return;}if(s[0]=='L'){langue(s.split(',')[2]);return;}
  if(s[0]=='T'&&a[5]==2)bip(a[2],a[4]);else if(s[0]=='S'&&(a[3]==2||a[3]==255))bips=[];
  if(!ac)return;
  if(s[0]=='T')tone(a[2],a[3],a[4],a[5]);else if(s[0]=='S')stop(a[2],a[3]);else if(s[0]=='R')rumble(a[2]);}
@@ -386,6 +404,11 @@ int bannerH = 0;
 volatile bool bannerDirty = false;
 int bandY = 0;
 int bandH = 0;
+
+// Thème du labyrinthe ("M,heure,texte", texte de mazeThemeText() dans
+// main.cpp ; "M,heure" : les planètes), envoyé par la tâche réseau
+char mazeText[3072] = "";
+volatile bool mazeDirty = false;
 
 // Langue de la page ("L,heure,fr") et dessins des symboles (/sym.js)
 volatile uint8_t pageLang = 0;
@@ -552,6 +575,7 @@ void onWsEvent(uint8_t, WStype_t type, uint8_t *, size_t) {
         panelDirty = true;
         langDirty = true;
         bannerDirty = true;
+        mazeDirty = true;
     }
     if (type == WStype_CONNECTED || type == WStype_DISCONNECTED) {
         clients = ws.connectedClients();
@@ -598,6 +622,18 @@ void netTask(void *) {
             if (clients) {
                 snprintf(txt, sizeof(txt), "L,%lu,%s", (unsigned long)now, pageLang ? "en" : "fr");
                 ws.broadcastTXT(txt);
+            }
+        }
+        if (mazeDirty) {  // avant la page : elle s'affiche tout de suite avec le bon thème
+            static char copy[sizeof(mazeText)];
+            static char out[sizeof(mazeText) + 16];
+            portENTER_CRITICAL(&panelLock);
+            memcpy(copy, mazeText, sizeof(copy));
+            mazeDirty = false;
+            portEXIT_CRITICAL(&panelLock);
+            if (clients) {
+                snprintf(out, sizeof(out), copy[0] ? "M,%lu,%s" : "M,%lu", (unsigned long)now, copy);
+                ws.broadcastTXT(out);
             }
         }
         if (panelDirty) {
@@ -970,6 +1006,14 @@ void setBanner(const String &text, int y, int h) {
     bannerY = y;
     bannerH = h;
     bannerDirty = true;
+    portEXIT_CRITICAL(&panelLock);
+}
+
+void setMazeTheme(const String &text) {
+    portENTER_CRITICAL(&panelLock);
+    strncpy(mazeText, text.c_str(), sizeof(mazeText) - 1);
+    mazeText[sizeof(mazeText) - 1] = 0;
+    mazeDirty = true;
     portEXIT_CRITICAL(&panelLock);
 }
 

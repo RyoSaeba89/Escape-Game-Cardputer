@@ -4,7 +4,7 @@
 
 This document describes how the game works inside, for anyone who wants to build, understand or change it. It does not give the puzzle solutions, but they are in plain text in the source code.
 
-Version described: **v2.2.2**: in multiplayer, mission control sees the crew's cursor on the picross; texts revised (v2.2.2); in multiplayer, the end screen banner scrolls on the page itself, to stay smooth on a phone (v2.2.1); in multiplayer, new start-up code; the picross moves to puzzle 2 and the maze to puzzle 4 (4×5 grid whose path draws a letter); a banner scrolls on the end screen to explain the code (v2.2). Earlier versions: in multiplayer, puzzle 2 becomes a planet maze (v2.1); "With a screen" mode becomes **Multiplayer**, a two-team game (a code of its own, a mission control page for each puzzle, a Rules page) (v2.0). Before that: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7); coded keypad table fitted to portrait, for the iPhone captive portal window (v1.8).
+Version described: **v3.0.0** (not released yet): the start-up code is a word drawn at random for each game, with its quiz question (shuffled answers), its picross and, in multiplayer, its maze whose cells have a theme linked to the word, pictures included (message `M`); no code ever appears in its puzzles (`tools/controle_codes.py`). Earlier versions: in multiplayer, mission control sees the crew's cursor on the picross; texts revised (v2.2.2); in multiplayer, the end screen banner scrolls on the page itself, to stay smooth on a phone (v2.2.1); in multiplayer, new start-up code; the picross moves to puzzle 2 and the maze to puzzle 4 (4×5 grid whose path draws a letter); a banner scrolls on the end screen to explain the code (v2.2). Earlier versions: in multiplayer, puzzle 2 becomes a planet maze (v2.1); "With a screen" mode becomes **Multiplayer**, a two-team game (a code of its own, a mission control page for each puzzle, a Rules page) (v2.0). Before that: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7); coded keypad table fitted to portrait, for the iPhone captive portal window (v1.8).
 
 ## Contents
 
@@ -30,15 +30,15 @@ Version described: **v2.2.2**: in multiplayer, mission control sees the crew's c
 | Hardware | M5Stack **Cardputer ADV**: ESP32-S3 (2 cores, 240 MHz), 8 MB flash, **no PSRAM**, 240×135 screen, ES8311 audio codec (mono), TCA8418 keyboard |
 | Framework | Arduino (ESP32 core 2.0.x) through PlatformIO |
 | Language | C++17 on the Cardputer, HTML/CSS/JavaScript for the multiplayer web page |
-| Files | `src/main.cpp` (the game), `src/textes.h` (French and English texts), `src/diffusion.cpp` and `src/diffusion.h` (multiplayer mode), `sim/` (PC simulator) |
+| Files | `src/main.cpp` (the game), `src/textes.h` (French and English texts), `src/mots.h` (start-up codes and the data of their puzzles), `src/dessins.h` (pictures of the maze cells), `src/diffusion.cpp` and `src/diffusion.h` (multiplayer mode), `sim/` (PC simulator) |
 | License | MIT |
 
-The game lasts 5 minutes: 4 puzzles solved in order, each one gives one letter of a 4-letter code to type on the on-board computer to launch the rocket.
+The game lasts 5 minutes: 4 puzzles solved in order, each one gives one letter of a 4-letter code to type on the on-board computer to launch the rocket. The code is a word drawn at random for each game from a list specific to each language (section 7).
 
 The game is in **French or English**, chosen on first start-up (section 3). Two modes are then offered:
 
-- **Cardputer only**: everything happens on the Cardputer. Start-up code `CODE_SOLO`.
-- **Multiplayer**: a two-team game, start-up code `CODE_MULTI`. The **crew** plays on the Cardputer, **mission control** on the web page of a PC, TV or phone. The Cardputer joins the router's Wi-Fi (or creates its own, Explorer3) and serves that page itself. The sound comes out of the page. During the puzzles and on the on-board computer, the page shows mission control the part of the clues the crew doesn't have (section 10); the rest of the time, it mirrors the Cardputer screen.
+- **Cardputer only**: everything happens on the Cardputer.
+- **Multiplayer**: a two-team game, with only the codes that have a maze. The **crew** plays on the Cardputer, **mission control** on the web page of a PC, TV or phone. The Cardputer joins the router's Wi-Fi (or creates its own, Explorer3) and serves that page itself. The sound comes out of the page. During the puzzles and on the on-board computer, the page shows mission control the part of the clues the crew doesn't have (section 10); the rest of the time, it mirrors the Cardputer screen.
 
 ## 2. Building and installing
 
@@ -84,7 +84,7 @@ The whole game is in `src/main.cpp`, inside an anonymous namespace. Sections are
 
 | Section | Content |
 |---|---|
-| Constants | Screen size, game length, penalty, Morse units, audio channels, colour palette (RGB565), Morse alphabet, pixel art drawings (rocket, picross, symbols) |
+| Constants | Screen size, game length, penalty, Morse units, audio channels, colour palette (RGB565), Morse alphabet, pixel art drawings (rocket, symbols) |
 | Keyboard reader | `PolledKeyboardReader` (section 8) |
 | Global state | Current state, language, countdown, puzzle, input, pause, record, multiplayer variables |
 | sound | Note scheduler, sound effects, liftoff noise |
@@ -103,9 +103,9 @@ The whole game is in `src/main.cpp`, inside an anonymous namespace. Sections are
 Every displayed text is a `{ French, English }` pair of type `Tx`, grouped by screen:
 
 ```cpp
-constexpr Tx P2_FOOTER = {"Répondez A, B, C ou D", "Answer A, B, C or D"};
+constexpr Tx P2_LOCKED = {"Porte verrouillée !", "Door locked!"};
 ...
-drawFooter(tr(P2_FOOTER));
+wrapped(String(tr(P2_LOCKED)) + " " + mot->question, ...);
 ```
 
 `tr()` returns the text in the current language (`lang`: 0 French, 1 English). Both translations sit side by side, so none gets forgotten. The web page texts are in the page itself (section 9.7).
@@ -113,6 +113,10 @@ drawFooter(tr(P2_FOOTER));
 **Keys.** In the texts, a hint is written "key: action" (`"ENTER: confirm"`): `hint()` and `drawFooter()` draw what comes before the first `:` in orange and the rest in the text colour. The Cardputer arrows (keys `;` `.` `,` `/`) are written `K_UP`, `K_DOWN`, `K_LEFT`, `K_RIGHT` (codes 1 to 4) and drawn as 9 px orange triangles. In a footer, `|` separates the groups, which `drawFooter()` spreads across the width (6 to 24 px apart). Back is written `ESC`.
 
 **Room on screen.** The `efontJA_12` font is 6 px per Latin character, accents included, so 40 characters across 240 px. In practice all the groups of a footer must stay under about 230 px (width minus the minimum gaps), and narrow columns (picross, coded keypad, address screen) wrap with `wrapped()`. The simulator (section 14) shows every screen for checking.
+
+### Codes and puzzle data (`src/mots.h`, `src/dessins.h`)
+
+`mots.h` holds one list of codes per language (`MOTS_FR`, `MOTS_EN`; `liste()` picks the one for the language). Each code (`Mot`) has its quiz question and 4 answers (the right one first), the end screen banner text and, if it can come up in multiplayer, its maze grid (`laby`) and the theme of its cells (`theme`; `nullptr`: the planets). `PICROSS` gives the 5×5 drawing of each letter used by a picross; each one has a single solution with its numbers. `dessins.h` holds the 16×16 pictures of the maze cells (one character per pixel, 15-colour palette), which the game does not show: it sends them to mission control (section 10). These files hold the codes: never copy them into the documentation.
 
 ### Drawing
 
@@ -127,6 +131,7 @@ The whole screen is drawn into a 240×135, 16-bit `M5Canvas` sprite (64,800 byte
 | `lang` | uchar | Language (0 French, 1 English). Missing on first start-up: the language screen is shown |
 | `best_o2` | uint | Record: largest O₂ reserve left on winning (ms) |
 | `ssid`, `pass` | string | Last router Wi-Fi used, saved only after a successful connection |
+| `mot_s`, `mot_m` | string | Code of the previous game, Cardputer only and multiplayer: `chooseWord()` does not pick it again next time |
 | `auto` | bool | `true`: "Multiplayer" reconnects directly to `ssid`. Set to `false` when the Explorer3 network is created, so the Wi-Fi list is shown next time. Missing = `true` |
 
 ## 4. Main loop and state machine
@@ -195,7 +200,7 @@ stateDiagram-v2
 | `Solved` | Ship part repaired, letter engraved on it | |
 | `Computer` | On-board computer, code input | 5 lines of text appear every 600 ms, then the input |
 | `Launch` | Liftoff animation (6.5 s) | Countdown stopped, record saved |
-| `Win` / `GameOver` | End screens | ENTER goes back to the title, the chosen mode is kept. On `Win`, a banner scrolls the meaning of the code (`WIN_INFO_SOLO`, `WIN_INFO_MULTI`, `WIN_INFO_SPEED` = 45 px/s); in multiplayer, the page scrolls it itself (section 9.4) |
+| `Win` / `GameOver` | End screens | ENTER goes back to the title, the chosen mode is kept. On `Win`, a banner scrolls the meaning of the code (the code's `bandeau` in `mots.h`, `WIN_INFO_SPEED` = 45 px/s); in multiplayer, the page scrolls it itself (section 9.4) |
 
 "back" = `ESC` (the Cardputer `` ` `` key, checked with `` hasChar(ks, '`') ``).
 
@@ -240,19 +245,19 @@ This is the **only place** sound comes out, which lets multiplayer mode send it 
 
 ## 7. Puzzles
 
-The mechanisms are described here, not the answers. The puzzle order depends on the mode (`ORDER_SOLO`, `ORDER_MULTI`, `puzzleKind()`). The letter to find is the code letter at the puzzle's position (`answer()` = `code()[puzzle]`, with `CODE_SOLO` or `CODE_MULTI`). The places stay in the same order in both modes: soldering iron safe, fuel tanks, parts hold, on-board computer.
+The mechanisms are described here, not the answers. The puzzle order depends on the mode (`ORDER_SOLO`, `ORDER_MULTI`, `puzzleKind()`). The letter to find is the code letter at the puzzle's position (`answer()` = `code()[puzzle]`). The code (`mot`) is drawn by `chooseWord()` when each game starts, at random from the language's list (in multiplayer, among the codes that have a maze), never the same as the previous game in the same mode (keys `mot_s`, `mot_m`). The places stay in the same order in both modes: soldering iron safe, fuel tanks, parts hold, on-board computer.
 
 | Type (`Pz`) | Mechanism | Solo | Multiplayer | Code |
 |---|---|---|---|---|
 | `Lamp` | A light blinks a letter in Morse (unit `LAMP_UNIT_MS` = 400 ms); type the letter | 1 | 1 | `startMorseLamp()`, `lampOn()` |
-| `Quiz` | Multiple choice with 4 answers (A to D) | 2 | | `drawPuzzleQuiz()` |
-| `Maze` | Planet maze: 4×5 `MAZE[]` grid, go from the entrance to the exit through the 8 planets in order; the path draws the puzzle's letter | | 4 | `drawPuzzleMaze()`, `mazeMove()`, `mazeReset()` |
-| `Picross` | 5×5 picross; row and column clues are computed from the pattern, `PICROSS_SOLO[]` or `PICROSS_MULTI[]` (the puzzle's letter in each mode), when the puzzle starts | 3 | 2 | `buildClues()`, `lineClues()`, `picrossSolved()` |
+| `Quiz` | The code's question, after "Door locked!": 4 answers shuffled for each game; the right one carries the puzzle's letter, the others random letters, all different (`prepareQuiz()`); only these 4 letters are accepted, and the footer lists them | 2 | | `drawPuzzleQuiz()` |
+| `Maze` | The code's maze: 4×5 grid (`mazeGrid()`), go from the entrance to the exit through the 8 cells in order (planets, or the code's theme); the path draws the puzzle's letter | | 4 | `drawPuzzleMaze()`, `mazeMove()`, `mazeReset()` |
+| `Picross` | 5×5 picross; row and column clues are computed when the puzzle starts from the drawing of the puzzle's letter (`mots::picross()`) | 3 | 2 | `buildClues()`, `lineClues()`, `picrossSolved()` |
 | `Sound` | Audio Morse signal, 700 Hz, unit `SOUND_UNIT_MS` = 200 ms; type the letter | 4 | 3 | `startMorseSound()`, `drawPuzzleSoundMulti()` |
 
 - Cardputer only: `TAB` shows the Morse code chart (`drawMorseHelp()`), any key closes it, `SPACE` plays the signal again ("watch again" for the light, "listen again" for the sound).
 - Multiplayer: no `TAB`. `SPACE` plays the signal again; for the sound it comes out of the mission control page. What each team sees is described in section 10.
-- A wrong letter triggers `penalty()`. A right letter calls `solvePuzzle()`.
+- A wrong letter triggers `penalty()`. A right letter calls `solvePuzzle()`. In the quiz, the question may take 3 lines: "X: ACCESS DENIED" then replaces the footer, as in multiplayer puzzle 3.
 - The picross is solved when the grid is **identical** to the pattern (`picrossSolved()`). Lit cells are orange on a dark background; the clues of a row or column turn green as soon as it matches them (`rowOk()`, `colOk()`). In multiplayer the crew sees "?" instead of the numbers, which also turn green.
 
 ## 8. Cardputer ADV keyboard
@@ -295,6 +300,7 @@ Mission control has nothing to install: the Cardputer serves the page itself (`h
 | `sendTone()`, `sendStop()`, `sendRumble()` | Sounds for the browser to play (section 9.5) |
 | `setPanel(text)` | State of the mission control page (section 10) |
 | `setBanner(text, y, h)` | End screen banner, scrolled by the page itself (section 9.4) |
+| `setMazeTheme(text)` | Maze theme: names, pictures and hint of the cells (section 10); empty: the planets |
 | `setLanguage(lang)` | Page language (section 9.7) |
 | `setSymbols(js)` | Symbol drawings served as `/sym.js` (section 10) |
 | `AP_SSID`, `AP_PASS`, `HOST_NAME` | `Explorer3`, `Explorer3`, `explorer3.local` |
@@ -395,12 +401,12 @@ Browsers forbid sound before a user action. The audio context is therefore creat
 2. `http.handleClient()` and `ws.loop()`;
 3. sending pending sounds (FreeRTOS queue of 64 items, filled without waiting by the game);
 4. sending the language if it changed;
-5. sending the mission control page state if it changed;
+5. sending the maze theme (`M`), then the mission control page state, if they changed;
 6. clock every 250 ms;
 7. frame every 40 ms;
 8. `vTaskDelay(1)`.
 
-The HTTP server answers `/` (the page) and `/sym.js` (the symbol drawings, section 10). On Explorer3, any other address is redirected to the page (captive portal, section 9.3). On the page side, a lost connection is retried every second. A new browser receives the full screen, the language and the current state of its page. Several browsers can be open at the same time.
+The HTTP server answers `/` (the page) and `/sym.js` (the symbol drawings, section 10). On Explorer3, any other address is redirected to the page (captive portal, section 9.3). On the page side, a lost connection is retried every second. A new browser receives the full screen, the language, the maze theme and the current state of its page. Several browsers can be open at the same time.
 
 **Heartbeat.** The WebSocket server sends a ping every 5 s (`ws.enableHeartbeat(5000, 3000, 2)`), which browsers answer on their own. A browser that misses 2 pings in a row (3 s wait each) is disconnected, so after 11 to 16 s. This covers a dropped Wi-Fi or a console switched off without closing the page. Without the heartbeat, it would stay counted in `clientCount()` until the TCP timeout, and the Cardputer would keep sending it frames.
 
@@ -453,7 +459,7 @@ It only exists in multiplayer. The crew plays on the Cardputer, mission control 
 | `1,…` | Puzzle 1, safe | Morse code chart, reminder dot = short flash, dash = long flash | The light, without the chart |
 | `2,…` | Puzzle 2, fuel tanks | The real numbers and the crew's grid, live, cursor included | The grid, with "?" instead of the numbers |
 | `3,…` | Puzzle 3, parts hold | The audio signal, a speaker that lights up on each beep | The Morse code chart at all times, `SPACE` replays the signal |
-| `4,…` | Puzzle 4, on-board computer | The full maze: planets, entrance, exit, character and trail | The empty grid, the character, its trail and the exit |
+| `4,…` | Puzzle 4, on-board computer | The full maze: cells (planets or the code's theme), entrance, exit, character and trail | The empty grid, the character, its trail and the exit |
 | `C,…` | On-board computer, code | Decoding table of the coded keypad | The coded keypad |
 
 - For `1` to `4` and `C`, the text goes on with `remaining_ms,errors,data`. The page then shows "MISSION CONTROL", the title and the O₂ countdown, recomputed locally every 50 ms from `remaining_ms` and the clock so it runs smoothly. It flashes red when `errors` changes.
@@ -461,7 +467,8 @@ It only exists in multiplayer. The crew plays on the Cardputer, mission control 
 - Coded keypad data: `typed,table`. The table is a series of `letter` + `symbol number in hexadecimal` (`0` to `b`) pairs, sorted by letter. The page shows the 9 boxes and 4 boxes that fill up according to `typed`, without telling which symbols were typed.
 - The game sends the state on every change, and every 500 ms during the puzzles and the coded keypad. During pause, it sends `0`.
 - The page only rebuilds its content when the page or its data change, not on every countdown update.
-- **Puzzle 4, maze.** The grid is fixed (`MAZE[]`, 4 columns × 5 rows: `E` entrance, `X` exit, `1` to `8` Mercury to Neptune) and has a single solution: no planet next to the path is the next one in order. The path draws the puzzle's letter. The entrance and the exit are grid cells that each touch 3 planets: neither the first nor the last step can be guessed. An arrow moves one cell (`mazeMove()`); an arrow towards the edge does nothing. Any cell other than the next planet (then the exit after Neptune), including the entrance and cells already walked, costs −10 s, sends the character back to the entrance and clears the trail; the wrong cell stays red for 1.5 s on both screens. On reaching the exit, the entrance and the exit are coloured too and the full letter stays on screen for 1.5 s (`MAZE_SHOW_MS`, arrows ignored) before the on-board computer. Data sent: `grid,position,trail,wrong_cell` (20 `MAZE` characters, cell number 0 to 19, 20 `0`/`1` digits, `-1` if none). The character (`ASTRO[]`, 9×12 astronaut) is the same drawing on the page, served with the symbols in `/sym.js`. The page's planets are small SVGs (coloured disc, rings for Saturn).
+- **Puzzle 4, maze.** The grid is the code's (`mots.h`, 4 columns × 5 rows: `E` entrance, `X` exit, `1` to `8` the cells in order) and has a single solution: no cell next to the path is the next one in order. Each digit appears at least twice in the grid. The path draws the puzzle's letter. The entrance and the exit are grid cells that each touch 3 cells: neither the first nor the last step can be guessed. An arrow moves one cell (`mazeMove()`); an arrow towards the edge does nothing. Any cell other than the next one (then the exit after the 8th), including the entrance and cells already walked, costs −10 s, sends the character back to the entrance and clears the trail; the wrong cell stays red for 1.5 s on both screens. On reaching the exit, the entrance and the exit are coloured too and the full letter stays on screen for 1.5 s (`MAZE_SHOW_MS`, arrows ignored) before the on-board computer. Data sent: `grid,position,trail,wrong_cell` (20 grid characters, cell number 0 to 19, 20 `0`/`1` digits, `-1` if none). The character (`ASTRO[]`, 9×12 astronaut) is the same drawing on the page, served with the symbols in `/sym.js`. The page's planets are small SVGs (coloured disc, rings for Saturn).
+- **Maze theme (message `M`).** When each multiplayer game starts, `startGame()` passes the text of `mazeThemeText()` to `mirror::setMazeTheme()`: `palette,pictures,ranks,name1,…,name8,hint`. `palette`: the 15 colours of `dessins.h` (6 hexadecimal digits each, colours 1 to f); `pictures`: the theme's pictures without duplicates (1 to 8), 256 hexadecimal digits each, one per pixel (0 transparent); `ranks`: 8 hexadecimal digits, the picture of each cell 1 to 8; then the 8 names (no comma) and the hint, which is everything left (commas allowed). The network task sends it as `M,time,text` before the page (`M,time` alone: the planets), and again to each new browser. The page then draws each cell with its pixel art picture and its name, and replaces the planets paragraph and hint with `p4t` and the received hint.
 - **Puzzle 3.** The page records the time of each note on the `CH_MORSE` channel (`T` messages) and lights the speaker up during the beeps, even if sound is not enabled.
 - **Portrait.** The page sizes are in `vh`, proportional to the screen height. In portrait, the content would get wider than the screen: this happens in the iPhone captive portal window, which always stays in portrait, and no web page can rotate it. A `@media (orientation:portrait)` block therefore replaces these sizes with `vw` sizes, proportional to the width, and the Morse chart goes from 7 to 3 columns. In landscape it does not apply.
 
@@ -509,6 +516,7 @@ Without PSRAM, large allocations must be avoided: no second full-screen sprite n
 ## 13. Changing the game
 
 - **Change the game length or penalty**: `GAME_MS`, `PENALTY_MS`.
+- **Add or change a code**: in `src/mots.h`, with its question, answers and banner. The code must not appear in any of its puzzles: run `python tools/controle_codes.py` (with GC-Explorer3 next to it to check its texts too), which fails otherwise. The drawing of its picross letter must be in `PICROSS` and have a single solution. For multiplayer, its last letter must be drawable by a 10-cell path without branches (S, O, P, U…); check the grid (single path, no false lead, entrance and exit touching 3 cells, each digit at least twice) and that the `M` message stays under 3,072 bytes (`mazeText`).
 - **Change a text**: in `src/textes.h`, both languages side by side. Check it fits on screen (section 3) with the simulator.
 - **Add a language**: make `Tx` 3 entries long, fill in every text, add the language to the `Lang` screen and to the page's `TX` object.
 - **Add a screen**: add a value to `St`, a `drawXxx()` function, its `case` in `render()` and, if needed, in `handleKey()` and `update()`.
@@ -528,6 +536,6 @@ Without PSRAM, large allocations must be avoided: no second full-screen sprite n
 | `sim/sim_main.cpp` | Start-up, keyboard (one press then one release per loop pass, like the real one), BMP captures, timed scripts |
 | `sim/sim_diffusion.cpp` | Replaces `diffusion.cpp`: fake networks, simulated connection and browsers |
 
-`random()` reproduces the ESP32 one (newlib `rand()` after `randomSeed()`): the starry sky of the title is the same as on the Cardputer. The GitHub page images (`docs/images/titre-fr.png`, `titre-en.png`) come from the simulator, scaled ×4.
+`random()` reproduces the ESP32 one (newlib `rand()` after `randomSeed()`): the starry sky of the title is the same as on the Cardputer. With `--seed n`, the game's randomness is reproducible (same code, same quiz). With the `EXPLORER3_THEME` variable, `setMazeTheme()` writes the `M` message to that file, to try the mission control page without a Cardputer. The GitHub page images (`docs/images/titre-fr.png`, `titre-en.png`) come from the simulator, scaled ×4.
 
 The `simulateur` environment in `platformio.ini` uses `platform = native`, with MSYS2 (UCRT64) gcc and SDL2 on Windows. It is not part of `pio run` (`default_envs = cardputer-adv`) nor of the release.

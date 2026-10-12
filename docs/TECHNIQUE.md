@@ -4,7 +4,7 @@
 
 Ce document décrit le fonctionnement interne du jeu pour qui veut le compiler, le comprendre ou le modifier. Il ne donne pas les solutions des énigmes, mais elles sont en clair dans le code source.
 
-Version décrite : **v2.2.2** : en multijoueur, le centre de contrôle voit le curseur de l'équipage sur le picross ; textes revus (v2.2.2) ; en multijoueur, le bandeau de l'écran de fin défile sur la page elle-même, pour rester fluide sur un téléphone (v2.2.1) ; en multijoueur, nouveau code de démarrage ; le picross passe en énigme 2 et le labyrinthe en énigme 4 (grille 4×5 dont le chemin dessine une lettre) ; un bandeau défile sur l'écran de fin pour expliquer le code (v2.2). Versions précédentes : en multijoueur, l'énigme 2 devient un labyrinthe des planètes (v2.1) ; le mode « Avec écran » devient **Multijoueur**, un jeu à deux équipes (code propre au multijoueur, page du centre de contrôle à chaque énigme, page Règles) (v2.0). Avant : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
+Version décrite : **v3.0.0** (pas encore publiée) : le code de démarrage est un mot tiré au hasard à chaque partie, avec sa question de QCM (réponses mélangées), son picross et, en multijoueur, son labyrinthe dont les cases ont un thème lié au mot, dessins compris (message `M`) ; aucun code ne figure dans ses énigmes (`tools/controle_codes.py`). Versions précédentes : en multijoueur, le centre de contrôle voit le curseur de l'équipage sur le picross ; textes revus (v2.2.2) ; en multijoueur, le bandeau de l'écran de fin défile sur la page elle-même, pour rester fluide sur un téléphone (v2.2.1) ; en multijoueur, nouveau code de démarrage ; le picross passe en énigme 2 et le labyrinthe en énigme 4 (grille 4×5 dont le chemin dessine une lettre) ; un bandeau défile sur l'écran de fin pour expliquer le code (v2.2). Versions précédentes : en multijoueur, l'énigme 2 devient un labyrinthe des planètes (v2.1) ; le mode « Avec écran » devient **Multijoueur**, un jeu à deux équipes (code propre au multijoueur, page du centre de contrôle à chaque énigme, page Règles) (v2.0). Avant : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
 
 ## Sommaire
 
@@ -30,15 +30,15 @@ Version décrite : **v2.2.2** : en multijoueur, le centre de contrôle voit le c
 | Matériel | M5Stack **Cardputer ADV** : ESP32-S3 (2 cœurs, 240 MHz), 8 Mo de flash, **pas de PSRAM**, écran 240×135, codec audio ES8311 (mono), clavier TCA8418 |
 | Framework | Arduino (core ESP32 2.0.x) via PlatformIO |
 | Langage | C++17 côté Cardputer, HTML/CSS/JavaScript pour la page web du mode multijoueur |
-| Fichiers | `src/main.cpp` (le jeu), `src/textes.h` (textes français et anglais), `src/diffusion.cpp` et `src/diffusion.h` (le mode multijoueur), `sim/` (simulateur PC) |
+| Fichiers | `src/main.cpp` (le jeu), `src/textes.h` (textes français et anglais), `src/mots.h` (codes de démarrage et données de leurs énigmes), `src/dessins.h` (dessins des cases des labyrinthes), `src/diffusion.cpp` et `src/diffusion.h` (le mode multijoueur), `sim/` (simulateur PC) |
 | Licence | MIT |
 
-Le jeu dure 5 minutes : 4 énigmes à résoudre dans l'ordre, chacune donne une lettre d'un code de 4 lettres à taper sur l'ordinateur de bord pour faire décoller la fusée.
+Le jeu dure 5 minutes : 4 énigmes à résoudre dans l'ordre, chacune donne une lettre d'un code de 4 lettres à taper sur l'ordinateur de bord pour faire décoller la fusée. Le code est un mot tiré au hasard à chaque partie dans une liste propre à chaque langue (section 7).
 
 Le jeu est en **français ou en anglais**, au choix au premier démarrage (section 3). Deux modes sont proposés ensuite :
 
-- **Cardputer seul** : tout se passe sur le Cardputer. Code de démarrage `CODE_SOLO`.
-- **Multijoueur** : un jeu à deux équipes, code de démarrage `CODE_MULTI`. L'**équipage** joue sur le Cardputer, le **centre de contrôle** sur la page web d'un PC, d'une télé ou d'un téléphone. Le Cardputer se connecte au Wi-Fi de la box (ou crée le sien, Explorer3) et sert lui-même cette page. Le son sort de la page. Pendant les énigmes et sur l'ordinateur de bord, la page montre au centre de contrôle la partie des indices que l'équipage n'a pas (section 10) ; le reste du temps, elle recopie l'écran du Cardputer.
+- **Cardputer seul** : tout se passe sur le Cardputer.
+- **Multijoueur** : un jeu à deux équipes, avec seulement les codes qui ont un labyrinthe. L'**équipage** joue sur le Cardputer, le **centre de contrôle** sur la page web d'un PC, d'une télé ou d'un téléphone. Le Cardputer se connecte au Wi-Fi de la box (ou crée le sien, Explorer3) et sert lui-même cette page. Le son sort de la page. Pendant les énigmes et sur l'ordinateur de bord, la page montre au centre de contrôle la partie des indices que l'équipage n'a pas (section 10) ; le reste du temps, elle recopie l'écran du Cardputer.
 
 ## 2. Compiler et installer
 
@@ -84,7 +84,7 @@ Tout le jeu est dans `src/main.cpp`, dans un espace de noms anonyme. Les section
 
 | Section | Contenu |
 |---|---|
-| Constantes | Taille d'écran, durée de partie, pénalité, unités Morse, canaux audio, palette de couleurs (RGB565), alphabet Morse, dessins en pixel art (fusée, picross, symboles) |
+| Constantes | Taille d'écran, durée de partie, pénalité, unités Morse, canaux audio, palette de couleurs (RGB565), alphabet Morse, dessins en pixel art (fusée, symboles) |
 | Lecteur clavier | `PolledKeyboardReader` (section 8) |
 | État global | État courant, langue, chrono, énigme, saisie, pause, record, variables du mode multijoueur |
 | son | Ordonnanceur de notes, effets sonores, bruit du décollage |
@@ -103,9 +103,9 @@ Tout le jeu est dans `src/main.cpp`, dans un espace de noms anonyme. Les section
 Chaque texte affiché est une paire `{ français, anglais }` de type `Tx`, rangée par écran :
 
 ```cpp
-constexpr Tx P2_FOOTER = {"Répondez A, B, C ou D", "Answer A, B, C or D"};
+constexpr Tx P2_LOCKED = {"Porte verrouillée !", "Door locked!"};
 ...
-drawFooter(tr(P2_FOOTER));
+wrapped(String(tr(P2_LOCKED)) + " " + mot->question, ...);
 ```
 
 `tr()` renvoie le texte dans la langue courante (`lang` : 0 français, 1 anglais). Les deux traductions sont côte à côte, ce qui évite d'en oublier une. Les textes de la page web sont dans la page elle-même (section 9.7).
@@ -113,6 +113,10 @@ drawFooter(tr(P2_FOOTER));
 **Touches.** Dans les textes, une indication s'écrit « touche : action » (`"ENTRÉE : ok"`) : `hint()` et `drawFooter()` dessinent ce qui précède le premier `:` en orange et le reste dans la couleur du texte. Les flèches du Cardputer (touches `;` `.` `,` `/`) s'écrivent `K_UP`, `K_DOWN`, `K_LEFT`, `K_RIGHT` (codes 1 à 4) et sont dessinées en triangles orange de 9 px. Dans un pied de page, `|` sépare les groupes, que `drawFooter()` répartit sur la largeur (6 à 24 px d'écart). Le retour s'écrit `ESC`.
 
 **Place à l'écran.** La police `efontJA_12` donne 6 px par caractère latin, accents compris, soit 40 caractères sur 240 px. En pratique, l'ensemble des groupes d'un pied de page doit rester sous 230 px environ (largeur moins les écarts minimum), et les colonnes étroites (picross, clavier codé, écran d'adresse) passent à la ligne avec `wrapped()`. Le simulateur (section 14) permet de vérifier chaque écran.
+
+### Codes et données des énigmes (`src/mots.h`, `src/dessins.h`)
+
+`mots.h` contient une liste de codes par langue (`MOTS_FR`, `MOTS_EN` ; `liste()` choisit celle de la langue). Chaque code (`Mot`) a sa question du QCM et ses 4 réponses (la bonne d'abord), le texte du bandeau de l'écran de fin et, s'il peut sortir en multijoueur, sa grille de labyrinthe (`laby`) et le thème de ses cases (`theme` ; `nullptr` : les planètes). `PICROSS` donne le dessin 5×5 de chaque lettre utilisée par un picross ; chacun n'a qu'une solution avec ses chiffres. `dessins.h` contient les dessins 16×16 des cases des labyrinthes (un caractère par pixel, palette de 15 couleurs), que le jeu n'affiche pas : il les envoie au centre de contrôle (section 10). Ces fichiers contiennent les codes : ne pas les recopier dans la documentation.
 
 ### Dessin
 
@@ -127,6 +131,7 @@ Espace `Preferences` nommé `explorer3` :
 | `lang` | uchar | Langue (0 français, 1 anglais). Absente au premier démarrage : l'écran de langue s'affiche |
 | `best_o2` | uint | Record : plus grande réserve d'O₂ restante à la victoire (ms) |
 | `ssid`, `pass` | chaîne | Dernier Wi-Fi de box utilisé, enregistré seulement après une connexion réussie |
+| `mot_s`, `mot_m` | chaîne | Code de la partie précédente, Cardputer seul et multijoueur : `chooseWord()` ne le reprend pas la fois suivante |
 | `auto` | bool | `true` : « Multijoueur » se reconnecte directement à `ssid`. Mis à `false` quand on crée le réseau Explorer3, pour repasser la fois suivante par la liste des Wi-Fi. Absente = `true` |
 
 ## 4. Boucle principale et machine à états
@@ -195,7 +200,7 @@ stateDiagram-v2
 | `Solved` | Partie du vaisseau réparée, lettre gravée dessus | |
 | `Computer` | Ordinateur de bord, saisie du code | 5 lignes de texte apparaissent toutes les 600 ms, puis la saisie |
 | `Launch` | Animation du décollage (6,5 s) | Chrono arrêté, record enregistré |
-| `Win` / `GameOver` | Écrans de fin | ENTRÉE revient au titre, le mode choisi est gardé. Sur `Win`, un bandeau fait défiler la signification du code (`WIN_INFO_SOLO`, `WIN_INFO_MULTI`, `WIN_INFO_SPEED` = 45 px/s) ; en multijoueur, la page le fait défiler elle-même (section 9.4) |
+| `Win` / `GameOver` | Écrans de fin | ENTRÉE revient au titre, le mode choisi est gardé. Sur `Win`, un bandeau fait défiler la signification du code (`bandeau` du code dans `mots.h`, `WIN_INFO_SPEED` = 45 px/s) ; en multijoueur, la page le fait défiler elle-même (section 9.4) |
 
 « retour » = `ESC` (touche `` ` `` du Cardputer, testée par `` hasChar(ks, '`') ``).
 
@@ -240,19 +245,19 @@ C'est le **seul endroit** où le son sort, ce qui permet au mode multijoueur de 
 
 ## 7. Énigmes
 
-Les mécanismes sont décrits ici, pas les réponses. L'ordre des énigmes dépend du mode (`ORDER_SOLO`, `ORDER_MULTI`, `puzzleKind()`). La lettre à trouver est celle du code à la place de l'énigme (`answer()` = `code()[puzzle]`, avec `CODE_SOLO` ou `CODE_MULTI`). Les lieux restent dans le même ordre dans les deux modes : coffre du fer à souder, réservoirs de carburant, soute des pièces, ordinateur de bord.
+Les mécanismes sont décrits ici, pas les réponses. L'ordre des énigmes dépend du mode (`ORDER_SOLO`, `ORDER_MULTI`, `puzzleKind()`). La lettre à trouver est celle du code à la place de l'énigme (`answer()` = `code()[puzzle]`). Le code (`mot`) est tiré par `chooseWord()` au début de chaque partie, au hasard dans la liste de la langue (en multijoueur, parmi les codes qui ont un labyrinthe), jamais le même que la partie précédente du même mode (clés `mot_s`, `mot_m`). Les lieux restent dans le même ordre dans les deux modes : coffre du fer à souder, réservoirs de carburant, soute des pièces, ordinateur de bord.
 
 | Type (`Pz`) | Mécanisme | Seul | Multijoueur | Code |
 |---|---|---|---|---|
 | `Lamp` | Un voyant clignote une lettre en Morse (unité `LAMP_UNIT_MS` = 400 ms) ; on tape la lettre | 1 | 1 | `startMorseLamp()`, `lampOn()` |
-| `Quiz` | QCM à 4 réponses (A à D) | 2 | | `drawPuzzleQuiz()` |
-| `Maze` | Labyrinthe des planètes : grille 4×5 `MAZE[]`, aller de l'entrée à la sortie en passant par les 8 planètes dans l'ordre ; le chemin dessine la lettre de l'énigme | | 4 | `drawPuzzleMaze()`, `mazeMove()`, `mazeReset()` |
-| `Picross` | Picross 5×5 ; les indices des lignes et colonnes sont calculés à partir du motif, `PICROSS_SOLO[]` ou `PICROSS_MULTI[]` (la lettre de l'énigme dans chaque mode), au début de l'énigme | 3 | 2 | `buildClues()`, `lineClues()`, `picrossSolved()` |
+| `Quiz` | QCM du code, après « Porte verrouillée ! » : 4 réponses mélangées à chaque partie ; la bonne porte la lettre de l'énigme, les autres des lettres tirées au hasard, toutes différentes (`prepareQuiz()`) ; seules ces 4 lettres sont acceptées, et le pied de page les rappelle | 2 | | `drawPuzzleQuiz()` |
+| `Maze` | Labyrinthe du code : grille 4×5 (`mazeGrid()`), aller de l'entrée à la sortie en passant par les 8 cases dans l'ordre (planètes, ou thème du code) ; le chemin dessine la lettre de l'énigme | | 4 | `drawPuzzleMaze()`, `mazeMove()`, `mazeReset()` |
+| `Picross` | Picross 5×5 ; les indices des lignes et colonnes sont calculés au début de l'énigme à partir du dessin de la lettre de l'énigme (`mots::picross()`) | 3 | 2 | `buildClues()`, `lineClues()`, `picrossSolved()` |
 | `Sound` | Signal Morse sonore, 700 Hz, unité `SOUND_UNIT_MS` = 200 ms ; on tape la lettre | 4 | 3 | `startMorseSound()`, `drawPuzzleSoundMulti()` |
 
 - Cardputer seul : `TAB` affiche l'alphabet Morse (`drawMorseHelp()`), n'importe quelle touche le ferme, `ESPACE` relance le signal (« revoir » pour le voyant, « réécouter » pour le son).
 - Multijoueur : pas de `TAB`. `ESPACE` relance le signal, qui sort sur la page du centre de contrôle pour le son. Ce que voit chaque équipe est décrit section 10.
-- Une mauvaise lettre déclenche `penalty()`. Une bonne lettre appelle `solvePuzzle()`.
+- Une mauvaise lettre déclenche `penalty()`. Une bonne lettre appelle `solvePuzzle()`. Au QCM, la question peut prendre 3 lignes : « X : ACCÈS REFUSÉ » remplace alors le pied de page, comme à l'énigme 3 du multijoueur.
 - Le picross est validé quand la grille est **identique** au motif (`picrossSolved()`). Les cases allumées sont orange sur fond sombre ; les indices d'une ligne ou d'une colonne passent en vert dès qu'elle les respecte (`rowOk()`, `colOk()`). En multijoueur, l'équipage voit des « ? » à la place des chiffres, qui passent aussi au vert.
 
 ## 8. Clavier du Cardputer ADV
@@ -295,6 +300,7 @@ Le centre de contrôle n'a rien à installer : le Cardputer sert lui-même la pa
 | `sendTone()`, `sendStop()`, `sendRumble()` | Sons à jouer par le navigateur (section 9.5) |
 | `setPanel(text)` | État de la page du centre de contrôle (section 10) |
 | `setBanner(text, y, h)` | Bandeau de l'écran de fin, que la page fait défiler elle-même (section 9.4) |
+| `setMazeTheme(text)` | Thème du labyrinthe : noms, dessins et indice des cases (section 10) ; vide : les planètes |
 | `setLanguage(lang)` | Langue de la page (section 9.7) |
 | `setSymbols(js)` | Dessins des symboles servis en `/sym.js` (section 10) |
 | `AP_SSID`, `AP_PASS`, `HOST_NAME` | `Explorer3`, `Explorer3`, `explorer3.local` |
@@ -395,12 +401,12 @@ Les navigateurs interdisent le son avant une action de l'utilisateur. Le context
 2. `http.handleClient()` et `ws.loop()` ;
 3. envoi des sons en attente (file FreeRTOS de 64 éléments, remplie sans attente par le jeu) ;
 4. envoi de la langue si elle a changé ;
-5. envoi de l'état de la page du centre de contrôle s'il a changé ;
+5. envoi du thème du labyrinthe (`M`), puis de l'état de la page du centre de contrôle, s'ils ont changé ;
 6. horloge toutes les 250 ms ;
 7. image toutes les 40 ms ;
 8. `vTaskDelay(1)`.
 
-Le serveur HTTP répond à `/` (la page) et `/sym.js` (les dessins des symboles, section 10). Sur Explorer3, toute autre adresse est renvoyée vers la page (portail captif, section 9.3). Côté page, une connexion perdue est retentée toutes les secondes. Un nouveau navigateur reçoit l'écran complet, la langue et l'état courant de sa page. Plusieurs navigateurs peuvent être ouverts en même temps.
+Le serveur HTTP répond à `/` (la page) et `/sym.js` (les dessins des symboles, section 10). Sur Explorer3, toute autre adresse est renvoyée vers la page (portail captif, section 9.3). Côté page, une connexion perdue est retentée toutes les secondes. Un nouveau navigateur reçoit l'écran complet, la langue, le thème du labyrinthe et l'état courant de sa page. Plusieurs navigateurs peuvent être ouverts en même temps.
 
 **Heartbeat.** Le serveur WebSocket envoie un ping toutes les 5 s (`ws.enableHeartbeat(5000, 3000, 2)`), et les navigateurs y répondent d'eux-mêmes. Un navigateur qui ne répond pas à 2 pings de suite (3 s d'attente chacun) est déconnecté, donc au bout de 11 à 16 s. C'est le cas d'un Wi-Fi coupé ou d'une console éteinte sans fermer la page. Sans heartbeat, il resterait compté dans `clientCount()` jusqu'au délai TCP, et le Cardputer continuerait à lui envoyer des images.
 
@@ -453,7 +459,7 @@ Elle n'existe qu'en multijoueur. L'équipage joue sur le Cardputer, le centre de
 | `1,…` | Énigme 1, coffre | Alphabet Morse, rappel point = flash court, trait = flash long | Le voyant, sans alphabet |
 | `2,…` | Énigme 2, réservoirs | Les vrais chiffres et la grille de l'équipage en direct, curseur compris | La grille, avec des « ? » à la place des chiffres |
 | `3,…` | Énigme 3, soute | Le signal sonore, un haut-parleur qui s'allume à chaque bip | L'alphabet Morse en permanence, `ESPACE` relance le signal |
-| `4,…` | Énigme 4, ordinateur de bord | Le labyrinthe complet : planètes, entrée, sortie, personnage et trace | La grille vide, le personnage, sa trace et la sortie |
+| `4,…` | Énigme 4, ordinateur de bord | Le labyrinthe complet : cases (planètes ou thème du code), entrée, sortie, personnage et trace | La grille vide, le personnage, sa trace et la sortie |
 | `C,…` | Ordinateur de bord, code | Table de décodage du clavier codé | Le clavier codé |
 
 - Pour `1` à `4` et `C`, le texte continue par `restant_ms,erreurs,données`. La page affiche alors « CENTRE DE CONTRÔLE », le titre et le chrono O₂, recalculé localement toutes les 50 ms à partir de `restant_ms` et de l'horloge pour défiler sans à-coups. Elle clignote en rouge quand `erreurs` change.
@@ -461,7 +467,8 @@ Elle n'existe qu'en multijoueur. L'équipage joue sur le Cardputer, le centre de
 - Données du clavier codé : `saisis,table`. La table est une suite de paires `lettre` + `numéro de symbole en hexadécimal` (`0` à `b`), triée par lettre. La page affiche les 9 cases et 4 cases qui se remplissent selon `saisis`, sans dire quels symboles ont été tapés.
 - Le jeu renvoie l'état à chaque changement, et toutes les 500 ms pendant les énigmes et le clavier codé. Pendant la pause, il envoie `0`.
 - La page ne reconstruit son contenu que si la page ou ses données changent, pas à chaque envoi du chrono.
-- **Énigme 4, labyrinthe.** La grille est fixe (`MAZE[]`, 4 colonnes × 5 lignes : `E` entrée, `X` sortie, `1` à `8` de Mercure à Neptune) et n'a qu'une solution : aucune planète voisine du chemin n'est la suivante dans l'ordre. Le chemin dessine la lettre de l'énigme. L'entrée et la sortie sont des cases de la grille qui touchent chacune 3 planètes : ni le premier ni le dernier pas ne se devinent. Une flèche avance d'une case (`mazeMove()`) ; une flèche vers le bord ne fait rien. Toute autre case que la planète suivante (puis la sortie après Neptune), entrée et cases déjà parcourues comprises, coûte −10 s, ramène le personnage à l'entrée et efface la trace ; la mauvaise case reste en rouge 1,5 s sur les deux écrans. À l'arrivée sur la sortie, l'entrée et la sortie se colorent aussi et la lettre complète reste affichée 1,5 s (`MAZE_SHOW_MS`, flèches ignorées) avant l'ordinateur de bord. Données envoyées : `grille,position,trace,mauvaise_case` (20 caractères de `MAZE`, numéro de case 0 à 19, 20 chiffres `0`/`1`, `-1` si aucune). Le personnage (`ASTRO[]`, astronaute 9×12) est le même dessin sur la page, servi avec les symboles dans `/sym.js`. Les planètes de la page sont de petits SVG (rond coloré, anneaux pour Saturne).
+- **Énigme 4, labyrinthe.** La grille est celle du code (`mots.h`, 4 colonnes × 5 lignes : `E` entrée, `X` sortie, `1` à `8` les cases dans l'ordre) et n'a qu'une solution : aucune case voisine du chemin n'est la suivante dans l'ordre. Chaque chiffre est au moins deux fois dans la grille. Le chemin dessine la lettre de l'énigme. L'entrée et la sortie sont des cases de la grille qui touchent chacune 3 cases : ni le premier ni le dernier pas ne se devinent. Une flèche avance d'une case (`mazeMove()`) ; une flèche vers le bord ne fait rien. Toute autre case que la suivante (puis la sortie après la 8ᵉ), entrée et cases déjà parcourues comprises, coûte −10 s, ramène le personnage à l'entrée et efface la trace ; la mauvaise case reste en rouge 1,5 s sur les deux écrans. À l'arrivée sur la sortie, l'entrée et la sortie se colorent aussi et la lettre complète reste affichée 1,5 s (`MAZE_SHOW_MS`, flèches ignorées) avant l'ordinateur de bord. Données envoyées : `grille,position,trace,mauvaise_case` (20 caractères de la grille, numéro de case 0 à 19, 20 chiffres `0`/`1`, `-1` si aucune). Le personnage (`ASTRO[]`, astronaute 9×12) est le même dessin sur la page, servi avec les symboles dans `/sym.js`. Les planètes de la page sont de petits SVG (rond coloré, anneaux pour Saturne).
+- **Thème du labyrinthe (message `M`).** Au début de chaque partie en multijoueur, `startGame()` passe à `mirror::setMazeTheme()` le texte de `mazeThemeText()` : `palette,dessins,rangs,nom1,…,nom8,indice`. `palette` : les 15 couleurs de `dessins.h` (6 chiffres hexadécimaux chacune, couleurs 1 à f) ; `dessins` : les dessins du thème sans doublon (1 à 8), 256 chiffres hexadécimaux chacun, un par pixel (0 transparent) ; `rangs` : 8 chiffres hexadécimaux, le dessin de chaque case 1 à 8 ; puis les 8 noms (sans virgule) et l'indice, qui est tout le reste (virgules permises). La tâche réseau l'envoie en `M,heure,texte` avant la page (`M,heure` seul : les planètes), et de nouveau à chaque navigateur qui arrive. La page dessine alors chaque case avec son dessin en pixel art et son nom, et remplace le paragraphe et l'indice des planètes par `p4t` et l'indice reçu.
 - **Énigme 3.** La page note l'heure de chaque note du canal `CH_MORSE` (messages `T`) et allume le haut-parleur pendant les bips, même si le son n'est pas activé.
 - **Portrait.** Les tailles de la page sont en `vh`, proportionnelles à la hauteur de l'écran. En portrait, le contenu deviendrait plus large que l'écran : c'est le cas dans la fenêtre du portail captif de l'iPhone, qui reste toujours en portrait, et aucune page web ne peut la faire pivoter. Un bloc `@media (orientation:portrait)` remplace donc ces tailles par des tailles en `vw`, proportionnelles à la largeur, et l'alphabet Morse passe de 7 à 3 colonnes. En paysage, il ne s'applique pas.
 
@@ -509,6 +516,7 @@ Sans PSRAM, il faut éviter les grosses allocations : pas de second sprite plein
 ## 13. Modifier le jeu
 
 - **Changer la durée ou la pénalité** : `GAME_MS`, `PENALTY_MS`.
+- **Ajouter ou changer un code** : dans `src/mots.h`, avec sa question, ses réponses et son bandeau. Le code ne doit figurer dans aucune de ses énigmes : lancer `python tools/controle_codes.py` (avec GC-Explorer3 à côté pour relire aussi ses textes), qui échoue sinon. Le dessin de sa lettre de picross doit être dans `PICROSS` et n'avoir qu'une solution. Pour le multijoueur, sa dernière lettre doit se dessiner par un chemin de 10 cases sans embranchement (S, O, P, U…) ; vérifier la grille (un seul chemin, pas de fausse piste, entrée et sortie qui touchent 3 cases, chaque chiffre au moins deux fois) et que le message `M` reste sous 3 072 octets (`mazeText`).
 - **Changer un texte** : dans `src/textes.h`, les deux langues côte à côte. Vérifier qu'il tient à l'écran (section 3) avec le simulateur.
 - **Ajouter une langue** : passer `Tx` à 3 cases, compléter chaque texte, ajouter la langue à l'écran `Lang` et à l'objet `TX` de la page.
 - **Ajouter un écran** : ajouter une valeur à `St`, une fonction `drawXxx()`, son `case` dans `render()` et, si besoin, dans `handleKey()` et `update()`.
@@ -528,6 +536,6 @@ Sans PSRAM, il faut éviter les grosses allocations : pas de second sprite plein
 | `sim/sim_main.cpp` | Lancement, clavier (un appui puis un relâchement par tour de boucle, comme le vrai), captures BMP, scripts horodatés |
 | `sim/sim_diffusion.cpp` | Remplace `diffusion.cpp` : réseaux fictifs, connexion et navigateurs simulés |
 
-`random()` reproduit celui de l'ESP32 (le `rand()` de newlib après `randomSeed()`) : le ciel étoilé du titre est le même que sur le Cardputer. Les images des pages GitHub (`docs/images/titre-fr.png`, `titre-en.png`) viennent du simulateur, agrandies ×4.
+`random()` reproduit celui de l'ESP32 (le `rand()` de newlib après `randomSeed()`) : le ciel étoilé du titre est le même que sur le Cardputer. Avec `--seed n`, le hasard de la partie est reproductible (même code, même QCM). Avec la variable `EXPLORER3_THEME`, `setMazeTheme()` écrit le message `M` dans ce fichier, pour essayer la page du centre de contrôle sans Cardputer. Les images des pages GitHub (`docs/images/titre-fr.png`, `titre-en.png`) viennent du simulateur, agrandies ×4.
 
 L'environnement `simulateur` de `platformio.ini` utilise `platform = native`, le gcc et SDL2 de MSYS2 (UCRT64) sous Windows. Il ne fait pas partie de `pio run` (`default_envs = cardputer-adv`) ni de la release.

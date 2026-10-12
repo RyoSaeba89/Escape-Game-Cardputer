@@ -1,20 +1,21 @@
 // Escape game "Explorer 3" pour M5Stack Cardputer ADV.
 // Le vaisseau s'est écrasé sur Mars : 4 énigmes en 5 minutes pour retrouver
-// le code de démarrage et redécoller.
-// « Cardputer seul » : code NASA, tout sur le Cardputer.
-//   1. Morse lumineux (N)      -> coffre du fer à souder
-//   2. QCM premier rover (A)   -> réservoirs de carburant
-//   3. Picross 5x5 (S)         -> stockage des pièces détachées
-//   4. Morse sonore (A)        -> ordinateur de bord (alarme O₂ coupée)
-// « Multijoueur » : code ARES, deux équipes. L'équipage joue sur le Cardputer,
-// le centre de contrôle sur la page web d'un PC ou d'une télé (diffusion.cpp),
-// qui reçoit aussi le son. Chaque équipe a une partie des indices.
-//   1. Morse lumineux (A) : l'équipage voit le voyant, le contrôle a l'alphabet
-//   2. Picross (R) : l'équipage a la grille, le contrôle les chiffres
-//   3. Morse sonore (E) : le contrôle l'entend, l'équipage a l'alphabet
-//   4. Labyrinthe des planètes (S) : l'équipage déplace le personnage sans voir
-//      les planètes, le contrôle les voit et doit connaître leur ordre ; le
-//      chemin dessine un S
+// le code de démarrage et redécoller. Le code est un mot de 4 lettres tiré au
+// hasard à chaque partie (mots.h) ; chaque énigme en donne une lettre.
+// « Cardputer seul » : tout sur le Cardputer.
+//   1. Morse lumineux          -> coffre du fer à souder
+//   2. QCM (question du mot)   -> réservoirs de carburant
+//   3. Picross 5x5             -> stockage des pièces détachées
+//   4. Morse sonore            -> ordinateur de bord (alarme O₂ coupée)
+// « Multijoueur » : deux équipes. L'équipage joue sur le Cardputer, le centre
+// de contrôle sur la page web d'un PC ou d'une télé (diffusion.cpp), qui reçoit
+// aussi le son. Chaque équipe a une partie des indices.
+//   1. Morse lumineux : l'équipage voit le voyant, le contrôle a l'alphabet
+//   2. Picross : l'équipage a la grille, le contrôle les chiffres
+//   3. Morse sonore : le contrôle l'entend, l'équipage a l'alphabet
+//   4. Labyrinthe : l'équipage déplace le personnage sans voir les cases, le
+//      contrôle les voit (planètes, ou thème du mot) et doit connaître leur
+//      ordre ; le chemin dessine la dernière lettre
 // Puis saisie du code (clavier codé en multijoueur), décollage et écran de fin.
 // Fn appuyé 3 fois d'affilée : pause / reprise (maître du jeu).
 // Record (O₂ restant) gardé en mémoire même après extinction.
@@ -25,6 +26,7 @@
 #include <utility/Adafruit_TCA8418/Adafruit_TCA8418.h>
 
 #include "diffusion.h"
+#include "mots.h"
 #include "textes.h"
 
 #include <algorithm>
@@ -87,30 +89,15 @@ const char *const MORSE[26] = {
     "...",  "-",    "..-",  "...-", ".--",  "-..-", "-.--", "--..",
 };
 
-const char CODE_SOLO[] = "NASA";
-const char CODE_MULTI[] = "ARES";
-
 // Types d'énigmes, dans l'ordre de chaque mode (voir puzzleKind)
 enum class Pz { Lamp, Quiz, Maze, Picross, Sound };
 constexpr Pz ORDER_SOLO[4] = {Pz::Lamp, Pz::Quiz, Pz::Picross, Pz::Sound};
 constexpr Pz ORDER_MULTI[4] = {Pz::Lamp, Pz::Picross, Pz::Sound, Pz::Maze};
 
-// Labyrinthe des planètes (énigme 4 en multijoueur). 'E' entrée, 'X' sortie,
-// '1' à '8' Mercure à Neptune. Un seul chemin : de l'entrée, passer par les
-// 8 planètes dans l'ordre (pas haut, bas, gauche, droite), puis la sortie.
-// Le chemin dessine un S (dernière lettre de ARES) dans les 3 colonnes de gauche.
-// L'entrée et la sortie touchent chacune 3 planètes : ni le premier ni le
-// dernier pas ne se devinent sans les noms. Aucune planète voisine d'une case
-// du chemin n'est la suivante dans l'ordre : pas de fausse piste.
+// Labyrinthe (énigme 4 en multijoueur) : grille du mot, 4 colonnes x 5 lignes
+// (voir mots.h)
 constexpr int MAZE_W = 4;
 constexpr int MAZE_H = 5;
-const char MAZE[MAZE_H][MAZE_W + 1] = {
-    "21E2",
-    "3534",
-    "4568",
-    "3776",
-    "1X84",
-};
 
 // Personnage du labyrinthe (astronaute 9 x 12), aussi envoyé à la page web.
 // W blanc, B visière, C reflet, G gris, D gris foncé, O orange ; '.' = transparent.
@@ -154,22 +141,6 @@ const char *const ROCKET[] = {
 };
 constexpr int ROCKET_W = 11;
 constexpr int ROCKET_H = 18;
-
-// Picross : la lettre S en solo (3e lettre de NASA), R en multijoueur (2e de ARES)
-const char *const PICROSS_SOLO[5] = {
-    "#####",
-    "#....",
-    "#####",
-    "....#",
-    "#####",
-};
-const char *const PICROSS_MULTI[5] = {
-    "####.",
-    "#...#",
-    "####.",
-    "#..#.",
-    "#...#",
-};
 
 enum class St {
     Lang, Mode, WifiList, SsidEntry, Password, Connecting, Address,
@@ -259,7 +230,12 @@ int curY = 0;
 std::vector<int> rowClues[5];
 std::vector<int> colClues[5];
 
-// Labyrinthe : position du personnage, planètes déjà passées (0 à 8), trace
+// QCM : réponse du mot dans chaque case (rang dans Mot::reponses, 0 = la
+// bonne) et lettre de chaque case, tirées à chaque partie (prepareQuiz)
+int quizOrder[4] = {0, 1, 2, 3};
+char quizLabel[4] = {'A', 'B', 'C', 'D'};
+
+// Labyrinthe : position du personnage, cases déjà passées (0 à 8), trace
 int mazeR = 0;
 int mazeC = 0;
 int mazeStep = 0;
@@ -267,7 +243,7 @@ bool mazeTrail[MAZE_H][MAZE_W];
 int mazeWrongR = -1;  // dernière mauvaise case, en rouge jusqu'à mazeWrongUntil
 int mazeWrongC = -1;
 uint32_t mazeWrongUntil = 0;
-bool mazeDone = false;  // sortie atteinte : le S complet reste affiché MAZE_SHOW_MS
+bool mazeDone = false;  // sortie atteinte : la lettre complète reste affichée MAZE_SHOW_MS
 uint32_t mazeDoneAt = 0;
 constexpr uint32_t MAZE_SHOW_MS = 1500;
 
@@ -298,8 +274,16 @@ const char *trm(Tx &solo, Tx &multi) {
     return multiMode ? multi[lang] : solo[lang];
 }
 
+// Mot de la partie (code de démarrage), tiré par chooseWord() au début de chaque partie
+const mots::Mot *mot = &mots::MOTS_FR[0];
+
 const char *code() {
-    return multiMode ? CODE_MULTI : CODE_SOLO;
+    return mot->code;
+}
+
+// Grille du labyrinthe du mot (multijoueur seulement)
+const char *const *mazeGrid() {
+    return mot->laby;
 }
 
 Pz puzzleKind() {
@@ -931,8 +915,9 @@ void startMorseSound() {
 
 // ---------------------------------------------------------------- picross
 
+// Le picross dessine la lettre qu'il donne (3e du code seul, 2e en multijoueur)
 const char *const *picrossArt() {
-    return multiMode ? PICROSS_MULTI : PICROSS_SOLO;
+    return mots::picross(answer());
 }
 
 std::vector<int> lineClues(const bool cells[5]) {
@@ -1304,22 +1289,28 @@ void drawPuzzleQuiz(uint32_t now) {
     canvas.fillScreen(C_SPACE);
     drawHud();
     text(tr(P2_TITLE), 4, 19, C_ORANGE);
-    wrapped(tr(P2_TEXT), 4, 35, W - 8, C_TEXT, 13);
-    if (wrongShown(now)) {
-        text(String(wrongLetter) + tr(DENIED), 4, 61, C_RED);
-    }
-    const char *opts[4] = {"Sojourner", "Spirit", "Curiosity", "Perseverance"};
+    // « Porte verrouillée ! » et la question du mot : 3 lignes au plus
+    wrapped(String(tr(P2_LOCKED)) + " " + mot->question, 4, 35, W - 8, C_TEXT, 13);
     for (int i = 0; i < 4; i++) {
         int x = 4 + (i % 2) * 118;
         int y = 75 + (i / 2) * 23;
-        bool bad = wrongLetter == 'A' + i && wrongShown(now);
+        bool bad = wrongLetter == quizLabel[i] && wrongShown(now);
         canvas.fillRoundRect(x, y, 114, 21, 4, bad ? rgb(90, 20, 20) : C_PANEL2);
         canvas.drawRoundRect(x, y, 114, 21, 4, bad ? C_RED : C_BORDER);
         canvas.fillRoundRect(x + 3, y + 3, 15, 15, 3, C_ORANGE);
-        text(String((char)('A' + i)), x + 11, y + 4, C_BLACK, 1, TC_DATUM);
-        text(opts[i], x + 24, y + 4, C_TEXT);
+        text(String(quizLabel[i]), x + 11, y + 4, C_BLACK, 1, TC_DATUM);
+        text(mot->reponses[quizOrder[i]], x + 24, y + 4, C_TEXT);
     }
-    drawFooter(tr(P2_FOOTER));
+    // Mauvaise réponse : à la place du pied de page (la question peut prendre 3 lignes)
+    if (wrongShown(now)) {
+        drawFooter("");
+        text(String(wrongLetter) + tr(DENIED), W / 2, H - 13, C_RED, 1, TC_DATUM);
+    } else {
+        char letters[8] = {quizLabel[0], ' ', quizLabel[1], ' ', quizLabel[2], ' ', quizLabel[3], 0};
+        char footer[48];
+        snprintf(footer, sizeof(footer), tr(P2_FOOTER), letters);
+        drawFooter(footer);
+    }
 }
 
 uint16_t astroColor(char c) {
@@ -1349,7 +1340,8 @@ bool mazeWrongShown(uint32_t now) {
 }
 
 // Multijoueur, énigme 4 : l'équipage voit la grille vide, le personnage, sa
-// trace et la sortie ; les planètes ne sont que sur la page du centre de contrôle
+// trace et la sortie ; les cases (planètes ou thème du mot) ne sont que sur la
+// page du centre de contrôle
 void drawPuzzleMaze(uint32_t now) {
     canvas.fillScreen(C_SPACE);
     drawHud();
@@ -1368,7 +1360,7 @@ void drawPuzzleMaze(uint32_t now) {
             }
             canvas.fillRect(x, y, cell, cell, bg);
             canvas.drawRect(x, y, cell + 1, cell + 1, C_BORDER);
-            if (MAZE[r][c] == 'X' && !mazeTrail[r][c]) {  // sortie : trappe verte et flèche
+            if (mazeGrid()[r][c] == 'X' && !mazeTrail[r][c]) {  // sortie : trappe verte et flèche
                 canvas.fillRoundRect(x + 2, y + 2, cell - 3, cell - 3, 2, rgb(20, 90, 40));
                 canvas.drawRoundRect(x + 2, y + 2, cell - 3, cell - 3, 2, C_GREEN);
                 canvas.fillTriangle(x + 6, y + 4, x + 6, y + 13, x + 11, y + 8, C_GREEN);
@@ -1389,7 +1381,7 @@ void mazeReset() {
     for (int r = 0; r < MAZE_H; r++) {
         for (int c = 0; c < MAZE_W; c++) {
             mazeTrail[r][c] = false;
-            if (MAZE[r][c] == 'E') {
+            if (mazeGrid()[r][c] == 'E') {
                 mazeR = r;
                 mazeC = c;
             }
@@ -1403,7 +1395,7 @@ void drawPuzzlePicross() {
     canvas.fillScreen(C_SPACE);
     drawHud();
     const int cell = 17;
-    const int gx = 32;
+    const int gx = 35;  // « 1 1 1 » (N) tient à gauche : 29 px en Font0
     const int gy = 47;
     canvas.setFont(&fonts::Font0);
     for (int i = 0; i < 5; i++) {
@@ -1601,6 +1593,49 @@ String buildSymbolsJs() {
     return js + "];";
 }
 
+// Thème du labyrinthe pour le centre de contrôle (message M, mirror::setMazeTheme) :
+//   palette,dessins,rangs,nom1,...,nom8,indice
+// palette : les 15 couleurs de dessins.h (6 chiffres hexa chacune, couleur 1 à f) ;
+// dessins : les dessins du thème, 256 chiffres hexa chacun (0 transparent),
+// sans doublon ; rangs : 8 chiffres hexa, le dessin de chaque case 1 à 8 ;
+// puis les 8 noms (sans virgule) et l'indice (le reste, virgules permises).
+// Vide sans thème : la page montre les planètes.
+String mazeThemeText(const mots::Theme *t) {
+    if (!t) {
+        return String();
+    }
+    String s;
+    char hex[8];
+    for (uint32_t c : dessins::PALETTE) {
+        snprintf(hex, sizeof(hex), "%06lx", (unsigned long)c);
+        s += hex;
+    }
+    s += ",";
+    uint8_t used[8];
+    int n = 0;
+    String ranks;
+    for (int k = 0; k < 8; k++) {
+        int d = t->dessins[k];
+        int i = std::find(used, used + n, d) - used;
+        if (i == n) {
+            used[n++] = d;
+            for (int r = 0; r < dessins::TAILLE; r++) {
+                for (const char *p = dessins::DESSINS[d][r]; *p; p++) {
+                    const char *q = strchr(dessins::PALETTE_CARS, *p);
+                    s += "0123456789abcdef"[q && *p != '.' ? q - dessins::PALETTE_CARS + 1 : 0];
+                }
+            }
+        }
+        ranks += "0123456789abcdef"[i];
+    }
+    s += "," + ranks;
+    for (const char *name : t->noms) {
+        s += ",";
+        s += name;
+    }
+    return s + "," + t->indice;
+}
+
 void drawKeypad(uint32_t now) {
     text(tr(KEYPAD_TITLE), 4, 20, C_ORANGE);
     if (codeRefused(now)) {
@@ -1660,7 +1695,7 @@ void updatePanel(uint32_t now) {
             // grille,position,trace,mauvaise case (-1 : aucune)
             String trail;
             for (int r = 0; r < MAZE_H; r++) {
-                data += MAZE[r];
+                data += mazeGrid()[r];
                 for (int c = 0; c < MAZE_W; c++) {
                     trail += mazeTrail[r][c] ? '1' : '0';
                 }
@@ -1712,7 +1747,7 @@ void updateBanner() {
     bool want = state == St::Win;
     if (want != shown) {
         shown = want;
-        mirror::setBanner(want ? String(tr(WIN_INFO_MULTI)) : String(), WIN_BAND_Y, WIN_BAND_H);
+        mirror::setBanner(want ? String(mot->bandeau) : String(), WIN_BAND_Y, WIN_BAND_H);
     }
 }
 
@@ -1824,7 +1859,7 @@ void drawWin(uint32_t now) {
     canvas.fillRect(0, WIN_BAND_Y, W, WIN_BAND_H, C_PANEL);
     canvas.drawFastHLine(0, WIN_BAND_Y, W, C_BORDER);
     canvas.drawFastHLine(0, WIN_BAND_Y + WIN_BAND_H - 1, W, C_BORDER);
-    String info = trm(WIN_INFO_SOLO, WIN_INFO_MULTI);
+    String info = mot->bandeau;
     int len = canvas.textWidth(info) + W / 2;
     int x = W - (int)((uint64_t)(now - stateStart) * WIN_INFO_SPEED / 1000 % (W + len));
     text(info, x, WIN_BAND_Y + 2, C_TEXT);
@@ -1877,7 +1912,52 @@ void startPuzzle(int p) {
     }
 }
 
+// Mot de la partie : au hasard dans la liste de la langue (en multijoueur,
+// seulement ceux qui ont un labyrinthe), jamais celui de la partie précédente
+// du même mode, même après extinction (clés "mot_s" et "mot_m")
+void chooseWord() {
+    int n;
+    const mots::Mot *list = mots::liste(lang, n);
+    const char *key = multiMode ? "mot_m" : "mot_s";
+    String last = prefs.getString(key, "");
+    std::vector<const mots::Mot *> pool, fallback;
+    for (int i = 0; i < n; i++) {
+        if (!multiMode || list[i].laby) {
+            (last != list[i].code ? pool : fallback).push_back(&list[i]);
+        }
+    }
+    if (pool.empty()) {
+        pool = fallback;  // un seul mot possible
+    }
+    mot = pool[random(0, pool.size())];
+    prefs.putString(key, mot->code);
+}
+
+// QCM : les 4 réponses mélangées ; la bonne porte la lettre du code que le
+// QCM donne, les 3 autres des lettres au hasard, toutes différentes
+void prepareQuiz() {
+    for (int i = 0; i < 4; i++) {
+        quizOrder[i] = i;
+    }
+    for (int i = 3; i > 0; i--) {
+        std::swap(quizOrder[i], quizOrder[random(0, i + 1)]);
+    }
+    char right = code()[std::find(ORDER_SOLO, ORDER_SOLO + 4, Pz::Quiz) - ORDER_SOLO];
+    for (int i = 0; i < 4; i++) {
+        char c = right;
+        while (quizOrder[i] != 0 && (c == right || std::find(quizLabel, quizLabel + i, c) != quizLabel + i)) {
+            c = 'A' + random(0, 26);
+        }
+        quizLabel[i] = c;
+    }
+}
+
 void startGame() {
+    chooseWord();
+    prepareQuiz();
+    if (multiMode) {
+        mirror::setMazeTheme(mazeThemeText(mot->theme));
+    }
     deadline = millis() + GAME_MS;
     timerRunning = true;
     nextO2Beep = millis() + 1000;
@@ -1963,8 +2043,8 @@ bool hasChar(const KeysState &ks, char ch) {
     return false;
 }
 
-// Un pas dans le labyrinthe : la case doit être la planète suivante (puis la
-// sortie après Neptune). Sinon -10 s, retour à l'entrée et trace effacée.
+// Un pas dans le labyrinthe : la case doit être la suivante dans l'ordre (puis
+// la sortie après la 8e). Sinon -10 s, retour à l'entrée et trace effacée.
 // Une flèche vers le bord de la grille ne fait rien.
 void mazeMove(int dr, int dc) {
     int r = mazeR + dr;
@@ -1973,7 +2053,7 @@ void mazeMove(int dr, int dc) {
         return;
     }
     char next = mazeStep < 8 ? '1' + mazeStep : 'X';
-    if (MAZE[r][c] != next) {
+    if (mazeGrid()[r][c] != next) {
         mazeWrongR = r;
         mazeWrongC = c;
         mazeWrongUntil = millis() + 1500;
@@ -1986,7 +2066,7 @@ void mazeMove(int dr, int dc) {
     if (next == 'X') {
         for (int rr = 0; rr < MAZE_H; rr++) {
             for (int cc = 0; cc < MAZE_W; cc++) {
-                if (MAZE[rr][cc] == 'E' || MAZE[rr][cc] == 'X') {
+                if (mazeGrid()[rr][cc] == 'E' || mazeGrid()[rr][cc] == 'X') {
                     mazeTrail[rr][cc] = true;
                 }
             }
@@ -2246,7 +2326,7 @@ void handleKey(const KeysState &ks) {
             char l = letterOf(ks);
             if (morse && l) {
                 answerLetter(l, answer());
-            } else if (k == Pz::Quiz && l >= 'A' && l <= 'D') {
+            } else if (k == Pz::Quiz && l && std::find(quizLabel, quizLabel + 4, l) != quizLabel + 4) {
                 answerLetter(l, answer());
             } else if (k == Pz::Maze && !mazeDone) {
                 if (hasChar(ks, ';')) mazeMove(-1, 0);

@@ -47,6 +47,8 @@ Les raccourcis de M5GFX (zoom, rotation) passent par `Ctrl droit` + chiffre ou `
 ## Options
 
 - `--lang fr` ou `--lang en` : langue déjà choisie (sinon, écran de langue comme au premier démarrage).
+- `--seed n` : hasard reproductible (même code de démarrage, même QCM d'une fois à l'autre).
+- Variable `EXPLORER3_THEME=fichier` : en multijoueur, le message `M` (thème du labyrinthe) est écrit dans ce fichier au début de chaque partie, pour essayer la page du centre de contrôle sans Cardputer.
 - `--script "…"` : actions horodatées, en millisecondes depuis le lancement, séparées par `;`. Actions : un nom de touche (`enter`, `del`, `tab`, `space`, `fn`, `esc`, `up`, `down`, `left`, `right`) ou un caractère, `type texte`, `shot fichier.bmp`, `quit`.
 
 Exemple : l'écran titre des pages GitHub (`docs/images/titre-fr.png`), au moment où « ENTRÉE : commencer » est affiché :

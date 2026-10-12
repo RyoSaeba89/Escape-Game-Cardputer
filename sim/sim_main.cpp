@@ -1,6 +1,7 @@
 // Simulateur PC : lance le jeu (src/main.cpp, sans changement) dans une fenêtre
 // SDL avec le vrai M5GFX. Clavier du PC = clavier du Cardputer (voir sim/LISEZMOI.md).
 // Options : --lang fr|en (saute l'écran de langue)
+//           --seed n (hasard reproductible : même mot, même QCM d'une fois à l'autre)
 //           --script "1000 enter; 2500 shot titre.bmp; 2600 quit" (actions horodatées)
 #include <M5Cardputer.h>
 #include <Preferences.h>
@@ -29,6 +30,7 @@ namespace {
 const auto t0 = std::chrono::steady_clock::now();
 uint32_t randNext = 1;  // même générateur que newlib (rand() de l'ESP32)
 bool useHwRandom = true;
+uint32_t fixedSeed = 0;  // --seed : esp_random() rend toujours ce nombre
 }  // namespace
 
 uint32_t millis() {
@@ -40,6 +42,9 @@ void delay(uint32_t ms) {
 }
 
 uint32_t esp_random() {
+    if (fixedSeed) {
+        return fixedSeed;
+    }
     static std::random_device rd;
     return rd();
 }
@@ -261,6 +266,8 @@ int main(int argc, char **argv) {
         std::string opt = argv[i];
         if (opt == "--lang") {
             Preferences::store()["lang"] = std::string(argv[i + 1]) == "en" ? "1" : "0";
+        } else if (opt == "--seed") {
+            fixedSeed = (uint32_t)std::stoul(argv[i + 1]);
         } else if (opt == "--script") {
             std::stringstream ss(argv[i + 1]);
             std::string item;

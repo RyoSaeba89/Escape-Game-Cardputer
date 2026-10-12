@@ -108,9 +108,10 @@ constexpr Tx P1_TEXT_MULTI = {
 constexpr Tx P1_FOOTER_MULTI = {"ESPACE : revoir", "SPACE: watch again"};
 
 constexpr Tx P2_TITLE = {"ÉNIGME 2/4 : RÉSERVOIRS DE CARBURANT", "PUZZLE 2/4: FUEL TANKS"};
-constexpr Tx P2_TEXT = {"La porte est verrouillée : quel est le premier rover à avoir roulé sur Mars ?",
-                        "The door is locked: which rover was the first to drive on Mars?"};
-constexpr Tx P2_FOOTER = {"A B C D : répondre", "A B C D: answer"};
+// Devant la question du mot (mots.h)
+constexpr Tx P2_LOCKED = {"Porte verrouillée !", "Door locked!"};
+// %s : les lettres des 4 réponses, tirées à chaque partie
+constexpr Tx P2_FOOTER = {"%s : répondre", "%s: answer"};
 // Multijoueur : picross sur le verrou des réservoirs (énigme 2)
 constexpr Tx P2_TITLE_MULTI = {"ÉNIGME 2/4", "PUZZLE 2/4"};
 constexpr Tx P2_PLACE_MULTI = {"Réservoirs", "Fuel tanks"};
@@ -187,18 +188,7 @@ constexpr Tx WIN_O2 = {"O₂ restant : ", "O₂ left: "};
 constexpr Tx WIN_NEW_RECORD = {"NOUVEAU RECORD !", "NEW RECORD!"};
 constexpr Tx WIN_RECORD = {"Record : ", "Record: "};
 constexpr Tx WIN_AGAIN = {"ENTRÉE : rejouer", "ENTER: play again"};
-// Bandeau qui défile sur l'écran de fin : la signification du code
-constexpr Tx WIN_INFO_SOLO = {
-    "NASA : National Aeronautics and Space Administration (Administration nationale de l'aéronautique et "
-    "de l'espace), l'agence spatiale des États-Unis, créée en 1958.",
-    "NASA: National Aeronautics and Space Administration, the United States space agency, founded in 1958."};
-constexpr Tx WIN_INFO_MULTI = {
-    "ARES : Arès est le dieu grec de la guerre ; les Romains l'appelaient Mars, d'où le nom de la planète rouge. "
-    "Ares, c'est aussi le nom de deux fusées de la NASA (Ares I et Ares V) qui devaient ramener des astronautes "
-    "sur la Lune, puis les emmener vers Mars. Le projet a été abandonné en 2010.",
-    "ARES: Ares is the Greek god of war; the Romans called him Mars, which gave the red planet its name. "
-    "Ares was also the name of two NASA rockets (Ares I and Ares V) meant to take astronauts back to the Moon, "
-    "then on to Mars. The project was cancelled in 2010."};
+// Bandeau qui défile sur l'écran de fin : avec chaque code, dans mots.h
 
 constexpr Tx LOST_TITLE = {"OXYGÈNE ÉPUISÉ", "OUT OF OXYGEN"};
 constexpr Tx LOST_TEXT1 = {"Mission échouée...", "Mission failed..."};
