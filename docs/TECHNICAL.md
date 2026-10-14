@@ -4,7 +4,7 @@
 
 This document describes how the game works inside, for anyone who wants to build, understand or change it. It does not give the puzzle solutions, but they are in plain text in the source code.
 
-Version described: **v3.0.0** (not released yet): the start-up code is a word drawn at random for each game, with its quiz question (shuffled answers), its picross and, in multiplayer, its maze whose cells have a theme linked to the word, pictures included (message `M`); no code ever appears in its puzzles (`tools/controle_codes.py`). Earlier versions: in multiplayer, mission control sees the crew's cursor on the picross; texts revised (v2.2.2); in multiplayer, the end screen banner scrolls on the page itself, to stay smooth on a phone (v2.2.1); in multiplayer, new start-up code; the picross moves to puzzle 2 and the maze to puzzle 4 (4×5 grid whose path draws a letter); a banner scrolls on the end screen to explain the code (v2.2). Earlier versions: in multiplayer, puzzle 2 becomes a planet maze (v2.1); "With a screen" mode becomes **Multiplayer**, a two-team game (a code of its own, a mission control page for each puzzle, a Rules page) (v2.0). Before that: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7); coded keypad table fitted to portrait, for the iPhone captive portal window (v1.8).
+Version described: **v4.0.0**: the Cardputer game, [Explorer3-Android](https://github.com/RyoSaeba89/Explorer3-Android) and [Explorer3-RaspberryPi](https://github.com/RyoSaeba89/Explorer3-RaspberryPi) share the same version number and play together. "Cardputer only" becomes **Solo**; after "Multiplayer", a role menu (**Crew** or **Mission control**); the Cardputer can be mission control for a Cardputer, Android or Raspberry Pi crew (section 15), with a network core shared by the three versions (`src/controle/`, tested by `make -C tests`); the page says "Connecting to the crew…". Earlier versions: the start-up code is a word drawn at random for each game, with its quiz question (shuffled answers), its picross and, in multiplayer, its maze whose cells have a theme linked to the word, pictures included (message `M`); no code ever appears in its puzzles (`tools/controle_codes.py`) (v3.0.0); in multiplayer, mission control sees the crew's cursor on the picross; texts revised (v2.2.2); in multiplayer, the end screen banner scrolls on the page itself, to stay smooth on a phone (v2.2.1); in multiplayer, new start-up code; the picross moves to puzzle 2 and the maze to puzzle 4 (4×5 grid whose path draws a letter); a banner scrolls on the end screen to explain the code (v2.2). Earlier versions: in multiplayer, puzzle 2 becomes a planet maze (v2.1); "With a screen" mode becomes **Multiplayer**, a two-team game (a code of its own, a mission control page for each puzzle, a Rules page) (v2.0). Before that: game in French and English, Explorer3 network, QR codes, Firefox 68 and Ouya console support, PC simulator (v1.5); phone screen kept on in Firefox and Brave (v1.6); captive portal on the Explorer3 network, so the page opens on the phone even with mobile data on (v1.7); coded keypad table fitted to portrait, for the iPhone captive portal window (v1.8).
 
 ## Contents
 
@@ -22,6 +22,7 @@ Version described: **v3.0.0** (not released yet): the start-up code is a word dr
 12. [Known limits and security](#12-known-limits-and-security)
 13. [Changing the game](#13-changing-the-game)
 14. [PC simulator](#14-pc-simulator)
+15. [Mission control on the Cardputer](#15-mission-control-on-the-cardputer)
 
 ## 1. Overview
 
@@ -30,15 +31,15 @@ Version described: **v3.0.0** (not released yet): the start-up code is a word dr
 | Hardware | M5Stack **Cardputer ADV**: ESP32-S3 (2 cores, 240 MHz), 8 MB flash, **no PSRAM**, 240×135 screen, ES8311 audio codec (mono), TCA8418 keyboard |
 | Framework | Arduino (ESP32 core 2.0.x) through PlatformIO |
 | Language | C++17 on the Cardputer, HTML/CSS/JavaScript for the multiplayer web page |
-| Files | `src/main.cpp` (the game), `src/textes.h` (French and English texts), `src/mots.h` (start-up codes and the data of their puzzles), `src/dessins.h` (pictures of the maze cells), `src/diffusion.cpp` and `src/diffusion.h` (multiplayer mode), `sim/` (PC simulator) |
+| Files | `src/main.cpp` (the game), `src/textes.h` (French and English texts), `src/mots.h` (start-up codes and the data of their puzzles), `src/dessins.h` (pictures of the maze cells), `src/diffusion.cpp` and `src/diffusion.h` (multiplayer mode, Crew role), `src/controle.h`, `src/textes_controle.h` and `src/controle/` (Mission control role, section 15), `sim/` (PC simulator), `tests/` (tests of the network core on a PC) |
 | License | MIT |
 
 The game lasts 5 minutes: 4 puzzles solved in order, each one gives one letter of a 4-letter code to type on the on-board computer to launch the rocket. The code is a word drawn at random for each game from a list specific to each language (section 7).
 
 The game is in **French or English**, chosen on first start-up (section 3). Two modes are then offered:
 
-- **Cardputer only**: everything happens on the Cardputer.
-- **Multiplayer**: a two-team game, with only the codes that have a maze. The **crew** plays on the Cardputer, **mission control** on the web page of a PC, TV or phone. The Cardputer joins the router's Wi-Fi (or creates its own, Explorer3) and serves that page itself. The sound comes out of the page. During the puzzles and on the on-board computer, the page shows mission control the part of the clues the crew doesn't have (section 10); the rest of the time, it mirrors the Cardputer screen.
+- **Solo** ("Everything on this device"): everything happens on the Cardputer.
+- **Multiplayer**: a two-team game, with only the codes that have a maze. A menu asks for this Cardputer's role. As **Crew**, it plays, joins the router's Wi-Fi (or creates its own, Explorer3) and serves the **mission control** page itself, opened on a PC, TV or phone, or followed by another device in the Mission control role (Cardputer, Android, Raspberry Pi). The sound comes out of mission control. As **Mission control**, it follows the game of a crew on the network (section 15). During the puzzles and on the on-board computer, the page shows mission control the part of the clues the crew doesn't have (section 10); the rest of the time, it mirrors the Cardputer screen.
 
 ## 2. Building and installing
 
@@ -51,7 +52,8 @@ The game is in **French or English**, chosen on first start-up (section 3). Two 
 | Platform | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Board | `esp32-s3-devkitc-1`, 8 MB flash, `default_8MB.csv` partitions (application up to 3.3 MB) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (serial port over native USB) |
-| Libraries | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions used for v2.2: 1.1.1, 0.2.25, 0.2.32 and 2.7.3) |
+| Libraries | Exact versions, so that the release `.bin` is built with the ones that were tried: `m5stack/M5Cardputer @ 1.1.1`, `m5stack/M5Unified @ 0.2.25`, `m5stack/M5GFX @ 0.2.32`, `links2004/WebSockets @ 2.7.3`, `z3t0/IRremote @ 4.7.1` (required by M5Cardputer without a version) |
+| Mission control | `NET_BATCH=8`, `NET_CONNECT_MS=700`: the crew search opens 8 connections at a time and waits 0.7 s for each (section 15) |
 
 ```
 pio run                # build
@@ -96,7 +98,7 @@ The whole game is in `src/main.cpp`, inside an anonymous namespace. Sections are
 | logic | Transitions (`enter`, `startPuzzle`, `solvePuzzle`…), keyboard (`handleKey`), update (`update`), pause |
 | `setup()` / `loop()` | Start-up and main loop |
 
-`src/diffusion.cpp` holds everything network related, behind the `mirror::` interface declared in `src/diffusion.h`. `main.cpp` includes neither Wi-Fi nor the servers.
+`src/diffusion.cpp` holds everything related to the crew's network, behind the `mirror::` interface declared in `src/diffusion.h`. `main.cpp` includes neither Wi-Fi nor the servers; it includes `controle.h` (mission control, in its namespace) and the headers of the network core `src/controle/` (section 15).
 
 ### Texts and languages (`src/textes.h`)
 
@@ -131,7 +133,8 @@ The whole screen is drawn into a 240×135, 16-bit `M5Canvas` sprite (64,800 byte
 | `lang` | uchar | Language (0 French, 1 English). Missing on first start-up: the language screen is shown |
 | `best_o2` | uint | Record: largest O₂ reserve left on winning (ms) |
 | `ssid`, `pass` | string | Last router Wi-Fi used, saved only after a successful connection |
-| `mot_s`, `mot_m` | string | Code of the previous game, Cardputer only and multiplayer: `chooseWord()` does not pick it again next time |
+| `mot_s`, `mot_m` | string | Code of the previous game, Solo and multiplayer: `chooseWord()` does not pick it again next time |
+| `ctl_ip` | string | Mission control: address of the last crew reached, offered when typing an address if it is on the same network |
 | `auto` | bool | `true`: "Multiplayer" reconnects directly to `ssid`. Set to `false` when the Explorer3 network is created, so the Wi-Fi list is shown next time. Missing = `true` |
 
 ## 4. Main loop and state machine
@@ -156,24 +159,29 @@ stateDiagram-v2
     [*] --> Mode : language saved
     Lang --> Mode : ENTER
     Mode --> Lang : Langue / Language
-    Mode --> Title : Cardputer only
-    Mode --> Connecting : Multiplayer, router saved
-    Mode --> WifiList : Multiplayer, otherwise
+    Mode --> Title : Solo
+    Mode --> Role : Multiplayer
+    Role --> Mode : back
+    Role --> Connecting : a role, router saved
+    Role --> WifiList : a role, otherwise
     WifiList --> Password : protected network
     WifiList --> Connecting : open network
     WifiList --> SsidEntry : Other network
-    WifiList --> Address : Create the Explorer3 network
-    WifiList --> Mode : back
+    WifiList --> Address : Create the Explorer3 network (Crew)
+    WifiList --> Control : Create the Explorer3 network (Mission control)
+    WifiList --> Role : back
+    Connecting --> Control : connected (Mission control)
+    Control --> Role : ESC from the search
     SsidEntry --> Password : ENTER
     SsidEntry --> WifiList : back
     Password --> Connecting : ENTER
     Password --> WifiList : back
-    Connecting --> Address : connected (server started)
+    Connecting --> Address : connected (Crew, server started)
     Connecting --> WifiList : wrong password, failure after 20 s, or back
     Address --> Title : ENTER
     Address --> WifiList : back
     Title --> Briefing : ENTER
-    Briefing --> Puzzle : ENTER, Cardputer only (countdown starts)
+    Briefing --> Puzzle : ENTER, Solo (countdown starts)
     Briefing --> Rules : ENTER, multiplayer
     Rules --> Puzzle : ENTER (countdown starts)
     Puzzle --> Solved : puzzles 1 to 3 solved
@@ -191,10 +199,12 @@ stateDiagram-v2
 | State | Screen | Notes |
 |---|---|---|
 | `Lang` | Langue / Language | On first start-up, then from the mode choice |
-| `Mode` | Cardputer only / Multiplayer / Language | |
-| `WifiList`, `SsidEntry`, `Password`, `Connecting`, `Address` | Multiplayer setup | Section 9.3 |
+| `Mode` | Solo / Multiplayer / Language | |
+| `Role` | Crew / Mission control | `roleSel`; the role sets `multiMode` (crew) or `controlMode` (mission control) |
+| `WifiList`, `SsidEntry`, `Password`, `Connecting`, `Address` | Multiplayer setup, the same screens for both roles | Section 9.3 |
+| `Control` | Mission control | Keys, updates and drawing handed to `controle::key()`, `update()`, `draw()`; section 15 |
 | `Title` | Title (Mars, rocket on its side) | |
-| `Briefing` | Captain's log (text of the mode) | Cardputer only: ENTER starts the countdown |
+| `Briefing` | Captain's log (text of the mode) | Solo: ENTER starts the countdown |
 | `Rules` | Crew rules (multiplayer) | Mission control has its own; ENTER starts the countdown |
 | `Puzzle` | Puzzle `puzzle` (0 to 3) | |
 | `Solved` | Ship part repaired, letter engraved on it | |
@@ -235,8 +245,8 @@ The M5Unified speaker mixes several virtual channels:
 
 This is the **only place** sound comes out, which lets multiplayer mode send it to the browser instead of the speaker (section 9.5):
 
-- `runNotes` calls `Speaker.tone()` on the Cardputer only, and `mirror::sendTone()` in multiplayer;
-- `cancelChannel` and `stopAllSound` call `Speaker.stop()` on the Cardputer only, and `mirror::sendStop()` in multiplayer;
+- `runNotes` calls `Speaker.tone()` in Solo and as mission control, and `mirror::sendTone()` as the crew;
+- `cancelChannel` and `stopAllSound` call `Speaker.stop()` in Solo and as mission control, and `mirror::sendStop()` as the crew;
 - `channelPlaying(ch)` replaces `Speaker.isPlaying(ch)`. In multiplayer it relies on `chanUntil[ch]`, the end time of the current note, since the speaker plays nothing.
 
 ### Liftoff
@@ -255,7 +265,7 @@ The mechanisms are described here, not the answers. The puzzle order depends on 
 | `Picross` | 5×5 picross; row and column clues are computed when the puzzle starts from the drawing of the puzzle's letter (`mots::picross()`) | 3 | 2 | `buildClues()`, `lineClues()`, `picrossSolved()` |
 | `Sound` | Audio Morse signal, 700 Hz, unit `SOUND_UNIT_MS` = 200 ms; type the letter | 4 | 3 | `startMorseSound()`, `drawPuzzleSoundMulti()` |
 
-- Cardputer only: `TAB` shows the Morse code chart (`drawMorseHelp()`), any key closes it, `SPACE` plays the signal again ("watch again" for the light, "listen again" for the sound).
+- Solo: `TAB` shows the Morse code chart (`drawMorseHelp()`), any key closes it, `SPACE` plays the signal again ("watch again" for the light, "listen again" for the sound).
 - Multiplayer: no `TAB`. `SPACE` plays the signal again; for the sound it comes out of the mission control page. What each team sees is described in section 10.
 - A wrong letter triggers `penalty()`. A right letter calls `solvePuzzle()`. In the quiz, the question may take 3 lines: "X: ACCESS DENIED" then replaces the footer, as in multiplayer puzzle 3.
 - The picross is solved when the grid is **identical** to the pattern (`picrossSolved()`). Lit cells are orange on a dark background; the clues of a row or column turn green as soon as it matches them (`rowOk()`, `colOk()`). In multiplayer the crew sees "?" instead of the numbers, which also turn green.
@@ -294,7 +304,8 @@ Mission control has nothing to install: the Cardputer serves the page itself (`h
 | `connect(ssid, pass)`, `link()`, `failure()`, `attempt()` | Router connection, host name `explorer3`. `link()`: `Connecting`, `Connected` or `BadPassword`; `failure()`: likely cause after the timeout (`NotFound` or `NoAnswer`); `attempt()`: number of the current attempt |
 | `startAccessPoint()`, `accessPoint()`, `apClients()`, `wifiQrText()` | Explorer3 network created by the Cardputer (section 9.3) |
 | `ipAddress()` | IP address on the router or on Explorer3 (`192.168.4.1`) |
-| `startServer(screen, w, h)` | Starts the web page, the WebSocket, the network task and announces `explorer3.local`, given the address of the screen buffer. Returns `false` without starting anything if memory runs out. A second call (network change) announces the mDNS name again and turns Wi-Fi power saving off |
+| `startServer(screen, w, h)` | Starts the web page, the WebSocket, the network task and announces `explorer3.local`, given the address of the screen buffer. Returns `false` without starting anything if memory runs out. A second call (network change, back to the crew role) reopens stopped servers, announces the mDNS name again and turns Wi-Fi power saving off |
+| `stopServer()` | Mission control role: the network task closes the WebSocket (browsers disconnected) and the web server, and the mDNS name is withdrawn. This Cardputer no longer shows up as a crew in another mission control's search |
 | `clientCount()` | Number of connected browsers (shows "Browser connected") |
 | `lockScreen()`, `unlockScreen()` | Lock (FreeRTOS mutex) around drawing; does nothing until the server has started |
 | `sendTone()`, `sendStop()`, `sendRumble()` | Sounds for the browser to play (section 9.5) |
@@ -348,7 +359,7 @@ With Explorer3, the screen switches by itself to the page's QR code as soon as a
 
 **Captive portal (Explorer3).** Explorer3 has no Internet access. An Android phone that also has mobile data then keeps 4G as its main network, and its browser uses it for every address, `192.168.4.1` included: the page does not open. `explorer3.local` fails too, because Android does not resolve `.local` names over mobile data, and typing `http://` in front changes nothing. No web page can choose the network it uses. The Cardputer therefore behaves like a hotel Wi-Fi, so that the system itself opens the page in its "Sign in to network" window, which goes over Wi-Fi even when 4G is on:
 
-- **DNS** (`answerDns()`, port 53, access point mode only): to an IPv4 address request (type A), for any name, it answers `192.168.4.1`, with a 10 s time to live so that nothing stays cached after the game. Other types (AAAA, HTTPS…) get an empty answer. Malformed packets and packets over 512 bytes are ignored. This small responder replaces the Arduino core's `DNSServer` library, which does not check the length of received names.
+- **DNS** (`answerDns()`, port 53, access point mode only): to an IPv4 address request (type A), for any name, it answers `192.168.4.1`, with a 10 s time to live so that nothing stays cached after the game. Other types (AAAA, HTTPS…) get an empty answer. Malformed packets and packets over 512 bytes are ignored, as is a question so long that the answer (16 more bytes) would not fit in the 512-byte buffer. This small responder replaces the Arduino core's `DNSServer` library, which does not check the length of received names.
 - **Redirect** (`redirectToPage()`): an HTTP request whose `Host` header is neither `192.168.4.1` nor `explorer3.local` gets a `302` redirect to `http://192.168.4.1/`. This is the case of the connectivity checks of Android (`connectivitycheck.gstatic.com/generate_204`…), iPhone (`captive.apple.com`) and Windows (`msftconnecttest.com`): the system concludes there is a portal and shows the page. HTTPS checks fail right away, since nothing listens on port 443.
 - On Android, the window opens by itself or through the "Sign in to network" notification, depending on the phone. The rest of the phone keeps Internet over 4G. On a router, none of this is active.
 
@@ -398,7 +409,7 @@ Browsers forbid sound before a user action. The audio context is therefore creat
 `netTask` is pinned to core 0, with priority 1 and a 6 KB stack. `startServer()` creates it first: it waits for a signal (`ulTaskNotifyTake`) while the servers start. If the task cannot be created, nothing has been started yet. It then loops over:
 
 1. on Explorer3: DNS started or stopped according to the Wi-Fi mode, then a pending question answered;
-2. `http.handleClient()` and `ws.loop()`;
+2. stopping or restarting the servers as asked by `stopServer()` or `startServer()` (`serverWanted`): `ws.close()` and `http.stop()`, or `http.begin()` and `ws.begin()`; then, while they run, `http.handleClient()` and `ws.loop()`;
 3. sending pending sounds (FreeRTOS queue of 64 items, filled without waiting by the game);
 4. sending the language if it changed;
 5. sending the maze theme (`M`), then the mission control page state, if they changed;
@@ -486,12 +497,13 @@ The keypad shows up 600 ms after the last terminal line (`keypadShown()`). `type
 
 ## 11. Memory and performance
 
-Figures measured on v2.2:
+Figures measured on v4.0.0:
 
 | Item | Size |
 |---|---|
-| Program | ~1.41 MB out of 3.3 MB (42 %), including the web page ~22 KB and the mDNS responder ~40 KB |
-| Static RAM | ~72 KB out of 320 KB (22 %), including the liftoff noise (16 KB) and the DNS buffer (512 bytes) |
+| Program | ~1.47 MB out of 3.3 MB (44 %), including the web page ~22 KB and the mDNS responder ~40 KB |
+| Static RAM | ~88 KB out of 320 KB (27 %), including the liftoff noise (16 KB) and the DNS buffer (512 bytes) |
+| Mission control (heap) | The session (`session_t`, ~86 KB: copy of the crew's screen, reception of a 16 KB message, page state), allocated on first entering the role and kept afterwards |
 | Screen sprite (heap) | 64,800 bytes |
 | Multiplayer mode (heap) | 12 KB send buffer, 6 KB network task stack, ~1 KB sound queue, plus the Wi-Fi, lwIP and mDNS stacks |
 | Frame rate | 5 to 10 KB per full screen, much less when little moves; 25 frames/s at most |
@@ -511,6 +523,8 @@ Without PSRAM, large allocations must be avoided: no second full-screen sprite n
 - On the Ouya, keeping the screen awake with the invisible video (section 9.8) has not been checked on the console.
 - Wi-Fi failure reasons come from the driver: "Wrong password" may, rarely, come from a very weak signal.
 - On Explorer3, with an Android phone that has mobile data, the page works in the "Sign in to network" window (captive portal, section 9.3), not in a browser opened by hand: Firefox, Brave or the page's QR code go over 4G. No full screen in that window.
+- Mission control: the crew search takes 30 to 60 s (254 addresses, 2 ports, 8 at a time). A device that answers slowly the first time can be missed: "ENTER: search again", or `TAB` to type its address.
+- Mission control after a game as the crew without restarting: the 86 KB session comes on top of what the Crew role kept (send buffer, network task, Wi-Fi stack); if the allocation fails, "Not enough memory: restart the game".
 - The captive portal has been checked on Android and iPhone. On iPhone, its window stays in portrait (section 10). On Windows, the system also opens its own window: not checked yet.
 
 ## 13. Changing the game
@@ -523,6 +537,7 @@ Without PSRAM, large allocations must be avoided: no second full-screen sprite n
 - **Add or change a coded keypad symbol**: change the 12×12 drawing in `SYMBOLS[]` (and `SYM_COUNT` when adding one). The page gets the same drawing on its own (`/sym.js`). Beyond 16 symbols, a single hexadecimal digit is not enough and the table format must change.
 - **Change the mission control page**: it is entirely in the `PAGE` string of `diffusion.cpp` (HTML, CSS and JavaScript in one block), texts included (`TX` object). Follow the compatibility rules of section 9.8 so as not to lose Firefox 68 and the Ouya.
 - **After an interface change**, check every screen in both languages with the simulator, and use `fit()` for variable-length text such as Wi-Fi names.
+- **Changing the network core** (`src/controle/*.c`, section 15): run `make -C tests` (Linux gcc, or WSL on Windows), then copy the files unchanged into Explorer3-Android (`jni/control/`) and Explorer3-RaspberryPi (`src/control/`): the three versions must speak the same protocol.
 
 ## 14. PC simulator
 
@@ -539,3 +554,20 @@ Without PSRAM, large allocations must be avoided: no second full-screen sprite n
 `random()` reproduces the ESP32 one (newlib `rand()` after `randomSeed()`): the starry sky of the title is the same as on the Cardputer. With `--seed n`, the game's randomness is reproducible (same code, same quiz). With the `EXPLORER3_THEME` variable, `setMazeTheme()` writes the `M` message to that file, to try the mission control page without a Cardputer. The GitHub page images (`docs/images/titre-fr.png`, `titre-en.png`) come from the simulator, scaled ×4.
 
 The `simulateur` environment in `platformio.ini` uses `platform = native`, with MSYS2 (UCRT64) gcc and SDL2 on Windows. It is not part of `pio run` (`default_envs = cardputer-adv`) nor of the release.
+
+## 15. Mission control on the Cardputer
+
+The **Mission control** entry of the role menu: the Cardputer takes the web page's place and follows the game of a crew (Cardputer, Android or Raspberry Pi) on the same network. Once the Wi-Fi is up (router or Explorer3 network, the same screens as for the crew), `startControl()` calls `controle::start()` and enters the `Control` state; `ESC` from the search goes back to the role menu (`leaveControl()`).
+
+| File | Role |
+|---|---|
+| `src/controle.h` | 240×135 screens (approved mock-ups), keys, sound through the speaker, end banner; included by `main.cpp` in its namespace |
+| `src/textes_controle.h` | Its texts, including the web page's (rules, puzzles) |
+| `src/controle/*.c` | The **network core shared by the three versions**, in plain C: `net.c` (search, TCP connection), `ws.c` (WebSocket client), `msg.c` (reading the `P T S R K L B M` messages), `rows.c` (screen rows), `session.c` (one connection: handshake, messages, pongs, time-outs), `panel.c` (page state), `clocksync.c` (the crew's clock), `addr.c` (addresses). The same files, unchanged, are in Explorer3-Android (`jni/control/`) and Explorer3-RaspberryPi (`src/control/`) |
+| `tests/` | Tests of that core on a PC (`make -C tests`): messages, WebSocket, screen rows, clock, search against a fake crew |
+
+**Crew search** (`finder_start()`, `net.c`, own thread): the 254 addresses of this Cardputer's /24, ports 81 (Cardputer, Pi) and 8081 (Android), in batches of `NET_BATCH` = 8 connections that wait `NET_CONNECT_MS` = 700 ms. An open port is confirmed by asking for `/sym.js` on 80 or 8080, with `Host` = the address (otherwise the captive portal of a crew on Explorer3 would redirect). One crew found: it connects; several: a list (4 at most); none: "No crew found", `ENTER` to search again. `TAB`, at any time during the search: typing the address (digits and dots), checked by `addr_check()` (an address on another network is flagged, not refused), then probed on both ports; a request made during a search replaces it at the next batch. The last address reached is kept (`ctl_ip`).
+
+**Game.** `session.c` opens the WebSocket and reads the messages; the Cardputer shows the copy of the crew's screen (`rows`), or the page of the current puzzle drawn at 240×135: Morse code chart, picross with the real numbers and the crew's cursor, puzzle 3 speaker, maze with the legend of the 8 pictures and their names (choice M1), coded keypad table. `TAB` opens the page's instructions (▲ ▼ to scroll them when longer than the screen). The O₂ countdown and the puzzle numbers are at the top, a red frame flashes on each mistake. The sounds (`T`, `S`, `R`) go through the game's scheduler (`schedule()`) with 150 ms of margin, the rumble through `playRaw()`. Lost connection or 30 s of silence: it reconnects by itself, the picture stays. `ESC`: change crew (back to the search).
+
+**Servers.** `controle::start()` calls `mirror::stopServer()`: a Cardputer that was a crew earlier closes its page, stream and name, so as not to show up as a crew in another mission control's search; `startServer()` reopens them when going back to the crew role.

@@ -23,13 +23,21 @@ constexpr Tx LANG_INFOS = {"Jouer en français", "Play in English"};
 constexpr Tx LANG_FOOTER = {K_UP K_DOWN "|ENTRÉE / ENTER : ok", K_UP K_DOWN "|ENTRÉE / ENTER : ok"};
 
 // ---------------------------------------------------------------- choix du mode
-constexpr Tx MODE_SOLO = {"Cardputer seul", "Cardputer only"};
-constexpr Tx MODE_SOLO_INFO = {"Tout le jeu sur le Cardputer", "Everything on the Cardputer"};
+constexpr Tx MODE_SOLO = {"Solo", "Solo"};
+constexpr Tx MODE_SOLO_INFO = {"Tout le jeu sur cet appareil", "Everything on this device"};
 constexpr Tx MODE_MULTI = {"Multijoueur", "Multiplayer"};
 constexpr Tx MODE_MULTI_INFO = {"Jeu à deux équipes", "Two-team game"};
 constexpr Tx MODE_LANG = {"Langue / Language", "Langue / Language"};
 constexpr Tx MODE_LANG_INFO = {"Français", "English"};
 constexpr Tx MODE_FOOTER = {K_UP K_DOWN " : choisir|ENTRÉE : ok", K_UP K_DOWN ": select|ENTER: confirm"};
+
+// Multijoueur : rôle de cet appareil (les mêmes textes sur le Cardputer, Android et le Pi)
+constexpr Tx ROLE_TITLE = {"MULTIJOUEUR", "MULTIPLAYER"};
+constexpr Tx ROLE_CREW = {"Équipage", "Crew"};
+constexpr Tx ROLE_CREW_INFO = {"Cet appareil joue, sur Mars", "This device plays, on Mars"};
+constexpr Tx ROLE_CONTROL = {"Centre de contrôle", "Mission control"};
+constexpr Tx ROLE_CONTROL_INFO = {"Cet appareil sert d'écran", "This device is the screen"};
+constexpr Tx ROLE_FOOTER = {K_UP K_DOWN " : choisir|ENTRÉE : ok|ESC : retour", K_UP K_DOWN ": select|ENTER: confirm|ESC: back"};
 
 // ---------------------------------------------------------------- Wi-Fi
 constexpr Tx WIFI_TITLE = {"CHOIX DU WI-FI", "CHOOSE WI-FI"};

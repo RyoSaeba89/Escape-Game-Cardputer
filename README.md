@@ -6,6 +6,8 @@
 
 Un mini escape game de 5 minutes pour le **M5Stack Cardputer ADV**, en français ou en anglais, seul sur le Cardputer ou en **multijoueur** à deux équipes.
 
+Il existe aussi pour Android ([Explorer3-Android](https://github.com/RyoSaeba89/Explorer3-Android) : Xperia Play, OUYA, téléphones) et le Raspberry Pi ([Explorer3-RaspberryPi](https://github.com/RyoSaeba89/Explorer3-RaspberryPi) : Pi 3, Pi 400). Les trois versions jouent ensemble en multijoueur ; mettre tous les appareils au même numéro de version.
+
 > Journal de bord, Sol 1 : notre vaisseau spatial **Explorer 3** s'est écrasé sur Mars.
 > Pour redécoller, nous devons le réparer et retrouver son code de démarrage…
 > avant la fin de la réserve d'oxygène !
@@ -19,7 +21,7 @@ Un mini escape game de 5 minutes pour le **M5Stack Cardputer ADV**, en français
 - Si l'oxygène tombe à zéro, la partie est perdue (écran « Oxygène épuisé »). On peut retenter immédiatement.
 - Le **record** (oxygène restant à l'arrivée) reste en mémoire même après extinction.
 
-### Les énigmes (Cardputer seul)
+### Les énigmes (Solo)
 
 | # | Lieu | Type d'énigme |
 |---|------|---------------|
@@ -41,7 +43,7 @@ Les solutions ne sont pas données ici. ⚠️ **Joueurs : ne lisez pas le code 
 | `ENTRÉE` | Valider, continuer, démarrer, rejouer |
 | Lettres | Répondre aux énigmes, taper le code |
 | `ESPACE` | Revoir ou réécouter le signal Morse |
-| `TAB` | Afficher l'alphabet Morse (Cardputer seul, énigmes 1 et 4), n'importe quelle touche le ferme |
+| `TAB` | Afficher l'alphabet Morse (Solo, énigmes 1 et 4), n'importe quelle touche le ferme |
 | Flèches ▲ ▼ ◀ ▶ (touches `;` `.` `,` `/`) | Choisir dans les menus, déplacer le curseur du picross |
 | `ESC` (touche `` ` ``) | Revenir en arrière dans les écrans du Wi-Fi |
 | `ENTRÉE` (picross) | Allumer ou éteindre une case |
@@ -57,10 +59,10 @@ Au premier démarrage, le Cardputer demande la langue (français ou anglais). El
 
 ## Mode « Multijoueur » : deux équipes
 
-Au démarrage, choisir **Cardputer seul** ou **Multijoueur**. En multijoueur, deux équipes jouent ensemble :
+Au démarrage, choisir **Solo** (tout le jeu sur cet appareil) ou **Multijoueur**, puis le rôle de cet appareil : **Équipage** ou **Centre de contrôle**. En multijoueur, deux équipes jouent ensemble :
 
-- l'**équipage**, sur Mars, joue sur le Cardputer ;
-- le **centre de contrôle**, sur Terre, suit la partie sur la page web d'un PC, d'une télé ou d'un téléphone. **Le son sort de cet écran** (le Cardputer reste muet).
+- l'**équipage**, sur Mars, joue sur le Cardputer (ou sur un appareil Android, un Raspberry Pi) ;
+- le **centre de contrôle**, sur Terre, suit la partie sur la page web d'un PC, d'une télé ou d'un téléphone, ou sur un autre Cardputer, un appareil Android ou un Raspberry Pi en rôle **Centre de contrôle**. **Le son sort de cet écran** (l'équipage reste muet).
 
 Chaque équipe n'a qu'une partie des indices : il faut se parler ! Placer l'écran pour que l'équipage ne le voie pas.
 
@@ -80,7 +82,7 @@ Chaque équipe n'a qu'une partie des indices : il faut se parler ! Placer l'écr
 
 ### Connecter l'écran
 
-1. Choisir **Multijoueur**, puis le Wi-Fi de la box et taper son mot de passe (mémorisé pour les fois suivantes).
+1. Choisir **Multijoueur**, **Équipage**, puis le Wi-Fi de la box et taper son mot de passe (mémorisé pour les fois suivantes).
    - **Pas de box ?** Choisir **Créer le réseau Explorer3** : le Cardputer crée son propre Wi-Fi (`Explorer3`, mot de passe `Explorer3`).
    - **Réseau masqué ?** Choisir **Autre réseau** et taper son nom.
 2. Le Cardputer affiche un **QR code**, son adresse IP (par exemple `192.168.1.42`) et `explorer3.local`. Scanner le QR code avec un téléphone, ou ouvrir l'adresse dans le navigateur (Chrome, Edge, Firefox, Safari). Rien à installer.
@@ -89,6 +91,15 @@ Chaque équipe n'a qu'une partie des indices : il faut se parler ! Placer l'écr
    - `explorer3.local` fonctionne sur PC, Mac et téléphone, mais pas sur la Ouya : utiliser l'adresse IP.
 3. Cliquer une fois sur la page ou appuyer sur une touche pour **activer le son** (les navigateurs l'exigent). Sans cela, le centre de contrôle n'entend pas le signal de l'énigme 3. Double-clic, `F` ou `Entrée` : plein écran.
 4. `ENTRÉE` sur le Cardputer pour lancer le jeu.
+
+### Le Cardputer en centre de contrôle
+
+Un second Cardputer peut remplacer la page web : **Multijoueur**, **Centre de contrôle**, puis le même Wi-Fi que l'équipage (ou le réseau Explorer3, que l'équipage rejoint). Le son sort alors de ce Cardputer.
+
+- Il cherche tout seul les équipages du réseau (Cardputer, Android ou Raspberry Pi) ; la recherche prend 30 à 60 secondes. Un seul trouvé : il s'y connecte ; plusieurs : ▲ ▼ pour choisir, `ENTRÉE` pour se connecter. Si l'équipage n'est pas trouvé du premier coup : `ENTRÉE`, chercher encore.
+- `TAB`, à tout moment de la recherche : taper l'adresse affichée sur l'écran **Connecter l'écran** de l'équipage, puis `ENTRÉE`.
+- Pendant la partie, il affiche l'écran de l'équipage ou la page de l'énigme ; `TAB` ouvre les consignes de l'énigme (▲ ▼ pour les faire défiler).
+- `ESC` : changer d'équipage, puis revenir au choix du rôle.
 
 ### Le clavier codé
 
@@ -139,7 +150,8 @@ pio run -t upload      # compile et flashe par USB
 
 - Plateforme `espressif32 @ 6.7.0` (Arduino core 2.0.x)
 - Bibliothèques : M5Cardputer, M5Unified, M5GFX, WebSockets (links2004)
-- Le jeu : `src/main.cpp`, ses textes en français et en anglais : `src/textes.h`, le mode multijoueur (Wi-Fi, page web, flux écran et son) : `src/diffusion.cpp`
+- Le jeu : `src/main.cpp`, ses textes en français et en anglais : `src/textes.h`, le mode multijoueur (Wi-Fi, page web, flux écran et son) : `src/diffusion.cpp`, le centre de contrôle : `src/controle.h` et `src/textes_controle.h`, avec `src/controle/`, le cœur réseau partagé avec Android et le Raspberry Pi
+- Tests de ce cœur, sur PC (gcc de Linux, ou WSL sous Windows) : `make -C tests`
 - Chaque version publiée (tag `v…`) est compilée par GitHub Actions, qui joint le `.bin` à la release.
 
 ### Simulateur PC
@@ -168,6 +180,8 @@ Fonctionnement interne (architecture, mode multijoueur, protocole, page du centr
 
 A 5-minute mini escape game for the **M5Stack Cardputer ADV**, in English or French, alone on the Cardputer or in two-team **multiplayer**.
 
+It also exists for Android ([Explorer3-Android](https://github.com/RyoSaeba89/Explorer3-Android): Xperia Play, OUYA, phones) and the Raspberry Pi ([Explorer3-RaspberryPi](https://github.com/RyoSaeba89/Explorer3-RaspberryPi): Pi 3, Pi 400). The three versions play together in multiplayer; put every device on the same version number.
+
 > Captain's log, Sol 1: our spaceship **Explorer 3** has crashed on Mars.
 > To take off again, we must repair it and find its start-up code…
 > before the oxygen runs out!
@@ -181,7 +195,7 @@ A 5-minute mini escape game for the **M5Stack Cardputer ADV**, in English or Fre
 - If the oxygen reaches zero, the game is lost ("Out of oxygen" screen). You can try again right away.
 - The **record** (oxygen left at the end) is kept in memory, even after power off.
 
-#### The puzzles (Cardputer only)
+#### The puzzles (Solo)
 
 | # | Place | Puzzle type |
 |---|-------|-------------|
@@ -203,7 +217,7 @@ On screen, keys are shown in orange and arrows are drawn as triangles.
 | `ENTER` | Confirm, continue, start, play again |
 | Letters | Answer the puzzles, type the code |
 | `SPACE` | Watch or listen to the Morse signal again |
-| `TAB` | Show the Morse code chart (Cardputer only, puzzles 1 and 4), any key closes it |
+| `TAB` | Show the Morse code chart (Solo, puzzles 1 and 4), any key closes it |
 | Arrows ▲ ▼ ◀ ▶ (keys `;` `.` `,` `/`) | Choose in menus, move the picross cursor |
 | `ESC` (key `` ` ``) | Go back in the Wi-Fi screens |
 | `ENTER` (picross) | Light up or switch off a cell |
@@ -219,10 +233,10 @@ On first start-up, the Cardputer asks for the language (French or English). It i
 
 ### "Multiplayer" mode: two teams
 
-At start-up, choose **Cardputer only** or **Multiplayer**. In multiplayer, two teams play together:
+At start-up, choose **Solo** (everything on this device) or **Multiplayer**, then this device's role: **Crew** or **Mission control**. In multiplayer, two teams play together:
 
-- the **crew**, on Mars, plays on the Cardputer;
-- **mission control**, on Earth, follows the game on the web page of a PC, TV or phone. **The sound comes out of that screen** (the Cardputer stays silent).
+- the **crew**, on Mars, plays on the Cardputer (or on an Android device, a Raspberry Pi);
+- **mission control**, on Earth, follows the game on the web page of a PC, TV or phone, or on another Cardputer, an Android device or a Raspberry Pi in the **Mission control** role. **The sound comes out of that screen** (the crew stays silent).
 
 Each team only has part of the clues: talk to each other! Place the screen so that the crew can't see it.
 
@@ -242,7 +256,7 @@ Each team only has part of the clues: talk to each other! Place the screen so th
 
 #### Connecting the screen
 
-1. Choose **Multiplayer**, then your router's Wi-Fi and type its password (saved for next time).
+1. Choose **Multiplayer**, **Crew**, then your router's Wi-Fi and type its password (saved for next time).
    - **No router?** Choose **Create the Explorer3 network**: the Cardputer creates its own Wi-Fi (`Explorer3`, password `Explorer3`).
    - **Hidden network?** Choose **Other network** and type its name.
 2. The Cardputer shows a **QR code**, its IP address (for example `192.168.1.42`) and `explorer3.local`. Scan the QR code with a phone, or open the address in the browser (Chrome, Edge, Firefox, Safari). Nothing to install.
@@ -251,6 +265,15 @@ Each team only has part of the clues: talk to each other! Place the screen so th
    - `explorer3.local` works on PC, Mac and phones, but not on the Ouya: use the IP address there.
 3. Click the page once or press a key to **enable sound** (browsers require it). Without it, mission control can't hear the puzzle 3 signal. Double-click, `F` or `Enter`: full screen.
 4. `ENTER` on the Cardputer to start the game.
+
+#### The Cardputer as mission control
+
+A second Cardputer can take the web page's place: **Multiplayer**, **Mission control**, then the same Wi-Fi as the crew (or the Explorer3 network, which the crew joins). The sound then comes out of this Cardputer.
+
+- It looks for the crews on the network by itself (Cardputer, Android or Raspberry Pi); the search takes 30 to 60 seconds. One found: it connects; several: ▲ ▼ to choose, `ENTER` to connect. If the crew is not found the first time: `ENTER`, search again.
+- `TAB`, at any time during the search: type the address shown on the crew's **Connect the screen** screen, then `ENTER`.
+- During the game it shows the crew's screen or the puzzle's page; `TAB` opens the puzzle's instructions (▲ ▼ to scroll them).
+- `ESC`: change crew, then back to the role choice.
 
 #### The coded keypad
 
@@ -301,7 +324,8 @@ pio run -t upload      # build and flash over USB
 
 - Platform `espressif32 @ 6.7.0` (Arduino core 2.0.x)
 - Libraries: M5Cardputer, M5Unified, M5GFX, WebSockets (links2004)
-- The game: `src/main.cpp`, its French and English texts: `src/textes.h`, multiplayer mode (Wi-Fi, web page, screen and sound stream): `src/diffusion.cpp`
+- The game: `src/main.cpp`, its French and English texts: `src/textes.h`, multiplayer mode (Wi-Fi, web page, screen and sound stream): `src/diffusion.cpp`, mission control: `src/controle.h` and `src/textes_controle.h`, with `src/controle/`, the network core shared with Android and the Raspberry Pi
+- Tests of that core, on a PC (Linux gcc, or WSL on Windows): `make -C tests`
 - Each published version (`v…` tag) is built by GitHub Actions, which attaches the `.bin` to the release.
 
 #### PC simulator

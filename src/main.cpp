@@ -28,6 +28,16 @@
 #include "diffusion.h"
 #include "mots.h"
 #include "textes.h"
+#include "textes_controle.h"
+
+// Centre de contrôle : le cœur commun avec Android et le Pi (protocole, recherche de l'équipage)
+extern "C" {
+#include "controle/addr.h"
+#include "controle/net.h"
+#include "controle/session.h"
+}
+#undef MAZE_W  // msg.h : les mêmes valeurs que les constantes du jeu, plus bas
+#undef MAZE_H
 
 #include <algorithm>
 #include <memory>
@@ -143,7 +153,7 @@ constexpr int ROCKET_W = 11;
 constexpr int ROCKET_H = 18;
 
 enum class St {
-    Lang, Mode, WifiList, SsidEntry, Password, Connecting, Address,
+    Lang, Mode, Role, WifiList, SsidEntry, Password, Connecting, Address, Control,
     Title, Briefing, Rules, Puzzle, Solved, Computer, Launch, Win, GameOver
 };
 
@@ -266,8 +276,10 @@ bool newRecord = false;
 
 // Multijoueur : le centre de contrôle a sa page web, le son part vers le
 // navigateur au lieu du haut-parleur
-bool multiMode = false;
-int modeSel = 0;  // 0 Cardputer seul, 1 multijoueur, 2 langue
+bool multiMode = false;    // équipage d'une partie à deux équipes
+bool controlMode = false;  // centre de contrôle : cet appareil suit l'équipage
+int modeSel = 0;  // 0 solo, 1 multijoueur, 2 langue
+int roleSel = 0;  // 0 équipage, 1 centre de contrôle
 
 // Texte du mode choisi : seul ou multijoueur
 const char *trm(Tx &solo, Tx &multi) {
@@ -1033,6 +1045,15 @@ void drawMode() {
     const char *infos[3] = {tr(MODE_SOLO_INFO), tr(MODE_MULTI_INFO), tr(MODE_LANG_INFO)};
     drawChoices(names, infos, 3, modeSel, 31, 28, 2);
     drawFooter(tr(MODE_FOOTER));
+}
+
+// Multijoueur : équipage ou centre de contrôle
+void drawRole() {
+    drawScreenTitle(tr(ROLE_TITLE));
+    const char *names[2] = {tr(ROLE_CREW), tr(ROLE_CONTROL)};
+    const char *infos[2] = {tr(ROLE_CREW_INFO), tr(ROLE_CONTROL_INFO)};
+    drawChoices(names, infos, 2, roleSel, 26, 38, 6);
+    drawFooter(tr(ROLE_FOOTER));
 }
 
 // Petit cadenas 7×8 (réseau protégé)
@@ -2117,6 +2138,8 @@ bool startScreenServer() {
     return true;
 }
 
+void startControl();
+
 // Réseau Explorer3 créé par le Cardputer (pas de box) : jamais mémorisé
 void startHotspot() {
     wifiError = "";
@@ -2125,10 +2148,40 @@ void startHotspot() {
         return;
     }
     prefs.putBool("auto", false);  // la prochaine fois : liste des Wi-Fi
-    if (startScreenServer()) {
+    if (controlMode) {
+        startControl();
+    } else if (startScreenServer()) {
         qrPage = false;  // d'abord le QR qui fait rejoindre le Wi-Fi
         apJoined = false;
         enter(St::Address);
+    }
+}
+
+// Centre de contrôle : écrans, réseau et son dans controle.h (Android et le Pi
+// mettent le leur à la place, voir leur documentation)
+#include "controle.h"
+
+// Le réseau est là : le centre de contrôle cherche l'équipage
+void startControl() {
+    controle::start();
+    enter(St::Control);
+}
+
+// Sortie du centre de contrôle : retour au choix du rôle
+void leaveControl() {
+    controle::stop();
+    controlMode = false;
+    enter(St::Role);
+}
+
+// Réseau du multijoueur, pour l'un ou l'autre rôle : la box mémorisée, sinon la liste des Wi-Fi
+void startNetwork() {
+    wifiSsid = prefs.getString("ssid", "");
+    wifiPass = prefs.getString("pass", "");
+    if (wifiSsid.isEmpty() || !prefs.getBool("auto", true)) {
+        startWifiScan();
+    } else {
+        startWifiConnect();  // box mémorisée
     }
 }
 
@@ -2179,27 +2232,35 @@ void handleKey(const KeysState &ks) {
                     enter(St::Lang);
                     break;
                 }
-                multiMode = modeSel == 1;
-                if (!multiMode) {
+                if (modeSel == 0) {
+                    multiMode = controlMode = false;
                     enter(St::Title);
-                    break;
-                }
-                wifiSsid = prefs.getString("ssid", "");
-                wifiPass = prefs.getString("pass", "");
-                if (wifiSsid.isEmpty() || !prefs.getBool("auto", true)) {
-                    startWifiScan();
                 } else {
-                    startWifiConnect();  // box mémorisée
+                    enter(St::Role);
                 }
+            }
+            break;
+
+        case St::Role:
+            if (hasChar(ks, ';') || hasChar(ks, '.')) {
+                roleSel = 1 - roleSel;
+                sfxClick();
+            } else if (ks.enter) {
+                sfxClick();
+                controlMode = roleSel == 1;
+                multiMode = !controlMode;  // le centre de contrôle joue ses sons lui-même
+                startNetwork();
+            } else if (hasChar(ks, '`')) {
+                enter(St::Mode);
             }
             break;
 
         case St::WifiList: {
             int count = wifiCount();
             if (hasChar(ks, '`')) {
-                multiMode = false;
+                multiMode = controlMode = false;
                 wifiError = "";
-                enter(St::Mode);
+                enter(St::Role);
             } else if (scanning) {
                 break;
             } else if (hasChar(ks, 'r') || hasChar(ks, 'R')) {
@@ -2259,6 +2320,12 @@ void handleKey(const KeysState &ks) {
         case St::Connecting:
             if (hasChar(ks, '`')) {
                 startWifiScan();
+            }
+            break;
+
+        case St::Control:
+            if (!controle::key(ks)) {
+                leaveControl();
             }
             break;
 
@@ -2419,6 +2486,12 @@ void handleKey(const KeysState &ks) {
 }
 
 void update(uint32_t now) {
+    if (state == St::Control) {
+        if (!controle::update(now)) {
+            leaveControl();
+        }
+        return;
+    }
     if (state == St::WifiList && (scanning || refining)) {
         std::vector<mirror::WifiNet> found;
         mirror::Scan r = mirror::pollScan(found);
@@ -2449,7 +2522,9 @@ void update(uint32_t now) {
             prefs.putString("ssid", wifiSsid);
             prefs.putString("pass", wifiPass);
             prefs.putBool("auto", true);
-            if (startScreenServer()) {
+            if (controlMode) {
+                startControl();
+            } else if (startScreenServer()) {
                 qrPage = true;
                 enter(St::Address);
             }
@@ -2585,6 +2660,8 @@ void render(uint32_t now) {
     switch (state) {
         case St::Lang: drawLang(); break;
         case St::Mode: drawMode(); break;
+        case St::Role: drawRole(); break;
+        case St::Control: controle::draw(now); break;
         case St::WifiList: drawWifiList(); break;
         case St::SsidEntry: drawTyping(tr(SSID_TITLE), tr(SSID_HINT), C_DIM, wifiSsid); break;
         case St::Password: drawTyping(tr(PASS_TITLE), wifiSsid, C_CYAN, wifiPass); break;

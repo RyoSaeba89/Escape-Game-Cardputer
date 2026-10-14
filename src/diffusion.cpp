@@ -105,7 +105,7 @@ const etat=document.getElementById('etat'),son=document.getElementById('son');
 // Textes de la page dans les deux langues ; le Cardputer envoie la sienne ("L,heure,fr").
 const TX={
  fr:{son:'Cliquer ou appuyer sur une touche pour activer le son',fs:'Double-clic, F ou Entrée : plein écran',
-  mg:'Flèches haut et bas : marge pour la télé',cx:'Connexion au Cardputer…',mt:'Marge télé : ',
+  mg:'Flèches haut et bas : marge pour la télé',cx:'Connexion à l’équipage…',mt:'Marge télé : ',
   eq:'CENTRE DE CONTRÔLE',tr:'RÈGLES',r1:'Vous êtes le centre de contrôle, sur Terre.',
   r2:"L'équipage a l'autre partie des indices : parlez-vous !",r3:"Ne montrez pas votre écran à l'équipage.",
   r4:"Le chrono démarre quand l'équipage appuie sur ENTRÉE.",
@@ -126,7 +126,7 @@ const TX={
   tc:'ORDINATEUR DE BORD : TABLE DE DÉCODAGE',
   pc:"L'équipage vous donne une lettre du code : décrivez-lui le symbole correspondant.",sa:'Symboles tapés'},
  en:{son:'Click or press a key to enable sound',fs:'Double-click, F or Enter: full screen',
-  mg:'Up and down arrows: TV margin',cx:'Connecting to the Cardputer…',mt:'TV margin: ',
+  mg:'Up and down arrows: TV margin',cx:'Connecting to the crew…',mt:'TV margin: ',
   eq:'MISSION CONTROL',tr:'RULES',r1:'You are mission control, on Earth.',
   r2:'The crew has the other half of the clues: talk to each other!',r3:"Don't show your screen to the crew.",
   r4:'The countdown starts when the crew presses ENTER.',
@@ -389,6 +389,11 @@ int nextRow = 0;          // reprise si une image ne tient pas dans un envoi
 uint8_t *frameBuf = nullptr;
 volatile int clients = 0;
 
+// Serveurs de l'équipage arrêtés pendant que ce Cardputer est le centre de
+// contrôle (stopServer) : demandé par le jeu, fait par la tâche réseau
+volatile bool serverWanted = true;
+bool serverOn = true;  // tâche réseau seulement
+
 // Page du centre de contrôle : dernier texte demandé par le jeu
 // (envoyé par la tâche réseau)
 portMUX_TYPE panelLock = portMUX_INITIALIZER_UNLOCKED;
@@ -449,8 +454,8 @@ void answerDns() {
         }
         p += dnsBuf[p] + 1;
     }
-    if (p + 5 > len) {
-        return;
+    if (p + 5 > len || p + 5 + 16 > (int)sizeof(dnsBuf)) {
+        return;  // question tronquée, ou pas la place de la réponse (16 octets)
     }
     bool typeA = dnsBuf[p + 1] == 0 && dnsBuf[p + 2] == 1;
     int n = p + 5;  // fin de la question, la suite (EDNS) n'est pas recopiée
@@ -599,8 +604,21 @@ void netTask(void *) {
         if (dnsRunning) {
             answerDns();
         }
-        http.handleClient();
-        ws.loop();
+        if (serverWanted != serverOn) {
+            serverOn = serverWanted;
+            if (serverOn) {
+                http.begin();
+                ws.begin();
+            } else {
+                ws.close();  // navigateurs déconnectés, plus rien sur les ports 80 et 81
+                http.stop();
+                clients = 0;
+            }
+        }
+        if (serverOn) {
+            http.handleClient();
+            ws.loop();
+        }
         SoundMsg m;
         while (xQueueReceive(soundQueue, &m, 0) == pdTRUE) {
             if (!clients) {
@@ -910,6 +928,7 @@ void announce() {
 bool startServer(const uint16_t *screen, int w, int h) {
     WiFi.setSleep(false);  // sinon le Wi-Fi s'endort entre deux paquets (saccades)
     announce();
+    serverWanted = true;  // rouverts par la tâche réseau s'ils étaient arrêtés
     if (screenMutex) {
         return true;  // déjà démarré (changement de Wi-Fi)
     }
@@ -957,6 +976,12 @@ bool startServer(const uint16_t *screen, int w, int h) {
     ws.enableHeartbeat(5000, 3000, 2);
     xTaskNotifyGive(task);
     return true;
+}
+
+// Centre de contrôle : ce Cardputer n'est plus un équipage (ni page, ni flux, ni nom)
+void stopServer() {
+    serverWanted = false;
+    MDNS.end();
 }
 
 int clientCount() {

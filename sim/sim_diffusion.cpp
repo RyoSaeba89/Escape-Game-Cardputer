@@ -73,13 +73,22 @@ String wifiQrText() {
     return String("WIFI:T:WPA;S:") + AP_SSID + ";P:" + AP_PASS + ";;";
 }
 
+// EXPLORER3_IP : l'adresse prise par le centre de contrôle pour chercher un vrai
+// équipage sur le réseau du PC (le simulateur ne fait que semblant d'être connecté)
 String ipAddress() {
+    const char *ip = getenv("EXPLORER3_IP");
+    if (ip && *ip) {
+        return ip;
+    }
     return ap ? "192.168.4.1" : "192.168.1.42";
 }
 
 bool startServer(const uint16_t *, int, int) {
     serverAt = millis();
     return true;
+}
+
+void stopServer() {
 }
 
 int clientCount() {

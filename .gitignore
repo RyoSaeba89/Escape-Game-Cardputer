@@ -1,3 +1,8 @@
 .pio/
 .vscode/
 *.bmp
+tests/test_msg
+tests/test_ws
+tests/test_rows
+tests/test_clock
+tests/test_net

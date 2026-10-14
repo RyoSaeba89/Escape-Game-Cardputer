@@ -4,7 +4,7 @@
 
 Ce document décrit le fonctionnement interne du jeu pour qui veut le compiler, le comprendre ou le modifier. Il ne donne pas les solutions des énigmes, mais elles sont en clair dans le code source.
 
-Version décrite : **v3.0.0** (pas encore publiée) : le code de démarrage est un mot tiré au hasard à chaque partie, avec sa question de QCM (réponses mélangées), son picross et, en multijoueur, son labyrinthe dont les cases ont un thème lié au mot, dessins compris (message `M`) ; aucun code ne figure dans ses énigmes (`tools/controle_codes.py`). Versions précédentes : en multijoueur, le centre de contrôle voit le curseur de l'équipage sur le picross ; textes revus (v2.2.2) ; en multijoueur, le bandeau de l'écran de fin défile sur la page elle-même, pour rester fluide sur un téléphone (v2.2.1) ; en multijoueur, nouveau code de démarrage ; le picross passe en énigme 2 et le labyrinthe en énigme 4 (grille 4×5 dont le chemin dessine une lettre) ; un bandeau défile sur l'écran de fin pour expliquer le code (v2.2). Versions précédentes : en multijoueur, l'énigme 2 devient un labyrinthe des planètes (v2.1) ; le mode « Avec écran » devient **Multijoueur**, un jeu à deux équipes (code propre au multijoueur, page du centre de contrôle à chaque énigme, page Règles) (v2.0). Avant : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
+Version décrite : **v4.0.0** : le jeu du Cardputer, d'[Explorer3-Android](https://github.com/RyoSaeba89/Explorer3-Android) et d'[Explorer3-RaspberryPi](https://github.com/RyoSaeba89/Explorer3-RaspberryPi) ont le même numéro de version et jouent ensemble. « Cardputer seul » devient **Solo** ; après « Multijoueur », un menu des rôles (**Équipage** ou **Centre de contrôle**) ; le Cardputer peut être le centre de contrôle d'un équipage Cardputer, Android ou Raspberry Pi (section 15), avec un cœur réseau commun aux trois versions (`src/controle/`, testé par `make -C tests`) ; la page dit « Connexion à l'équipage… ». Versions précédentes : le code de démarrage est un mot tiré au hasard à chaque partie, avec sa question de QCM (réponses mélangées), son picross et, en multijoueur, son labyrinthe dont les cases ont un thème lié au mot, dessins compris (message `M`) ; aucun code ne figure dans ses énigmes (`tools/controle_codes.py`) (v3.0.0) ; en multijoueur, le centre de contrôle voit le curseur de l'équipage sur le picross ; textes revus (v2.2.2) ; en multijoueur, le bandeau de l'écran de fin défile sur la page elle-même, pour rester fluide sur un téléphone (v2.2.1) ; en multijoueur, nouveau code de démarrage ; le picross passe en énigme 2 et le labyrinthe en énigme 4 (grille 4×5 dont le chemin dessine une lettre) ; un bandeau défile sur l'écran de fin pour expliquer le code (v2.2). Versions précédentes : en multijoueur, l'énigme 2 devient un labyrinthe des planètes (v2.1) ; le mode « Avec écran » devient **Multijoueur**, un jeu à deux équipes (code propre au multijoueur, page du centre de contrôle à chaque énigme, page Règles) (v2.0). Avant : jeu en français et en anglais, réseau Explorer3, QR codes, compatibilité Firefox 68 et console Ouya, simulateur PC (v1.5) ; écran du téléphone qui reste allumé dans Firefox et Brave (v1.6) ; portail captif sur le réseau Explorer3, pour que la page s'ouvre sur le téléphone même avec les données mobiles (v1.7) ; table du clavier codé adaptée au portrait, pour la fenêtre du portail captif de l'iPhone (v1.8).
 
 ## Sommaire
 
@@ -22,6 +22,7 @@ Version décrite : **v3.0.0** (pas encore publiée) : le code de démarrage est 
 12. [Limites connues et sécurité](#12-limites-connues-et-sécurité)
 13. [Modifier le jeu](#13-modifier-le-jeu)
 14. [Simulateur PC](#14-simulateur-pc)
+15. [Centre de contrôle sur le Cardputer](#15-centre-de-contrôle-sur-le-cardputer)
 
 ## 1. Vue d'ensemble
 
@@ -30,15 +31,15 @@ Version décrite : **v3.0.0** (pas encore publiée) : le code de démarrage est 
 | Matériel | M5Stack **Cardputer ADV** : ESP32-S3 (2 cœurs, 240 MHz), 8 Mo de flash, **pas de PSRAM**, écran 240×135, codec audio ES8311 (mono), clavier TCA8418 |
 | Framework | Arduino (core ESP32 2.0.x) via PlatformIO |
 | Langage | C++17 côté Cardputer, HTML/CSS/JavaScript pour la page web du mode multijoueur |
-| Fichiers | `src/main.cpp` (le jeu), `src/textes.h` (textes français et anglais), `src/mots.h` (codes de démarrage et données de leurs énigmes), `src/dessins.h` (dessins des cases des labyrinthes), `src/diffusion.cpp` et `src/diffusion.h` (le mode multijoueur), `sim/` (simulateur PC) |
+| Fichiers | `src/main.cpp` (le jeu), `src/textes.h` (textes français et anglais), `src/mots.h` (codes de démarrage et données de leurs énigmes), `src/dessins.h` (dessins des cases des labyrinthes), `src/diffusion.cpp` et `src/diffusion.h` (le mode multijoueur, rôle Équipage), `src/controle.h`, `src/textes_controle.h` et `src/controle/` (rôle Centre de contrôle, section 15), `sim/` (simulateur PC), `tests/` (tests du cœur réseau sur PC) |
 | Licence | MIT |
 
 Le jeu dure 5 minutes : 4 énigmes à résoudre dans l'ordre, chacune donne une lettre d'un code de 4 lettres à taper sur l'ordinateur de bord pour faire décoller la fusée. Le code est un mot tiré au hasard à chaque partie dans une liste propre à chaque langue (section 7).
 
 Le jeu est en **français ou en anglais**, au choix au premier démarrage (section 3). Deux modes sont proposés ensuite :
 
-- **Cardputer seul** : tout se passe sur le Cardputer.
-- **Multijoueur** : un jeu à deux équipes, avec seulement les codes qui ont un labyrinthe. L'**équipage** joue sur le Cardputer, le **centre de contrôle** sur la page web d'un PC, d'une télé ou d'un téléphone. Le Cardputer se connecte au Wi-Fi de la box (ou crée le sien, Explorer3) et sert lui-même cette page. Le son sort de la page. Pendant les énigmes et sur l'ordinateur de bord, la page montre au centre de contrôle la partie des indices que l'équipage n'a pas (section 10) ; le reste du temps, elle recopie l'écran du Cardputer.
+- **Solo** (« Tout le jeu sur cet appareil ») : tout se passe sur le Cardputer.
+- **Multijoueur** : un jeu à deux équipes, avec seulement les codes qui ont un labyrinthe. Un menu demande le rôle de ce Cardputer. En **Équipage**, il joue, se connecte au Wi-Fi de la box (ou crée le sien, Explorer3) et sert lui-même la page du **centre de contrôle**, ouverte sur un PC, une télé ou un téléphone, ou suivie par un autre appareil en rôle Centre de contrôle (Cardputer, Android, Raspberry Pi). Le son sort du centre de contrôle. En **Centre de contrôle**, il suit la partie d'un équipage du réseau (section 15). Pendant les énigmes et sur l'ordinateur de bord, la page montre au centre de contrôle la partie des indices que l'équipage n'a pas (section 10) ; le reste du temps, elle recopie l'écran du Cardputer.
 
 ## 2. Compiler et installer
 
@@ -51,7 +52,8 @@ Configuration de `platformio.ini` (environnement `cardputer-adv`, celui par déf
 | Plateforme | `espressif32 @ 6.7.0` (Arduino core 2.0.x) |
 | Carte | `esp32-s3-devkitc-1`, flash 8 Mo, partitions `default_8MB.csv` (application jusqu'à 3,3 Mo) |
 | USB | `ARDUINO_USB_CDC_ON_BOOT=1`, `ARDUINO_USB_MODE=1` (port série par l'USB natif) |
-| Bibliothèques | `m5stack/M5Cardputer ^1.1.1`, `m5stack/M5Unified ^0.2.11`, `m5stack/M5GFX ^0.2.17`, `links2004/WebSockets ^2.6.1` (versions utilisées pour la v2.2 : 1.1.1, 0.2.25, 0.2.32 et 2.7.3) |
+| Bibliothèques | Versions exactes, pour que le `.bin` de la release soit compilé avec celles qui ont été essayées : `m5stack/M5Cardputer @ 1.1.1`, `m5stack/M5Unified @ 0.2.25`, `m5stack/M5GFX @ 0.2.32`, `links2004/WebSockets @ 2.7.3`, `z3t0/IRremote @ 4.7.1` (demandée par M5Cardputer sans version) |
+| Centre de contrôle | `NET_BATCH=8`, `NET_CONNECT_MS=700` : la recherche de l'équipage ouvre 8 connexions à la fois et attend 0,7 s chacune (section 15) |
 
 ```
 pio run                # compile
@@ -96,7 +98,7 @@ Tout le jeu est dans `src/main.cpp`, dans un espace de noms anonyme. Les section
 | logique | Transitions (`enter`, `startPuzzle`, `solvePuzzle`…), clavier (`handleKey`), mise à jour (`update`), pause |
 | `setup()` / `loop()` | Démarrage et boucle principale |
 
-`src/diffusion.cpp` contient tout ce qui touche au réseau, derrière l'interface `mirror::` déclarée dans `src/diffusion.h`. `main.cpp` n'inclut ni le Wi-Fi ni les serveurs.
+`src/diffusion.cpp` contient tout ce qui touche au réseau de l'équipage, derrière l'interface `mirror::` déclarée dans `src/diffusion.h`. `main.cpp` n'inclut ni le Wi-Fi ni les serveurs ; il inclut `controle.h` (le centre de contrôle, dans son espace de noms) et les en-têtes du cœur réseau `src/controle/` (section 15).
 
 ### Textes et langues (`src/textes.h`)
 
@@ -131,7 +133,8 @@ Espace `Preferences` nommé `explorer3` :
 | `lang` | uchar | Langue (0 français, 1 anglais). Absente au premier démarrage : l'écran de langue s'affiche |
 | `best_o2` | uint | Record : plus grande réserve d'O₂ restante à la victoire (ms) |
 | `ssid`, `pass` | chaîne | Dernier Wi-Fi de box utilisé, enregistré seulement après une connexion réussie |
-| `mot_s`, `mot_m` | chaîne | Code de la partie précédente, Cardputer seul et multijoueur : `chooseWord()` ne le reprend pas la fois suivante |
+| `mot_s`, `mot_m` | chaîne | Code de la partie précédente, Solo et multijoueur : `chooseWord()` ne le reprend pas la fois suivante |
+| `ctl_ip` | chaîne | Centre de contrôle : adresse du dernier équipage joint, proposée à la saisie de l'adresse si elle est sur le même réseau |
 | `auto` | bool | `true` : « Multijoueur » se reconnecte directement à `ssid`. Mis à `false` quand on crée le réseau Explorer3, pour repasser la fois suivante par la liste des Wi-Fi. Absente = `true` |
 
 ## 4. Boucle principale et machine à états
@@ -156,24 +159,29 @@ stateDiagram-v2
     [*] --> Mode : langue mémorisée
     Lang --> Mode : ENTRÉE
     Mode --> Lang : Langue / Language
-    Mode --> Title : Cardputer seul
-    Mode --> Connecting : Multijoueur, box mémorisée
-    Mode --> WifiList : Multijoueur, sinon
+    Mode --> Title : Solo
+    Mode --> Role : Multijoueur
+    Role --> Mode : retour
+    Role --> Connecting : un rôle, box mémorisée
+    Role --> WifiList : un rôle, sinon
     WifiList --> Password : réseau protégé
     WifiList --> Connecting : réseau ouvert
     WifiList --> SsidEntry : Autre réseau
-    WifiList --> Address : Créer le réseau Explorer3
-    WifiList --> Mode : retour
+    WifiList --> Address : Créer le réseau Explorer3 (Équipage)
+    WifiList --> Control : Créer le réseau Explorer3 (Centre de contrôle)
+    WifiList --> Role : retour
+    Connecting --> Control : connecté (Centre de contrôle)
+    Control --> Role : ESC depuis la recherche
     SsidEntry --> Password : ENTRÉE
     SsidEntry --> WifiList : retour
     Password --> Connecting : ENTRÉE
     Password --> WifiList : retour
-    Connecting --> Address : connecté (serveur démarré)
+    Connecting --> Address : connecté (Équipage, serveur démarré)
     Connecting --> WifiList : mot de passe refusé, échec après 20 s, ou retour
     Address --> Title : ENTRÉE
     Address --> WifiList : retour
     Title --> Briefing : ENTRÉE
-    Briefing --> Puzzle : ENTRÉE, Cardputer seul (le chrono démarre)
+    Briefing --> Puzzle : ENTRÉE, Solo (le chrono démarre)
     Briefing --> Rules : ENTRÉE, multijoueur
     Rules --> Puzzle : ENTRÉE (le chrono démarre)
     Puzzle --> Solved : énigmes 1 à 3 résolues
@@ -191,10 +199,12 @@ stateDiagram-v2
 | État | Écran | Remarques |
 |---|---|---|
 | `Lang` | Langue / Language | Au premier démarrage, puis depuis le choix du mode |
-| `Mode` | Cardputer seul / Multijoueur / Langue | |
-| `WifiList`, `SsidEntry`, `Password`, `Connecting`, `Address` | Configuration du mode multijoueur | Section 9.3 |
+| `Mode` | Solo / Multijoueur / Langue | |
+| `Role` | Équipage / Centre de contrôle | `roleSel` ; le rôle donne `multiMode` (équipage) ou `controlMode` (centre de contrôle) |
+| `WifiList`, `SsidEntry`, `Password`, `Connecting`, `Address` | Configuration du mode multijoueur, les mêmes écrans pour les deux rôles | Section 9.3 |
+| `Control` | Centre de contrôle | Touches, mise à jour et dessin confiés à `controle::key()`, `update()`, `draw()` ; section 15 |
 | `Title` | Titre (Mars, fusée couchée) | |
-| `Briefing` | Journal de bord (texte du mode) | Cardputer seul : ENTRÉE démarre le chrono |
+| `Briefing` | Journal de bord (texte du mode) | Solo : ENTRÉE démarre le chrono |
 | `Rules` | Règles de l'équipage (multijoueur) | Le centre de contrôle a les siennes ; ENTRÉE démarre le chrono |
 | `Puzzle` | Énigme `puzzle` (0 à 3) | |
 | `Solved` | Partie du vaisseau réparée, lettre gravée dessus | |
@@ -235,8 +245,8 @@ Le haut-parleur de M5Unified mélange plusieurs canaux virtuels :
 
 C'est le **seul endroit** où le son sort, ce qui permet au mode multijoueur de l'envoyer au navigateur au lieu du haut-parleur (section 9.5) :
 
-- `runNotes` appelle `Speaker.tone()` sur le Cardputer seul, et `mirror::sendTone()` en multijoueur ;
-- `cancelChannel` et `stopAllSound` appellent `Speaker.stop()` sur le Cardputer seul, et `mirror::sendStop()` en multijoueur ;
+- `runNotes` appelle `Speaker.tone()` en Solo et en centre de contrôle, et `mirror::sendTone()` en équipage ;
+- `cancelChannel` et `stopAllSound` appellent `Speaker.stop()` en Solo et en centre de contrôle, et `mirror::sendStop()` en équipage ;
 - `channelPlaying(ch)` remplace `Speaker.isPlaying(ch)`. En multijoueur, il se base sur `chanUntil[ch]`, l'heure de fin de la note en cours, puisque le haut-parleur ne joue rien.
 
 ### Décollage
@@ -255,7 +265,7 @@ Les mécanismes sont décrits ici, pas les réponses. L'ordre des énigmes dépe
 | `Picross` | Picross 5×5 ; les indices des lignes et colonnes sont calculés au début de l'énigme à partir du dessin de la lettre de l'énigme (`mots::picross()`) | 3 | 2 | `buildClues()`, `lineClues()`, `picrossSolved()` |
 | `Sound` | Signal Morse sonore, 700 Hz, unité `SOUND_UNIT_MS` = 200 ms ; on tape la lettre | 4 | 3 | `startMorseSound()`, `drawPuzzleSoundMulti()` |
 
-- Cardputer seul : `TAB` affiche l'alphabet Morse (`drawMorseHelp()`), n'importe quelle touche le ferme, `ESPACE` relance le signal (« revoir » pour le voyant, « réécouter » pour le son).
+- Solo : `TAB` affiche l'alphabet Morse (`drawMorseHelp()`), n'importe quelle touche le ferme, `ESPACE` relance le signal (« revoir » pour le voyant, « réécouter » pour le son).
 - Multijoueur : pas de `TAB`. `ESPACE` relance le signal, qui sort sur la page du centre de contrôle pour le son. Ce que voit chaque équipe est décrit section 10.
 - Une mauvaise lettre déclenche `penalty()`. Une bonne lettre appelle `solvePuzzle()`. Au QCM, la question peut prendre 3 lignes : « X : ACCÈS REFUSÉ » remplace alors le pied de page, comme à l'énigme 3 du multijoueur.
 - Le picross est validé quand la grille est **identique** au motif (`picrossSolved()`). Les cases allumées sont orange sur fond sombre ; les indices d'une ligne ou d'une colonne passent en vert dès qu'elle les respecte (`rowOk()`, `colOk()`). En multijoueur, l'équipage voit des « ? » à la place des chiffres, qui passent aussi au vert.
@@ -294,7 +304,8 @@ Le centre de contrôle n'a rien à installer : le Cardputer sert lui-même la pa
 | `connect(ssid, pass)`, `link()`, `failure()`, `attempt()` | Connexion à une box, nom d'hôte `explorer3`. `link()` : `Connecting`, `Connected` ou `BadPassword` ; `failure()` : cause probable après le délai (`NotFound` ou `NoAnswer`) ; `attempt()` : numéro de l'essai en cours |
 | `startAccessPoint()`, `accessPoint()`, `apClients()`, `wifiQrText()` | Réseau Explorer3 créé par le Cardputer (section 9.3) |
 | `ipAddress()` | Adresse IP sur la box ou sur Explorer3 (`192.168.4.1`) |
-| `startServer(screen, w, h)` | Démarre la page web, le WebSocket, la tâche réseau et annonce `explorer3.local`, en recevant l'adresse du tampon de l'écran. Renvoie `false` sans rien démarrer si la mémoire manque. Un second appel (changement de réseau) annonce de nouveau le nom mDNS et coupe la mise en veille du Wi-Fi |
+| `startServer(screen, w, h)` | Démarre la page web, le WebSocket, la tâche réseau et annonce `explorer3.local`, en recevant l'adresse du tampon de l'écran. Renvoie `false` sans rien démarrer si la mémoire manque. Un second appel (changement de réseau, retour en équipage) rouvre les serveurs arrêtés, annonce de nouveau le nom mDNS et coupe la mise en veille du Wi-Fi |
+| `stopServer()` | Rôle Centre de contrôle : la tâche réseau ferme le WebSocket (navigateurs déconnectés) et le serveur web, et le nom mDNS est retiré. Ce Cardputer n'apparaît plus comme équipage dans la recherche d'un autre centre de contrôle |
 | `clientCount()` | Nombre de navigateurs connectés (affiche « Navigateur connecté ») |
 | `lockScreen()`, `unlockScreen()` | Verrou (mutex FreeRTOS) autour du dessin ; ne fait rien tant que le serveur n'est pas démarré |
 | `sendTone()`, `sendStop()`, `sendRumble()` | Sons à jouer par le navigateur (section 9.5) |
@@ -348,7 +359,7 @@ Avec Explorer3, l'écran passe tout seul au QR code de la page dès qu'un appare
 
 **Portail captif (Explorer3).** Explorer3 n'a pas d'accès à Internet. Un téléphone Android qui a aussi les données mobiles garde alors la 4G comme réseau principal, et son navigateur l'utilise pour toutes les adresses, `192.168.4.1` comprise : la page ne s'ouvre pas. `explorer3.local` échoue aussi, car Android ne résout pas les noms `.local` par les données mobiles, et taper `http://` devant n'y change rien. Aucune page web ne peut choisir le réseau utilisé. Le Cardputer se comporte donc comme le Wi-Fi d'un hôtel, pour que le système ouvre lui-même la page dans sa fenêtre « Se connecter au réseau », qui passe par le Wi-Fi même quand la 4G est allumée :
 
-- **DNS** (`answerDns()`, port 53, seulement en point d'accès) : à une demande d'adresse IPv4 (type A), pour n'importe quel nom, il répond `192.168.4.1`, avec une durée de vie de 10 s pour que rien ne reste en cache après la partie. Aux autres types (AAAA, HTTPS…), il fait une réponse vide. Les paquets mal formés ou de plus de 512 octets sont ignorés. Ce petit répondeur remplace la bibliothèque `DNSServer` du core Arduino, qui ne vérifie pas la longueur des noms reçus.
+- **DNS** (`answerDns()`, port 53, seulement en point d'accès) : à une demande d'adresse IPv4 (type A), pour n'importe quel nom, il répond `192.168.4.1`, avec une durée de vie de 10 s pour que rien ne reste en cache après la partie. Aux autres types (AAAA, HTTPS…), il fait une réponse vide. Les paquets mal formés ou de plus de 512 octets sont ignorés, ainsi qu'une question si longue que la réponse (16 octets de plus) ne tiendrait pas dans le tampon de 512 octets. Ce petit répondeur remplace la bibliothèque `DNSServer` du core Arduino, qui ne vérifie pas la longueur des noms reçus.
 - **Redirection** (`redirectToPage()`) : une requête HTTP dont l'en-tête `Host` n'est ni `192.168.4.1` ni `explorer3.local` reçoit une redirection `302` vers `http://192.168.4.1/`. C'est le cas des tests de connexion d'Android (`connectivitycheck.gstatic.com/generate_204`…), de l'iPhone (`captive.apple.com`) et de Windows (`msftconnecttest.com`) : le système conclut à un portail et affiche la page. Les tests en HTTPS échouent tout de suite, rien n'écoutant sur le port 443.
 - Sur Android, la fenêtre s'ouvre toute seule ou par la notification « Se connecter au réseau », selon le téléphone. Le reste du téléphone garde Internet par la 4G. Sur la box, rien de tout cela n'est actif.
 
@@ -398,7 +409,7 @@ Les navigateurs interdisent le son avant une action de l'utilisateur. Le context
 `netTask` est épinglée sur le cœur 0, avec une priorité de 1 et une pile de 6 Ko. `startServer()` la crée en premier : elle attend un signal (`ulTaskNotifyTake`) pendant que les serveurs démarrent. Si la tâche ne peut pas être créée, rien n'a encore été démarré. Ensuite elle boucle sur :
 
 1. sur Explorer3 : démarrage ou arrêt du DNS selon le mode Wi-Fi, puis réponse à une question en attente ;
-2. `http.handleClient()` et `ws.loop()` ;
+2. arrêt ou redémarrage des serveurs demandé par `stopServer()` ou `startServer()` (`serverWanted`) : `ws.close()` et `http.stop()`, ou `http.begin()` et `ws.begin()` ; puis, s'ils tournent, `http.handleClient()` et `ws.loop()` ;
 3. envoi des sons en attente (file FreeRTOS de 64 éléments, remplie sans attente par le jeu) ;
 4. envoi de la langue si elle a changé ;
 5. envoi du thème du labyrinthe (`M`), puis de l'état de la page du centre de contrôle, s'ils ont changé ;
@@ -486,12 +497,13 @@ Le clavier s'affiche 600 ms après la dernière ligne du terminal (`keypadShown(
 
 ## 11. Mémoire et performances
 
-Valeurs mesurées sur la v2.2 :
+Valeurs mesurées sur la v4.0.0 :
 
 | Élément | Taille |
 |---|---|
-| Programme | ~1,41 Mo sur 3,3 Mo (42 %), dont la page web ~22 Ko et le répondeur mDNS ~40 Ko |
-| RAM statique | ~72 Ko sur 320 Ko (22 %), dont le bruit du décollage (16 Ko) et le tampon du DNS (512 octets) |
+| Programme | ~1,47 Mo sur 3,3 Mo (44 %), dont la page web ~22 Ko et le répondeur mDNS ~40 Ko |
+| RAM statique | ~88 Ko sur 320 Ko (27 %), dont le bruit du décollage (16 Ko) et le tampon du DNS (512 octets) |
+| Centre de contrôle (tas) | La session (`session_t`, ~86 Ko : copie de l'écran de l'équipage, réception d'un message de 16 Ko, état des pages), allouée à la première entrée dans le rôle et gardée ensuite |
 | Sprite de l'écran (tas) | 64 800 octets |
 | Mode multijoueur (tas) | Tampon d'envoi 12 Ko, pile de la tâche réseau 6 Ko, file des sons ~1 Ko, plus la pile Wi-Fi, lwIP et mDNS |
 | Débit d'image | 5 à 10 Ko par écran complet, beaucoup moins quand peu de choses bougent ; 25 images/s au plus |
@@ -511,6 +523,8 @@ Sans PSRAM, il faut éviter les grosses allocations : pas de second sprite plein
 - Sur la Ouya, le blocage de la mise en veille par la vidéo invisible (section 9.8) n'a pas été vérifié sur la console.
 - Les causes d'échec Wi-Fi viennent du pilote : « Mot de passe refusé » peut, rarement, venir d'un signal très faible.
 - Sur Explorer3, avec un téléphone Android qui a les données mobiles, la page marche dans la fenêtre « Se connecter au réseau » (portail captif, section 9.3), pas dans un navigateur ouvert à la main : Firefox, Brave ou le QR code de la page passent par la 4G. Dans cette fenêtre, pas de plein écran.
+- Centre de contrôle : la recherche de l'équipage prend 30 à 60 s (254 adresses, 2 ports, 8 à la fois). Un appareil qui répond lentement au premier contact peut être manqué : « ENTRÉE : chercher encore », ou `TAB` pour taper son adresse.
+- Centre de contrôle après une partie en équipage sans redémarrer : la session de 86 Ko s'ajoute à ce que le rôle Équipage a gardé (tampon d'envoi, tâche réseau, pile Wi-Fi) ; si l'allocation échoue, « Mémoire insuffisante : relancer le jeu ».
 - Le portail captif a été vérifié sur Android et sur iPhone. Sur iPhone, sa fenêtre reste en portrait (section 10). Sous Windows, le système ouvre aussi sa propre fenêtre : pas encore vérifié.
 
 ## 13. Modifier le jeu
@@ -523,6 +537,7 @@ Sans PSRAM, il faut éviter les grosses allocations : pas de second sprite plein
 - **Ajouter ou modifier un symbole du clavier codé** : changer le dessin 12×12 dans `SYMBOLS[]` (et `SYM_COUNT` pour un ajout). La page reçoit le même dessin tout seul (`/sym.js`). Au-delà de 16 symboles, le numéro sur un seul chiffre hexadécimal ne suffit plus et il faut changer le format de la table.
 - **Modifier la page du centre de contrôle** : elle est entièrement dans la chaîne `PAGE` de `diffusion.cpp` (HTML, CSS et JavaScript d'un seul bloc), textes compris (objet `TX`). Respecter les règles de compatibilité de la section 9.8 pour ne pas perdre Firefox 68 et la Ouya.
 - **Après un changement d'interface**, vérifier chaque écran dans les deux langues avec le simulateur, et utiliser `fit()` pour les textes de longueur variable comme les noms de Wi-Fi.
+- **Modifier le cœur réseau** (`src/controle/*.c`, section 15) : lancer `make -C tests` (gcc de Linux, ou WSL sous Windows), puis recopier les fichiers à l'identique dans Explorer3-Android (`jni/control/`) et Explorer3-RaspberryPi (`src/control/`) : les trois versions doivent parler le même protocole.
 
 ## 14. Simulateur PC
 
@@ -539,3 +554,20 @@ Sans PSRAM, il faut éviter les grosses allocations : pas de second sprite plein
 `random()` reproduit celui de l'ESP32 (le `rand()` de newlib après `randomSeed()`) : le ciel étoilé du titre est le même que sur le Cardputer. Avec `--seed n`, le hasard de la partie est reproductible (même code, même QCM). Avec la variable `EXPLORER3_THEME`, `setMazeTheme()` écrit le message `M` dans ce fichier, pour essayer la page du centre de contrôle sans Cardputer. Les images des pages GitHub (`docs/images/titre-fr.png`, `titre-en.png`) viennent du simulateur, agrandies ×4.
 
 L'environnement `simulateur` de `platformio.ini` utilise `platform = native`, le gcc et SDL2 de MSYS2 (UCRT64) sous Windows. Il ne fait pas partie de `pio run` (`default_envs = cardputer-adv`) ni de la release.
+
+## 15. Centre de contrôle sur le Cardputer
+
+Rôle **Centre de contrôle** du menu des rôles : le Cardputer remplace la page web et suit la partie d'un équipage (Cardputer, Android ou Raspberry Pi) sur le même réseau. Une fois le Wi-Fi en place (box ou réseau Explorer3, mêmes écrans qu'en équipage), `startControl()` appelle `controle::start()` et passe à l'état `Control` ; `ESC` depuis la recherche revient au menu des rôles (`leaveControl()`).
+
+| Fichier | Rôle |
+|---|---|
+| `src/controle.h` | Écrans à 240×135 (maquettes validées), touches, son par le haut-parleur, bandeau de fin ; inclus par `main.cpp` dans son espace de noms |
+| `src/textes_controle.h` | Ses textes, dont ceux de la page web (règles, énigmes) |
+| `src/controle/*.c` | Le **cœur réseau commun** aux trois versions, en C pur : `net.c` (recherche, connexion TCP), `ws.c` (client WebSocket), `msg.c` (lecture des messages `P T S R K L B M`), `rows.c` (lignes d'écran), `session.c` (une connexion : poignée de main, messages, pongs, délais), `panel.c` (état des pages), `clocksync.c` (horloge de l'équipage), `addr.c` (adresses). Les mêmes fichiers, à l'identique, sont dans Explorer3-Android (`jni/control/`) et Explorer3-RaspberryPi (`src/control/`) |
+| `tests/` | Tests de ce cœur sur PC (`make -C tests`) : messages, WebSocket, lignes d'écran, horloge, recherche face à un faux équipage |
+
+**Recherche de l'équipage** (`finder_start()`, `net.c`, fil séparé) : les 254 adresses du /24 de ce Cardputer, ports 81 (Cardputer, Pi) et 8081 (Android), par lots de `NET_BATCH` = 8 connexions qui attendent `NET_CONNECT_MS` = 700 ms. Un port ouvert est confirmé en demandant `/sym.js` sur 80 ou 8080, avec `Host` = l'adresse (sinon le portail captif d'un équipage sur Explorer3 redirigerait). Un seul équipage trouvé : connexion directe ; plusieurs : liste (4 au plus) ; aucun : « Aucun équipage trouvé », `ENTRÉE` pour chercher encore. `TAB`, à tout moment de la recherche : saisie de l'adresse (chiffres et points), vérifiée par `addr_check()` (une adresse d'un autre réseau est signalée, pas refusée), puis sondée sur les deux ports ; une demande faite pendant une recherche la remplace au lot suivant. La dernière adresse jointe est gardée (`ctl_ip`).
+
+**Partie.** `session.c` ouvre le WebSocket et lit les messages ; le Cardputer affiche la copie de l'écran de l'équipage (lignes `rows`), ou la page de l'énigme en cours dessinée à 240×135 : alphabet Morse, picross avec les vrais chiffres et le curseur de l'équipage, haut-parleur de l'énigme 3, labyrinthe avec la légende des 8 images et leurs noms (choix M1), table du clavier codé. `TAB` ouvre les consignes de la page (▲ ▼ pour les faire défiler si elles dépassent l'écran). Le chrono O₂ et les lettres des énigmes sont en haut, un cadre rouge clignote à chaque erreur. Les sons (`T`, `S`, `R`) passent par l'ordonnanceur du jeu (`schedule()`) avec 150 ms de marge, le grondement par `playRaw()`. Connexion perdue ou 30 s de silence : reconnexion toute seule, l'image reste. `ESC` : changer d'équipage (retour à la recherche).
+
+**Serveurs.** `controle::start()` appelle `mirror::stopServer()` : un Cardputer qui a été équipage plus tôt ferme sa page, son flux et son nom, pour ne pas apparaître comme équipage dans la recherche d'un autre centre de contrôle ; `startServer()` les rouvre au retour en équipage.

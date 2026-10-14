@@ -51,6 +51,8 @@ String ipAddress();  // "192.168.1.42" (box) ou "192.168.4.1" (Explorer3)
 // false si la mémoire manque (rien n'est démarré). À rappeler après chaque
 // changement de réseau : le nom explorer3.local est alors annoncé de nouveau.
 bool startServer(const uint16_t *screen, int w, int h);
+// Centre de contrôle : plus de page, de flux ni de nom (startServer les rouvre)
+void stopServer();
 int clientCount();
 
 // À appeler autour du dessin de l'écran (le flux le lit depuis l'autre cœur)

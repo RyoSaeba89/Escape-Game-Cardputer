@@ -5,8 +5,9 @@ Pour chaque code de src/mots.h, relit ce que les joueurs voient pendant ses
   - sa question et ses 4 réponses (QCM, Cardputer seul) ;
   - les noms et l'indice de son labyrinthe, ou les planètes de la page
     (multijoueur) ;
-  - les textes fixes des énigmes : src/textes.h, la page de src/diffusion.cpp
-    et, si le dépôt est à côté, source/texts.c de GC-Explorer3.
+  - les textes fixes des énigmes : src/textes.h, la page de src/diffusion.cpp,
+    les pages du centre de contrôle du Cardputer (src/textes_controle.h) et,
+    si le dépôt est à côté, source/texts.c de GC-Explorer3.
 Sans accents ni majuscules, un mot du texte est refusé s'il est le code, son
 pluriel ou, pour un code qui finit par S, son singulier, ou s'il commence ou
 finit par le code (« starship »). AUTORISES liste les mots qui contiennent un
@@ -39,6 +40,11 @@ MULTI = ['P1_TITLE', 'P1_TEXT_MULTI', 'P1_FOOTER_MULTI', 'P2_TITLE_MULTI', 'P2_P
 PAGE = ['t1', 'p1', 'q1', 't2', 'p2', 't3', 'p3', 'q3', 't4', 'e4', 'ent', 'sor', 'tc', 'pc', 'sa']
 PAGE_PLANETS = ['p4', 'h4']    # labyrinthe sans thème
 PAGE_THEME = ['p4t']           # labyrinthe à thème
+# Les mêmes pages sur le centre de contrôle du Cardputer (textes_controle.h, noms exacts)
+CONTROLE = ['P_T1', 'P_P1', 'P_Q1', 'P_T2', 'P_P2', 'P_GREEN', 'P_T3', 'P_P3', 'P_Q3', 'P_T4', 'P_E4',
+            'P_TC', 'P_PC', 'P_SA']
+CONTROLE_PLANETS = ['P_P4', 'P_H4', 'P_PLANETS']
+CONTROLE_THEME = ['P_P4T']
 
 
 def lire(chemin):
@@ -79,6 +85,14 @@ def textes_h(textes, prefixes):
     return out
 
 
+def textes_exacts(textes, noms):
+    """Comme textes_h(), pour ces noms exactement (P_P4 ne prend pas P_P4T)."""
+    out = textes_h(textes, noms)
+    for lang in out:
+        out[lang] = [(ou, t) for ou, t in out[lang] if ou.split()[-1] in noms]
+    return out
+
+
 def page_tx(diff):
     """{langue: {clé: texte}} de l'objet TX de la page (tableaux compris)."""
     tx = re.search(r'const TX=\{(.*?)\}\};', diff, re.S).group(1)
@@ -112,6 +126,9 @@ def main():
     page = page_tx(lire(os.path.join(ROOT, 'src', 'diffusion.cpp')))
     gc = gc_textes(GC)
     fixes = {'solo': textes_h(textes, SOLO), 'multi': textes_h(textes, MULTI)}
+    controle = lire(os.path.join(ROOT, 'src', 'textes_controle.h'))
+    ctl = {'': textes_exacts(controle, CONTROLE), 'pl': textes_exacts(controle, CONTROLE_PLANETS),
+           'th': textes_exacts(controle, CONTROLE_THEME)}
 
     themes = {}
     for m in re.finditer(r'const Theme (\w+) = \{(.*?)\};', mots, re.S):
@@ -138,6 +155,7 @@ def main():
                     cles = PAGE + (PAGE_THEME if theme != 'nullptr' else PAGE_PLANETS)
                     vu += [('page ' + k, page[lang][k]) for k in cles if k in page[lang]]
                     vu += [('GC ' + k, gc[lang][k]) for k in cles if k in gc[lang]]
+                    vu += ctl[''][lang] + ctl['th' if theme != 'nullptr' else 'pl'][lang]
                     if theme == 'nullptr':
                         vu += [('page pl', p) for p in page[lang]['pl']]
                     else:
